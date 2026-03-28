@@ -13,12 +13,15 @@ export default class StrategyEngine {
   generateSignal(symbol, candles) {
     if (candles.length < 50) return null;
 
-    // 1. Check killzone using candle timestamp (not real clock)
     const lastCandle = candles[candles.length - 1];
-    const inKillzone = this._checkKillzone(lastCandle.timestamp);
-    if (!inKillzone.allowed && inKillzone.strict) {
-      return null;
-    }
+    const isWeekend = this._isWeekend(lastCandle.timestamp);
+
+    // 1. Killzone check — weekends have no sessions, so KZ is always "allowed" but without boost
+    const killzone = isWeekend
+      ? { allowed: true, overlap: false, strict: false, session: 'weekend', isWeekend: true }
+      : this._checkKillzone(lastCandle.timestamp);
+
+    if (!killzone.allowed && killzone.strict) return null;
 
     // 2. Detect current regime
     const regimeResult = this.regime.detect(symbol, candles);
@@ -34,35 +37,49 @@ export default class StrategyEngine {
     const footprintResult = this.footprint.analyze(symbol, candles);
 
     // 5. Score signals — strict confluence required
-    const signal = this._scoreWithConfluence(regime, ictResult, footprintResult, regimeResult, inKillzone);
+    const signal = this._scoreWithConfluence(regime, ictResult, footprintResult, regimeResult, killzone, isWeekend);
     if (!signal) return null;
 
     // 6. Apply regime-specific filters
-    const filtered = this._applyRegimeFilters(signal, regime, regimeResult, candles);
+    const filtered = this._applyRegimeFilters(signal, regime, regimeResult, candles, isWeekend);
     if (!filtered) return null;
 
-    // 7. Rate limit (uses candle timestamp in backtest)
+    // 7. Entry confirmation — reject if no candle pattern validates the ICT zone
+    if (config.strategy.entryConfirmation.enabled) {
+      const confirmed = this._checkEntryConfirmation(candles, filtered);
+      if (!confirmed) return null;
+    }
+
+    // 8. Rate limit (uses candle timestamp in backtest)
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
     this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();
     return filtered;
   }
 
+  // ── Weekend Detection ─────────────────────────────────────────────
+  // Sat 00:00 UTC → Sun 23:59 UTC
+  // Weekend crypto: lower volume, more vertical moves, no institutional sessions
+  _isWeekend(candleTimestamp) {
+    if (!config.weekend.enabled) return false;
+    const now = candleTimestamp ? new Date(candleTimestamp) : new Date();
+    const day = now.getUTCDay(); // 0=Sun, 6=Sat
+    return day === 0 || day === 6;
+  }
+
   // ── Unified Scoring with Confluence Gate ─────────────────────────
-  // HARD REQUIREMENT: must have ICT + Footprint agreement, OR exceptional single signal
-  _scoreWithConfluence(regime, ict, footprint, regimeResult, killzone) {
+  _scoreWithConfluence(regime, ict, footprint, regimeResult, killzone, isWeekend) {
     const ictSignals = ict.signals || [];
     const fpSignals = footprint.signals || [];
 
     if (ictSignals.length === 0 && fpSignals.length === 0) return null;
 
-    // Score all signals
     const allScored = [];
     for (const sig of ictSignals) {
-      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.ictWeight));
+      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.ictWeight, isWeekend));
     }
     for (const sig of fpSignals) {
-      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.footprintWeight));
+      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.footprintWeight, isWeekend));
     }
 
     if (allScored.length === 0) return null;
@@ -76,27 +93,52 @@ export default class StrategyEngine {
 
     const hasConfluence = confluenceSignals.length > 0;
 
+    // Weekend: higher confluence bar
+    const minScore = isWeekend
+      ? config.strategy.minConfluenceScore + config.weekend.confluenceScoreBoost
+      : config.strategy.minConfluenceScore;
+
+    const minSolo = isWeekend
+      ? config.strategy.minSoloScore + config.weekend.confluenceScoreBoost
+      : config.strategy.minSoloScore;
+
     if (hasConfluence) {
       best.combinedScore += config.strategy.confluenceBonus;
       best.confluence = true;
       best.confluenceSignals = [best.type, ...confluenceSignals.map(s => s.type)];
       best.reason = `${best.reason} (+ ${confluenceSignals[0].type} confluence)`;
 
-      // Confluence pass: check minimum score
-      if (best.combinedScore >= config.strategy.minConfluenceScore) return best;
+      if (best.combinedScore >= minScore) {
+        if (isWeekend) best.reason += ' [WEEKEND]';
+        return best;
+      }
+    }
+
+    // ORDER_BLOCK alone is never enough — it's the worst signal (18% WR)
+    if (config.strategy.orderBlockRequireConfluence && best.type === 'ORDER_BLOCK' && !hasConfluence) {
+      return null;
     }
 
     // No confluence: require exceptional solo score
-    if (best.combinedScore >= config.strategy.minSoloScore) return best;
+    if (best.combinedScore >= minSolo) {
+      if (isWeekend) best.reason += ' [WEEKEND]';
+      return best;
+    }
 
-    return null; // rejected
+    return null;
   }
 
-  _scoreSignal(sig, regime, regimeResult, killzone, weight) {
+  _scoreSignal(sig, regime, regimeResult, killzone, weight, isWeekend) {
     let score = sig.confidence * weight;
     const source = (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE' ||
                     sig.type === 'LIQUIDITY_SWEEP' || sig.type === 'BOS' || sig.type === 'CHoCH')
       ? 'ict' : 'footprint';
+
+    // ── ORDER BLOCK DEMOTION ────────────────────────────────────────
+    // Worst signal: 77 trades, 18% WR, -$1,514
+    if (sig.type === 'ORDER_BLOCK') {
+      score *= config.strategy.orderBlockPenalty;
+    }
 
     // ── Regime-specific boosts ───────────────────────────────────
     if (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE') {
@@ -105,8 +147,12 @@ export default class StrategyEngine {
       if (regime === 'VOL_EXPANSION') score *= 1.1;
     }
 
+    // FVG: 24% WR, -$378 — needs confluence to be worth anything
+    if (sig.type === 'FVG') {
+      score *= 0.7;  // demote — still usable but must clear higher bar
+    }
+
     if (sig.type === 'LIQUIDITY_SWEEP') {
-      // Reduced significantly — worst performer with 19% WR
       if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') score *= 0.8;
       if (regime === 'LOW_VOL') score *= 0.3;
       if (regime === 'RANGING') score *= 0.5;
@@ -116,6 +162,8 @@ export default class StrategyEngine {
     if (sig.type === 'ABSORPTION' || sig.type === 'DELTA_DIVERGENCE') {
       if (regime === 'LOW_VOL') score *= 1.3;
       if (regime === 'ABSORPTION') score *= 1.5;
+      // DELTA_DIVERGENCE is the only profitable signal (38% WR, +$186) — boost it
+      if (sig.type === 'DELTA_DIVERGENCE') score *= 1.2;
     }
 
     if (sig.type === 'IMBALANCE') {
@@ -127,8 +175,16 @@ export default class StrategyEngine {
     }
 
     // ── Killzone boosts ──────────────────────────────────────────
-    if (killzone.overlap) score *= 1.2;
-    else if (killzone.allowed) score *= 1.05;
+    if (!isWeekend) {
+      if (killzone.overlap) score *= 1.2;
+      else if (killzone.allowed) score *= 1.05;
+    }
+    // Weekend: no KZ boost — neutral, rely on signal quality alone
+
+    // ── Weekend: penalize ICT signals slightly (less reliable without institutional flow) ──
+    if (isWeekend && source === 'ict') {
+      score *= 0.9;
+    }
 
     // ── Regime confidence boost ──────────────────────────────────
     if (regimeResult.confidence > 0.7) score *= 1.1;
@@ -137,7 +193,7 @@ export default class StrategyEngine {
   }
 
   // ── Regime-Specific Filters ──────────────────────────────────────
-  _applyRegimeFilters(signal, regime, regimeResult, candles) {
+  _applyRegimeFilters(signal, regime, regimeResult, candles, isWeekend) {
     if (!signal) return null;
 
     const price = candles[candles.length - 1].close;
@@ -158,7 +214,6 @@ export default class StrategyEngine {
       if (rangeSpan === 0) return null;
       const rangePosition = (price - rangeLow) / rangeSpan;
 
-      // Buy near bottom (0-20%), sell near top (80-100%)
       if (signal.action === 'buy' && rangePosition > 0.2) return null;
       if (signal.action === 'sell' && rangePosition < 0.8) return null;
     }
@@ -166,28 +221,38 @@ export default class StrategyEngine {
     // Trending: must align with trend direction — STRICT
     if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') {
       const ema21 = this._cachedEMA(candles, 21);
-      // Block counter-trend trades
       if (signal.action === 'buy' && price < ema21) return null;
       if (signal.action === 'sell' && price > ema21) return null;
-      // Block opposite direction entirely
       if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
       if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
     }
 
     // ── Calculate SL/TP using ATR ──────────────────────────────────
     const atr = this._currentATR(candles);
+
+    // Weekend: wider SL (candles are more violent, thinner books)
+    const slMult = isWeekend
+      ? riskParams.slMultiplier + config.weekend.slMultiplierBoost
+      : riskParams.slMultiplier;
+
     const sl = signal.action === 'buy'
-      ? price - atr * riskParams.slMultiplier
-      : price + atr * riskParams.slMultiplier;
+      ? price - atr * slMult
+      : price + atr * slMult;
 
     const tp = signal.action === 'buy'
       ? price + atr * riskParams.tpMultiplier
       : price - atr * riskParams.tpMultiplier;
 
     // ── Position sizing using CURRENT balance ──────────────────────
-    // Uses current balance, not starting balance — adapts to PnL
-    const currentBalance = config.engine.startingBalance; // will be overridden by PaperEngine/backtest
-    const riskAmount = currentBalance * (riskParams.riskPercent / 100);
+    const currentBalance = config.engine.startingBalance; // overridden by PaperEngine/backtest
+    let riskPercent = riskParams.riskPercent;
+
+    // Weekend: half the risk
+    if (isWeekend) {
+      riskPercent *= config.weekend.riskMultiplier;
+    }
+
+    const riskAmount = currentBalance * (riskPercent / 100);
     const slDistance = Math.abs(price - sl);
     const size = slDistance > 0 ? riskAmount / slDistance : 0;
 
@@ -201,12 +266,125 @@ export default class StrategyEngine {
       size: Math.max(size, 0),
       riskParams,
       atr,
+      isWeekend,
     };
   }
 
+  // ── Entry Confirmation ────────────────────────────────────────────
+  // ICT zones tell WHERE price might reverse. Candle patterns tell WHEN.
+  // Without this, we're catching falling knives (22% WR in backtest).
+  //
+  // We check the last N candles for rejection patterns at the ICT zone:
+  //   1. Pin bar (hammer/shooting star) — long wick rejects the zone
+  //   2. Engulfing — full body reversal
+  //   3. Inside bar breakout — consolidation then expansion
+  _checkEntryConfirmation(candles, signal) {
+    const cfg = config.strategy.entryConfirmation;
+    const lookback = cfg.lookback;
+    const startIdx = Math.max(1, candles.length - lookback - 1);
+
+    // For each candle in the lookback window, check if it's a rejection candle
+    for (let i = startIdx; i < candles.length; i++) {
+      const c = candles[i];
+      const range = c.high - c.low;
+      if (range === 0) continue;
+
+      const body = Math.abs(c.close - c.open);
+      const bodyRatio = body / range;
+      const upperWick = c.high - Math.max(c.open, c.close);
+      const lowerWick = Math.min(c.open, c.close) - c.low;
+
+      // ── Pin Bar ───────────────────────────────────────────────
+      // Bullish pin: long lower wick, small body near top, at/below a bullish zone
+      if (signal.action === 'buy') {
+        const wickRatio = lowerWick / (body || range * 0.01);
+        if (wickRatio >= cfg.pinBarMinWickRatio && bodyRatio <= cfg.pinBarMaxBodyPercent) {
+          // Confirm it's near our entry zone (within 1 ATR)
+          if (Math.abs(c.close - signal.price) < signal.atr * 1.5) {
+            signal.entryPattern = 'pin_bar_bullish';
+            signal.confidence = Math.min(signal.confidence + 0.1, 1.0);
+            return true;
+          }
+        }
+      }
+
+      // Bearish pin: long upper wick, small body near bottom, at/above a bearish zone
+      if (signal.action === 'sell') {
+        const wickRatio = upperWick / (body || range * 0.01);
+        if (wickRatio >= cfg.pinBarMinWickRatio && bodyRatio <= cfg.pinBarMaxBodyPercent) {
+          if (Math.abs(c.close - signal.price) < signal.atr * 1.5) {
+            signal.entryPattern = 'pin_bar_bearish';
+            signal.confidence = Math.min(signal.confidence + 0.1, 1.0);
+            return true;
+          }
+        }
+      }
+
+      // ── Engulfing ─────────────────────────────────────────────
+      if (cfg.engulfingEnabled && i > 0) {
+        const prev = candles[i - 1];
+        const prevBody = Math.abs(prev.close - prev.open);
+        const curBody = body;
+
+        if (signal.action === 'buy') {
+          // Bullish engulfing: prev bearish, current bullish, current body engulfs prev
+          const prevBearish = prev.close < prev.open;
+          const curBullish = c.close > c.open;
+          if (prevBearish && curBullish && curBody > prevBody &&
+              c.close > prev.open && c.open <= prev.close) {
+            if (Math.abs(c.close - signal.price) < signal.atr * 1.5) {
+              signal.entryPattern = 'bullish_engulfing';
+              signal.confidence = Math.min(signal.confidence + 0.15, 1.0);
+              return true;
+            }
+          }
+        }
+
+        if (signal.action === 'sell') {
+          // Bearish engulfing: prev bullish, current bearish, current body engulfs prev
+          const prevBullish = prev.close > prev.open;
+          const curBearish = c.close < c.open;
+          if (prevBullish && curBearish && curBody > prevBody &&
+              c.close < prev.open && c.open >= prev.close) {
+            if (Math.abs(c.close - signal.price) < signal.atr * 1.5) {
+              signal.entryPattern = 'bearish_engulfing';
+              signal.confidence = Math.min(signal.confidence + 0.15, 1.0);
+              return true;
+            }
+          }
+        }
+      }
+
+      // ── Inside Bar Breakout ───────────────────────────────────
+      if (cfg.insideBarEnabled && i > 0) {
+        const prev = candles[i - 1];
+        const insideBar = c.high < prev.high && c.low > prev.low;
+
+        if (insideBar && i + 1 < candles.length) {
+          const next = candles[i + 1];
+          if (signal.action === 'buy' && next.close > prev.high) {
+            if (Math.abs(next.close - signal.price) < signal.atr * 1.5) {
+              signal.entryPattern = 'inside_bar_breakout_bullish';
+              signal.confidence = Math.min(signal.confidence + 0.1, 1.0);
+              return true;
+            }
+          }
+          if (signal.action === 'sell' && next.close < prev.low) {
+            if (Math.abs(next.close - signal.price) < signal.atr * 1.5) {
+              signal.entryPattern = 'inside_bar_breakout_bearish';
+              signal.confidence = Math.min(signal.confidence + 0.1, 1.0);
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    // No confirmation pattern found — reject the signal
+    return false;
+  }
+
   // ── Killzone Check (deadzone-based filtering) ────────────────────
-  // Only blocks during true dead hours (4-6 UTC, 18-22 UTC)
-  // Active zones get score boosts, everything else is neutral (allowed)
   _checkKillzone(candleTimestamp) {
     const now = candleTimestamp ? new Date(candleTimestamp) : new Date();
     const utcHour = now.getUTCHours();
@@ -215,32 +393,29 @@ export default class StrategyEngine {
 
     const kz = config.killzones;
 
-    // Check if in a deadzone (the ONLY thing that blocks signals)
     const inDeadzone = kz.deadzones.some(dz => time >= dz.start && time < dz.end);
 
     if (inDeadzone) {
       return { allowed: false, overlap: false, strict: true, session: 'dead' };
     }
 
-    // Determine session for scoring boost
     const inLondon = time >= kz.london.start && time < kz.london.end;
     const inNY = time >= kz.ny.start && time < kz.ny.end;
     const inOverlap = time >= kz.overlap.start && time < kz.overlap.end;
-    const inAsia = (time >= kz.asia.start || time < kz.asia.end); // wraps midnight
+    const inAsia = (time >= kz.asia.start || time < kz.asia.end);
 
     return {
-      allowed: true,       // always allowed outside deadzone
+      allowed: true,
       overlap: inOverlap,
-      strict: false,       // never strictly blocks outside deadzone
+      strict: false,
       session: inOverlap ? 'overlap' : inNY ? 'ny' : inLondon ? 'london' : inAsia ? 'asia' : 'off-session',
     };
   }
 
-  // ── Rate Limiting (adaptive to timeframe) ─────────────────────────
+  // ── Rate Limiting ─────────────────────────────────────────────────
   _isRateLimited(symbol, candleTimestamp) {
     const lastTime = this.lastSignalTime[symbol];
     if (!lastTime) return false;
-    // Use candle timestamp for backtest, Date.now() for live
     const now = candleTimestamp || Date.now();
     return now - lastTime < config.strategy.signalCooldown;
   }

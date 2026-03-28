@@ -10,12 +10,27 @@ export default {
   // Killzones (UTC hours) — soft filter mode
   // Active zones get a score BOOST, dead zones (4-6 UTC, 18-22 UTC) are blocked
   // This covers ~83% of the day instead of 62%, filtering only true dead hours
+  // ⚠️ WEEKEND MODE: killzones are entirely excluded — no institutional sessions on weekends
+  // Crypto on weekends is more vertical, lower volume, fewer algo flows
   killzones: {
     london:    { start: 6,  end: 12 },
     ny:        { start: 12, end: 18 },
     overlap:   { start: 12, end: 15 },
     asia:      { start: 22, end: 4 },      // wraps midnight
     deadzones: [{ start: 4, end: 6 }, { start: 18, end: 22 }],  // only these are truly blocked
+  },
+
+  // ── Weekend Mode ─────────────────────────────────────────────────
+  // Sat 00:00 UTC → Sun 23:59 UTC (crypto has no real "weekend close")
+  // Behavior: killzones excluded, stricter confluence, tighter R:R
+  weekend: {
+    enabled: true,
+    // Higher confluence threshold — weekends need more confirmation
+    confluenceScoreBoost: 0.10,    // minConfluenceScore + this on weekends
+    // Wider SL multiplier — weekend candles are bigger/more violent
+    slMultiplierBoost: 0.2,        // added to regime SL multiplier
+    // Reduced risk on weekends — thinner books = more slippage
+    riskMultiplier: 0.5,           // half the normal risk %
   },
 
   // Regime detection thresholds
@@ -75,6 +90,26 @@ export default {
     skipLowVol: true,
     // Stricter trend alignment: in TRENDING, only trade WITH the trend
     strictTrendAlignment: true,
+    // ── ENTRY CONFIRMATION ────────────────────────────────────────
+    // ICT zones tell WHERE price might reverse — candle patterns confirm WHEN
+    // Without this, we're catching falling knives (22% WR → need 37%+ for breakeven)
+    entryConfirmation: {
+      enabled: true,
+      // Pin bar: long wick rejection (minimum wick:body ratio)
+      pinBarMinWickRatio: 2.0,     // wick must be 2x the body
+      pinBarMaxBodyPercent: 0.33,  // body ≤ 33% of full range
+      // Engulfing: previous body fully consumed
+      engulfingEnabled: true,
+      // Inside bar breakout: quiet consolidation then expansion
+      insideBarEnabled: true,
+      // How many recent candles to scan for confirmation
+      lookback: 3,                 // last 3 candles must show rejection
+    },
+    // ── ORDER BLOCK DEMOTION ───────────────────────────────────────
+    // 77 trades, 18% WR, -$1,514 — worst signal by far
+    // Require 2x confidence threshold or confluence to use OB signals
+    orderBlockPenalty: 0.5,        // OB scores get halved
+    orderBlockRequireConfluence: true, // OB alone is never enough
   },
 
   // Paper trading engine
@@ -86,16 +121,22 @@ export default {
     maxOpenPositions: 3,
     maxDailyLoss: 0.03,
     // Trailing stop config
+    // DEV LOG: trailing_sl has 100% WR — when a trade runs, it runs well
+    // Wider activation gives trades more room before trailing kicks in
+    // Reduces "trailing stopped out too early" scenarios
     trailingStop: {
       enabled: true,
-      activationATR: 1.5,   // activate trailing after 1.5x ATR in profit
+      activationATR: 2.0,   // activate after 2x ATR in profit (was 1.5) — let winners breathe
       trailATR: 0.5,        // trail by 0.5x ATR
     },
     // Breakeven config
+    // DEV LOG: BE stops killed $218 in potential profit — trades that should've trailed
+    // Trailing SL handles winners perfectly (100% WR). BE is redundant and harmful.
+    // Keeping it but making it fire MUCH later — only protects big moves, doesn't cut runners
     breakeven: {
-      enabled: true,
-      activationATR: 1.0,   // move SL to entry after 1x ATR in profit
-      offset: 0.0005,       // tiny offset above entry for fees
+      enabled: false,          // disabled — trailing SL handles everything
+      activationATR: 2.0,     // if re-enabled, fire much later (was 1.0)
+      offset: 0.0005,
     },
   },
 

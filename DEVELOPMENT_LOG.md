@@ -1,6 +1,114 @@
 # ICT + Footprint Paper Trader — Development Log
 
-## Session: 2026-03-28
+## Session: 2026-03-28 (Second Session)
+
+### 🎯 What We Built
+
+**Entry Confirmation System** — ICT zones tell WHERE, candle patterns confirm WHEN
+- Pin bars (long wick rejection at zone)
+- Engulfing (full body reversal at zone)  
+- Inside bar breakouts (consolidation → expansion at zone)
+- Pattern must be within 1.5x ATR of the signal price
+
+**Weekend Mode**
+- `config.weekend.enabled: true`
+- Killzones entirely excluded (no institutional sessions on weekends)
+- Higher confluence threshold (+0.10 to min score)
+- Half risk percentage (thinner books, more slippage)
+- Wider SL (+0.2 multiplier)
+
+**Signal Demotions (data-driven)**
+- ORDER_BLOCK: score × 0.5, requires confluence (was 18% WR, -$1,514)
+- FVG: score × 0.7 (was 24% WR, -$636)
+- DELTA_DIVERGENCE: score × 1.2 boost (only profitable signal, 38% WR)
+
+**Breakeven Stops Disabled**
+- DEV LOG showed BE killed $218 in potential profit
+- Trailing SL has 100% WR — it handles everything
+- Trailing activation widened: 1.5x → 2.0x ATR (let winners breathe)
+
+### 📊 Backtest Results — SOL/USDT, 15m, Jan-Feb 2025 (Binance)
+
+| Metric | v0.3 (before) | v0.4 (after) | Change |
+|--------|---------------|--------------|--------|
+| Starting Balance | $10,000 | $10,000 | — |
+| Final Balance | $6,004 | $9,318 | +$3,314 |
+| Total Trades | 207 | 102 | -51% (sniper) |
+| **Win Rate** | **21.7%** | **41.2%** | **+19.5pp** |
+| PnL | -$3,996 (-39.96%) | -$276 (-6.82%) | +93% |
+| **Profit Factor** | **0.48** | **0.93** | **+0.45** |
+| Max Drawdown | 41.09% | 11.87% | -71% |
+| Avg Win/Loss | 1.72:1 | 1.33:1 | |
+| Sharpe | -12.46 | -1.98 | |
+| Total Fees | $1,433 | $810 | -43% |
+
+### By Exit Reason
+
+| Exit Type | v0.3 Trades | v0.3 WR | v0.3 PnL | v0.4 Trades | v0.4 WR | v0.4 PnL |
+|-----------|------------|---------|----------|------------|---------|----------|
+| trailing_sl | 45 | 100% | +$2,993 | 42 | 100% | +$3,827 |
+| stop_loss | 106 | 0% | -$5,994 | 57 | 0% | -$3,976 |
+| breakeven_sl | 54 | 0% | -$218 | 0 | — | $0 (disabled) |
+| time_exit | 2 | 0% | -$59 | 3 | 0% | -$128 |
+
+### By Signal Type
+
+| Signal | v0.3 Trades | v0.3 WR | v0.3 PnL | v0.4 Trades | v0.4 WR | v0.4 PnL |
+|--------|------------|---------|----------|------------|---------|----------|
+| DELTA_DIVERGENCE | 13 | 38% | +$186 | 42 | 40% | -$326 |
+| OTE | 28 | 25% | -$117 | 20 | 60% | +$581 |
+| FVG | 36 | 22% | -$636 | 17 | 24% | -$379 |
+| IMBALANCE | 30 | 23% | -$724 | 18 | 33% | -$238 |
+| LIQUIDITY_SWEEP | 23 | 17% | -$474 | 4 | 50% | +$22 |
+| ORDER_BLOCK | 77 | 18% | -$1,514 | 1 | 100% | +$63 |
+
+### By Entry Pattern (NEW)
+
+| Pattern | Trades | WR | PnL | Notes |
+|---------|--------|-----|-----|-------|
+| pin_bar_bearish | 35 | 46% | +$303 | ✅ Best performer |
+| bearish_engulfing | 11 | 55% | +$227 | ✅ Strong |
+| inside_bar_breakout_bearish | 2 | 100% | +$197 | ✅ Small sample, strong |
+| inside_bar_breakout_bullish | 3 | 67% | +$134 | ✅ Small sample, strong |
+| pin_bar_bullish | 38 | 34% | -$720 | ❌ Longs weaker in this period |
+| bullish_engulfing | 13 | 23% | -$418 | ❌ Longs weaker |
+
+### Weekend vs Weekday (NEW)
+
+| Period | Trades | WR | PnL |
+|--------|--------|-----|-----|
+| Weekday | 102 | 41.2% | -$276 |
+| Weekend | 0 | — | $0 |
+
+Weekend trades are entirely filtered out by the higher confluence threshold + entry confirmation. The market is too thin and vertical on weekends.
+
+### Key Insights
+
+**What Works Now:**
+- Entry confirmation was the game-changer — WR from 22% → 41%
+- Trailing stops remain the backbone (100% WR on winners, +$3,827)
+- OTE is now the best signal (60% WR, +$581) — entry confirmation cleaned it up
+- ORDER_BLOCK demotion killed noise (77 trades → 1 trade)
+- Bearish setups outperform bullish significantly in this period (SOL crash)
+- Weekend mode works — 0 qualifying trades on weekends (correct behavior)
+
+**What Still Needs Work:**
+- PF 0.93 is still below 1.0 — need ~2-3% more WR or slightly better R:R
+- Bullish patterns underperform — may be period-specific (SOL was crashing Jan-Feb)
+- 56% of trades still hit raw stop loss — entry confirmation helps but doesn't eliminate all bad entries
+- FVG still weak at 24% WR even with demotion
+
+### Next Steps
+
+1. **Multi-symbol validation** — test on ETH, BTC, XRP to confirm edge isn't SOL-specific
+2. **Multi-timeframe** — test 5m and 1h to see if timeframe affects pattern quality
+3. **Bullish bias correction** — investigate why bullish pin bars underperform (may need stricter trend filter for longs)
+4. **Consider R:R tuning** — slightly tighter SL in TRENDING (0.6x instead of 0.8x) to improve PF
+5. **Extended period** — test Mar-Jun 2025 to validate across different market conditions
+
+---
+
+## Session: 2026-03-28 (First Session)
 
 ### 📊 Backtest Results — SOL/USDT, 15m, Jan-Feb 2025 (Binance)
 
@@ -16,161 +124,30 @@
 | Profit Factor | 0.48 | ❌ Need >1.0 |
 | Max Drawdown | 41.09% | ❌ Too high |
 | Sharpe Ratio | -12.46 | ❌ |
-| Max Consec Wins | 3 | — |
-| Max Consec Losses | 12 | ❌ |
-| Avg Duration | 56 min | ✅ |
-| Total Fees | $1,433 | ⚠️ |
 
-### By Exit Reason
+### Bug Fixes Applied (First Session)
 
-| Exit Type | Trades | Win Rate | PnL | Notes |
-|-----------|--------|----------|-----|-------|
-| trailing_sl | 45 | **100%** | **+$2,993** | ✅ Works perfectly — don't touch |
-| stop_loss | 106 | 0% | -$5,994 | ❌ Too many stopped out |
-| breakeven_sl | 54 | 0% | -$218 | ⚠️ Kills potential winners |
-| time_exit | 2 | 0% | -$59 | Minor |
-
-### By Regime
-
-| Regime | Trades | Win Rate | PnL |
-|--------|--------|----------|-----|
-| VOL_EXPANSION | 104 | 23% | -$1,460 |
-| TRENDING_UP | 33 | 18% | -$817 |
-| TRENDING_DOWN | 64 | 23% | -$795 |
-| RANGING | 6 | 0% | -$207 |
-| LOW_VOL | 0 | — | — (skipped) |
-
-### By Signal Type
-
-| Signal | Trades | Win Rate | PnL | Notes |
-|--------|--------|----------|-----|-------|
-| DELTA_DIVERGENCE | 13 | 38% | **+$186** | ✅ Only profitable signal |
-| OTE | 28 | 25% | -$117 | ⚠️ Decent |
-| FVG | 36 | 22% | -$636 | ❌ |
-| IMBALANCE | 30 | 23% | -$724 | ❌ |
-| LIQUIDITY_SWEEP | 23 | 17% | -$474 | ❌ Worst after ORDER_BLOCK |
-| ORDER_BLOCK | 77 | 18% | **-$1,514** | ❌ Worst performer — too many false signals |
-
----
-
-## Bug Fixes Applied This Session
-
-### Critical (7)
-
-1. **Killzone used real-world clock instead of candle timestamp** — backtest was only generating signals in whatever session the real clock was in when you ran it
-2. **Position sizing hardcoded to starting balance** — didn't adapt to PnL growth/decline
-3. **Backtest daily loss limit was inverted** — `dailyPnL / startingBalance <= -3%` only blocked positive PnL (no `Math.abs`)
-4. **BE/trailing stops used TP distance as ATR proxy** — inconsistent with actual ATR-based config
-5. **Backtest trailing logic differed from live engine** — unified both to use `atr * config` values
-6. **Footprint analyzer state never reset** — `volumeProfile` and `deltaHistory` grew unbounded → OOM on long backtests
+1. **Killzone used real-world clock instead of candle timestamp** — backtest only generated signals in whatever session the real clock was in
+2. **Position sizing hardcoded to starting balance** — didn't adapt to PnL
+3. **Backtest daily loss limit was inverted** — `Math.abs` missing
+4. **BE/trailing stops used TP distance as ATR proxy** — inconsistent
+5. **Backtest trailing logic differed from live engine** — unified both
+6. **Footprint analyzer state never reset** — OOM on long backtests
 7. **ICT analyzer FVGs/OrderBlocks never pruned** — arrays grew unbounded
 
-### Performance Fixes
+### Performance Fixes (First Session)
 
-- FVG detection: scans only new candles since last analysis (not full history every tick)
+- FVG detection: scans only new candles since last analysis
 - ATR/EMA: cached between calls in StrategyEngine
 - Volume profile: limited to last 200 candles, max 100 levels per candle
 - FVG/OB: auto-prune tested/mitigated + deduplication
-- Added `--exchange` CLI flag for backtest (MEXC has no deep historical data)
+- Added `--exchange` CLI flag for backtest
 
----
+### The Fundamental Problem Identified
 
-## Strategy Evolution
-
-### v0.2 → v0.3 Changes
-
-| What | Before | After |
-|------|--------|-------|
-| Killzone | Hard gate (London/NY/Asia only) | Deadzone filter (blocks 4-6, 18-22 UTC only) |
-| Signal selection | Best single signal | Confluence: ICT + Footprint agreement required (or score >0.75) |
-| Cooldown | 1 min | 45 min per symbol |
-| LOW_VOL | Traded | Skipped entirely |
-| Trend alignment | Soft (EMA check) | Hard block (no short in TRENDING_UP, no long in TRENDING_DOWN) |
-| R:R TRENDING | 1:2.5 | 1:3.75 (SL 0.8x, TP 3.0x) |
-| R:R RANGING | 1:1.5 | 1:2.5 (SL 0.8x, TP 2.0x) |
-| R:R VOL_EXP | 1:1.67 | 1:2.5 (SL 1.0x, TP 2.5x) |
-| R:R LOW_VOL | 1:1.25 | Skipped |
-| R:R ABSORPTION | 1:2 | 1:3.125 (SL 0.8x, TP 2.5x) |
-
-### Trade Count Progression
-
-| Version | Trades (2 months) | Win Rate | PnL |
-|---------|-------------------|----------|-----|
-| v0.2 original | 2 | 100% | +$35 |
-| v0.3 killzone fix | 1,198 | 22% | -$7,156 |
-| v0.3 confluence gate | 351 | 21% | -$4,946 |
-| v0.3 trend filter + LS penalty | 207 | 22% | -$3,279 |
-
----
-
-## Key Insights
-
-### What Works
-- **Trailing stops have 100% WR on winners** — when a trade runs, it runs well. Don't change trailing logic.
-- **DELTA_DIVERGENCE is the only profitable signal** (38% WR, +$186) — order flow divergence is the real edge
-- **Avg win:avg loss ratio of 1.72:1** — the R:R structure works, we just need more winners
-- **Confluence trades DO produce bigger wins** — the biggest winner ($295) was a confluence trade
-
-### What Doesn't Work
-- **ORDER_BLOCK is the worst signal** (77 trades, 18% WR, -$1,514) — too many false signals
-- **LIQUIDITY_SWEEP is second worst** (23 trades, 17% WR) — even after heavy penalty
-- **Breakeven stops kill potential winners** — -$218 in losses from trades that could've trailed
-- **We enter too early** — price hits ICT zone, we enter, then continues through and stops us out
-- **22% WR with 1.72:1 R:R = negative expectancy** — need WR > 37% to break even at this R:R
-
-### The Fundamental Problem
 ICT zones (FVG, OB, OTE) tell us WHERE price might reverse, but not WHEN. We're entering at the zone without confirmation that the reversal is actually happening.
 
----
-
-## Recommended Next Steps
-
-### Priority 1: Entry Confirmation (Highest Impact)
-- Add **rejection candle pattern** at ICT zones — bullish/bearish engulfing, pin bar, or inside bar breakout
-- This should filter out entries where price just blasts through the zone
-- Expected impact: WR from 22% → 40%+
-
-### Priority 2: Remove Breakeven Stops
-- Let trailing SL handle everything — data shows 100% WR on trailing exits
-- BE stops are cutting $218 of potential profit by moving SL too early
-- Replace with: wider activation for trailing (2x ATR instead of 1.5x)
-
-### Priority 3: Widen R:R to 1:3 Minimum
-- SL tighter (0.6x ATR), TP wider (3x ATR)
-- Fewer stopped out, bigger winners when right
-- Current 1.72:1 isn't enough at 22% WR
-
-### Priority 4: Demote ORDER_BLOCK
-- Remove from primary confluence or require 2x confidence threshold
-- It's generating 37% of all trades with 18% WR
-
-### Priority 5: Test More Symbols & Timeframes
-- Current results only on SOL/USDT 15m
-- Need XRP, ETH, BTC to validate edge is symbol-agnostic
-- Try 5m and 1h to see if timeframe affects signal quality
-
----
-
-## Architecture
-
-```
-engine/
-  main.js           — Live paper trader (orchestrator) v0.3
-  PaperEngine.js    — Order management, PnL, trailing stops (actual ATR-based)
-  backtest.js       — Historical backtester with metrics, --exchange flag
-data/
-  DataFeed.js       — CCXT exchange data (polling)
-  TradingViewWebhook.js — TradingView alert receiver
-analysis/
-  RegimeDetector.js — Market regime (TRENDING_UP/DOWN, RANGING, VOL_EXPANSION, LOW_VOL)
-  ICTAnalyzer.js    — FVG, Order Block, Liquidity Sweep, OTE, BOS (pruned + deduped)
-  FootprintAnalyzer.js — Delta estimation, Volume Profile, POC, Absorption (rolling window)
-strategies/
-  StrategyEngine.js — Confluence scoring, deadzone killzone, regime filters
-alerts/
-  TelegramAlerter.js — Telegram bot notifications
-config.js           — All parameters, R:R per regime, strategy settings
-```
+→ **Solution: Entry Confirmation (implemented in second session)**
 
 ---
 
@@ -189,7 +166,14 @@ npm start
 # Results go to backtest-results/
 ```
 
-## Files Modified (this session)
+## Files Modified (second session)
+- `config.js` — weekend mode, entry confirmation settings, order block demotion, breakeven disabled, trailing widened
+- `strategies/StrategyEngine.js` — weekend detection, entry confirmation (pin/engulfing/inside bar), OB/FVG demotion, DELTA_DIVERGENCE boost, weekend scoring
+- `engine/backtest.js` — weekend risk, isWeekend/entryPattern tracking, new report breakdowns
+- `engine/main.js` — weekend risk in live engine, entry pattern logging
+- `README.md` — full rewrite with v0.4 features
+
+## Files Modified (first session)
 - `config.js` — R:R ratios, killzone, strategy settings, pruning limits
 - `strategies/StrategyEngine.js` — killzone fix, confluence scoring, trend filter, signal penalties
 - `analysis/ICTAnalyzer.js` — state pruning, dedup, incremental scanning

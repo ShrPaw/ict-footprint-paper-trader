@@ -87,17 +87,26 @@ class PaperTrader {
     if (!signal) return;
 
     // Execute paper trade — pass ATR for consistent stop management
+    let riskPercent = config.risk[signal.regime]?.riskPercent || 0.5;
+    if (signal.isWeekend) {
+      riskPercent *= config.weekend.riskMultiplier;
+    }
+
+    const riskAmount = this.engine.balance * (riskPercent / 100);
+    const slDist = Math.abs(signal.price - signal.stopLoss);
+    const size = slDist > 0 ? riskAmount / slDist : 0;
+
     const result = this.engine.openPosition(
       symbol,
       signal.action === 'buy' ? 'long' : 'short',
-      signal.size,
+      size,
       signal.price,
       signal.stopLoss,
       signal.takeProfit,
       signal.regime,
       signal.confluence
-        ? `CONFLUENCE: ${signal.confluenceSignals?.join(' + ')}`
-        : (signal.reason || signal.type),
+        ? `CONFLUENCE: ${signal.confluenceSignals?.join(' + ')}${signal.entryPattern ? ' [' + signal.entryPattern + ']' : ''}`
+        : (signal.reason || signal.type) + (signal.entryPattern ? ` [${signal.entryPattern}]` : ''),
       signal.atr  // pass actual ATR
     );
 

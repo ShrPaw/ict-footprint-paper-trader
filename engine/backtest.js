@@ -154,7 +154,12 @@ class Backtester {
     if (slDistance === 0) return;
 
     // Use CURRENT balance for position sizing (not starting balance)
-    const riskAmount = this.balance * (riskParams.riskPercent / 100);
+    // Weekend: half the risk
+    let riskPercent = riskParams.riskPercent;
+    if (signal.isWeekend) {
+      riskPercent *= config.weekend.riskMultiplier;
+    }
+    const riskAmount = this.balance * (riskPercent / 100);
     const size = riskAmount / slDistance;
     const fee = size * price * config.engine.takerFee;
     const margin = (size * price) / 10;
@@ -179,19 +184,22 @@ class Backtester {
       signalType: signal.type,
       entryTime: timestamp,
       fee,
-      // Use actual ATR for stop management (consistent with live engine)
       atr: signal.atr || Math.abs(signal.takeProfit - fillPrice) / 2,
       highestPrice: fillPrice,
       lowestPrice: fillPrice,
       breakevenTriggered: false,
       trailingActive: false,
+      isWeekend: signal.isWeekend || false,
+      entryPattern: signal.entryPattern || null,
     };
 
     this.balance -= fee;
 
     if (this.verbose) {
       const emoji = signal.action === 'buy' ? '📈' : '📉';
-      console.log(`  ${emoji} ${signal.action.toUpperCase()} ${symbol} @ ${fillPrice.toFixed(4)} | SL: ${signal.stopLoss.toFixed(4)} | TP: ${signal.takeProfit.toFixed(4)} | ${signal.regime}${signal.confluence ? ' [CONFLUENCE: ' + signal.confluenceSignals?.join('+') + ']' : ''}`);
+      const wknd = signal.isWeekend ? ' [WKND]' : '';
+      const pat = signal.entryPattern ? ` [${signal.entryPattern}]` : '';
+      console.log(`  ${emoji} ${signal.action.toUpperCase()} ${symbol} @ ${fillPrice.toFixed(4)} | SL: ${signal.stopLoss.toFixed(4)} | TP: ${signal.takeProfit.toFixed(4)} | ${signal.regime}${signal.confluence ? ' [CONFLUENCE: ' + signal.confluenceSignals?.join('+') + ']' : ''}${wknd}${pat}`);
     }
   }
 
@@ -312,6 +320,8 @@ class Backtester {
       duration,
       durationMin: Math.round(duration / 60000),
       breakevenTriggered: pos.breakevenTriggered,
+      isWeekend: pos.isWeekend || false,
+      entryPattern: pos.entryPattern || null,
     };
 
     this.trades.push(trade);
@@ -407,6 +417,22 @@ class Backtester {
       byExit[t.closeReason].pnl += t.pnl;
     }
 
+    // Weekend vs Weekday breakdown
+    const weekendTrades = trades.filter(t => t.isWeekend);
+    const weekdayTrades = trades.filter(t => !t.isWeekend);
+    const weekendWins = weekendTrades.filter(t => t.pnl > 0);
+    const weekdayWins = weekdayTrades.filter(t => t.pnl > 0);
+
+    // Entry pattern breakdown
+    const byPattern = {};
+    for (const t of trades) {
+      const pat = t.entryPattern || 'no_pattern';
+      if (!byPattern[pat]) byPattern[pat] = { trades: 0, wins: 0, pnl: 0 };
+      byPattern[pat].trades++;
+      if (t.pnl > 0) byPattern[pat].wins++;
+      byPattern[pat].pnl += t.pnl;
+    }
+
     this.stats = {
       startingBalance: this.startingBalance,
       finalBalance: this.balance,
@@ -436,6 +462,19 @@ class Backtester {
       byRegime,
       bySignal,
       byExit,
+      byPattern,
+      weekend: {
+        trades: weekendTrades.length,
+        wins: weekendWins.length,
+        winRate: weekendTrades.length ? ((weekendWins.length / weekendTrades.length) * 100).toFixed(1) : '0',
+        pnl: weekendTrades.reduce((s, t) => s + t.pnl, 0).toFixed(2),
+      },
+      weekday: {
+        trades: weekdayTrades.length,
+        wins: weekdayWins.length,
+        winRate: weekdayTrades.length ? ((weekdayWins.length / weekdayTrades.length) * 100).toFixed(1) : '0',
+        pnl: weekdayTrades.reduce((s, t) => s + t.pnl, 0).toFixed(2),
+      },
     };
   }
 
@@ -490,11 +529,23 @@ class Backtester {
       console.log(`  ${reason.padEnd(16)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
     }
 
+    console.log('\n── Weekend vs Weekday ───────────────────────');
+    console.log(`  Weekday:  ${String(s.weekday.trades).padStart(4)} trades | ${s.weekday.winRate}% WR | PnL: $${s.weekday.pnl}`);
+    console.log(`  Weekend:  ${String(s.weekend.trades).padStart(4)} trades | ${s.weekend.winRate}% WR | PnL: $${s.weekend.pnl}`);
+
+    console.log('\n── By Entry Pattern ────────────────────────');
+    for (const [pat, data] of Object.entries(s.byPattern)) {
+      const wr = data.trades > 0 ? ((data.wins / data.trades) * 100).toFixed(0) : '0';
+      console.log(`  ${pat.padEnd(28)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
+    }
+
     console.log('\n── Last 10 Trades ──────────────────────────');
     for (const t of this.trades.slice(-10)) {
       const emoji = t.pnl >= 0 ? '✅' : '❌';
       const date = new Date(t.entryTime).toISOString().slice(0, 16);
-      console.log(`  ${emoji} ${date} ${t.side.toUpperCase().padEnd(5)} ${t.symbol.padEnd(18)} PnL: $${t.pnl.toFixed(2).padStart(8)} (${t.pnlPercent.toFixed(2)}%) ${t.closeReason}`);
+      const wknd = t.isWeekend ? 'W' : ' ';
+      const pat = t.entryPattern ? ` [${t.entryPattern}]` : '';
+      console.log(`  ${emoji} ${wknd} ${date} ${t.side.toUpperCase().padEnd(5)} ${t.symbol.padEnd(18)} PnL: $${t.pnl.toFixed(2).padStart(8)} (${t.pnlPercent.toFixed(2)}%) ${t.closeReason}${pat}`);
     }
 
     console.log('\n');
@@ -507,9 +558,9 @@ class Backtester {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
     const tradesCSV = [
-      'symbol,side,entryPrice,exitPrice,entryTime,exitTime,pnl,pnlPercent,regime,signalType,closeReason,durationMin,totalFees,breakevenTriggered',
+      'symbol,side,entryPrice,exitPrice,entryTime,exitTime,pnl,pnlPercent,regime,signalType,closeReason,durationMin,totalFees,breakevenTriggered,isWeekend,entryPattern',
       ...this.trades.map(t =>
-        `${t.symbol},${t.side},${t.entryPrice},${t.exitPrice},${new Date(t.entryTime).toISOString()},${new Date(t.exitTime).toISOString()},${t.pnl.toFixed(4)},${t.pnlPercent.toFixed(4)},${t.regime},${t.signalType},${t.closeReason},${t.durationMin},${t.totalFees.toFixed(4)},${t.breakevenTriggered}`
+        `${t.symbol},${t.side},${t.entryPrice},${t.exitPrice},${new Date(t.entryTime).toISOString()},${new Date(t.exitTime).toISOString()},${t.pnl.toFixed(4)},${t.pnlPercent.toFixed(4)},${t.regime},${t.signalType},${t.closeReason},${t.durationMin},${t.totalFees.toFixed(4)},${t.breakevenTriggered},${t.isWeekend},${t.entryPattern || ''}`
       ),
     ].join('\n');
     fs.writeFileSync(path.join(outputDir, `trades-${timestamp}.csv`), tradesCSV);
