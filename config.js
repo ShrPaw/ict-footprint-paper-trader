@@ -1,5 +1,5 @@
 export default {
-  symbols: ['SOL/USDC:USDC', 'XRP/USDC:USDC'],
+  symbols: ['SOL/USDT:USDT', 'XRP/USDT:USDT'],
   timeframes: {
     primary: '1m',
     secondary: '5m',

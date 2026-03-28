@@ -1,9 +1,9 @@
 import ccxt from 'ccxt';
-import config from './config.js';
-import RegimeDetector from './analysis/RegimeDetector.js';
-import ICTAnalyzer from './analysis/ICTAnalyzer.js';
-import FootprintAnalyzer from './analysis/FootprintAnalyzer.js';
-import StrategyEngine from './strategies/StrategyEngine.js';
+import config from '../config.js';
+import RegimeDetector from '../analysis/RegimeDetector.js';
+import ICTAnalyzer from '../analysis/ICTAnalyzer.js';
+import FootprintAnalyzer from '../analysis/FootprintAnalyzer.js';
+import StrategyEngine from '../strategies/StrategyEngine.js';
 import fs from 'fs';
 import path from 'path';
 
