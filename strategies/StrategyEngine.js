@@ -24,126 +24,116 @@ export default class StrategyEngine {
     const regimeResult = this.regime.detect(symbol, candles);
     const regime = regimeResult.regime;
 
+    // 2b. Skip LOW_VOL regime — no edge, just bleeding fees
+    if (config.strategy.skipLowVol && regime === 'LOW_VOL') return null;
+
     // 3. Run ICT analysis
     const ictResult = this.ict.analyze(symbol, candles);
 
     // 4. Run Footprint analysis
     const footprintResult = this.footprint.analyze(symbol, candles);
 
-    // 5. Combine signals with confluence scoring
-    const signal = config.strategy.requireConfluence
-      ? this._confluenceScore(regime, ictResult, footprintResult, regimeResult, inKillzone)
-      : this._combineSignals(regime, ictResult, footprintResult, regimeResult, inKillzone);
-
+    // 5. Score signals — strict confluence required
+    const signal = this._scoreWithConfluence(regime, ictResult, footprintResult, regimeResult, inKillzone);
     if (!signal) return null;
 
     // 6. Apply regime-specific filters
     const filtered = this._applyRegimeFilters(signal, regime, regimeResult, candles);
     if (!filtered) return null;
 
-    // 7. Rate limit
-    if (this._isRateLimited(symbol)) return null;
+    // 7. Rate limit (uses candle timestamp in backtest)
+    if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
-    this.lastSignalTime[symbol] = Date.now();
+    this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();
     return filtered;
   }
 
-  // ── Confluence Scoring (NEW) ─────────────────────────────────────
-  // Requires BOTH ICT and Footprint confirmation for high-quality entries
-  _confluenceScore(regime, ict, footprint, regimeResult, killzone) {
-    const ictSignals = ict.signals;
-    const fpSignals = footprint.signals;
+  // ── Unified Scoring with Confluence Gate ─────────────────────────
+  // HARD REQUIREMENT: must have ICT + Footprint agreement, OR exceptional single signal
+  _scoreWithConfluence(regime, ict, footprint, regimeResult, killzone) {
+    const ictSignals = ict.signals || [];
+    const fpSignals = footprint.signals || [];
 
     if (ictSignals.length === 0 && fpSignals.length === 0) return null;
 
-    // Score ICT signals
-    const bestICT = ictSignals.length > 0
-      ? this._scoreSignals(ictSignals, regime, regimeResult, killzone, config.strategy.ictWeight)
-      : null;
-
-    // Score Footprint signals
-    const bestFP = fpSignals.length > 0
-      ? this._scoreSignals(fpSignals, regime, regimeResult, killzone, config.strategy.footprintWeight)
-      : null;
-
-    // ── Confluence logic ───────────────────────────────────────────
-    // Case 1: Both ICT and Footprint agree on direction → strong confluence
-    if (bestICT && bestFP && bestICT.action === bestFP.action) {
-      const combinedScore = bestICT.combinedScore + bestFP.combinedScore + 0.2; // agreement bonus
-      if (combinedScore >= config.strategy.minConfluenceScore) {
-        return {
-          ...bestICT,
-          combinedScore,
-          confluence: true,
-          confluenceSignals: [bestICT.type, bestFP.type],
-          reason: `${bestICT.reason} + ${bestFP.reason}`,
-        };
-      }
+    // Score all signals
+    const allScored = [];
+    for (const sig of ictSignals) {
+      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.ictWeight));
+    }
+    for (const sig of fpSignals) {
+      allScored.push(this._scoreSignal(sig, regime, regimeResult, killzone, config.strategy.footprintWeight));
     }
 
-    // Case 2: Strong single signal (high confidence) — allow without full confluence
-    const allScored = [...(bestICT ? [bestICT] : []), ...(bestFP ? [bestFP] : [])];
+    if (allScored.length === 0) return null;
     allScored.sort((a, b) => b.combinedScore - a.combinedScore);
     const best = allScored[0];
 
-    if (best && best.combinedScore >= config.strategy.minConfluenceScore) {
-      return best;
+    // Check for confluence: different source agrees on direction
+    const confluenceSignals = allScored.filter(s =>
+      s.action === best.action && s.source !== best.source
+    );
+
+    const hasConfluence = confluenceSignals.length > 0;
+
+    if (hasConfluence) {
+      best.combinedScore += config.strategy.confluenceBonus;
+      best.confluence = true;
+      best.confluenceSignals = [best.type, ...confluenceSignals.map(s => s.type)];
+      best.reason = `${best.reason} (+ ${confluenceSignals[0].type} confluence)`;
+
+      // Confluence pass: check minimum score
+      if (best.combinedScore >= config.strategy.minConfluenceScore) return best;
     }
 
-    return null;
+    // No confluence: require exceptional solo score
+    if (best.combinedScore >= config.strategy.minSoloScore) return best;
+
+    return null; // rejected
   }
 
-  _scoreSignals(signals, regime, regimeResult, killzone, weight) {
-    const scored = signals.map(sig => {
-      let score = sig.confidence * weight;
+  _scoreSignal(sig, regime, regimeResult, killzone, weight) {
+    let score = sig.confidence * weight;
+    const source = (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE' ||
+                    sig.type === 'LIQUIDITY_SWEEP' || sig.type === 'BOS' || sig.type === 'CHoCH')
+      ? 'ict' : 'footprint';
 
-      // ── Regime-specific boosts ───────────────────────────────────
-      if (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE') {
-        if (regime === 'TRENDING') score *= 1.3;
-        if (regime === 'RANGING') score *= 0.8;
-        if (regime === 'VOL_EXPANSION') score *= 1.1;
-      }
+    // ── Regime-specific boosts ───────────────────────────────────
+    if (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE') {
+      if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') score *= 1.3;
+      if (regime === 'RANGING') score *= 0.8;
+      if (regime === 'VOL_EXPANSION') score *= 1.1;
+    }
 
-      if (sig.type === 'LIQUIDITY_SWEEP') {
-        if (regime === 'TRENDING') score *= 1.4;
-        if (regime === 'LOW_VOL') score *= 0.6;
-      }
+    if (sig.type === 'LIQUIDITY_SWEEP') {
+      // Reduced significantly — worst performer with 19% WR
+      if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') score *= 0.8;
+      if (regime === 'LOW_VOL') score *= 0.3;
+      if (regime === 'RANGING') score *= 0.5;
+      if (regime === 'VOL_EXPANSION') score *= 0.7;
+    }
 
-      if (sig.type === 'ABSORPTION' || sig.type === 'DELTA_DIVERGENCE') {
-        if (regime === 'LOW_VOL') score *= 1.3;
-        if (regime === 'ABSORPTION') score *= 1.5;
-      }
+    if (sig.type === 'ABSORPTION' || sig.type === 'DELTA_DIVERGENCE') {
+      if (regime === 'LOW_VOL') score *= 1.3;
+      if (regime === 'ABSORPTION') score *= 1.5;
+    }
 
-      if (sig.type === 'IMBALANCE') {
-        if (regime === 'VOL_EXPANSION') score *= 1.4;
-      }
+    if (sig.type === 'IMBALANCE') {
+      if (regime === 'VOL_EXPANSION') score *= 1.4;
+    }
 
-      if (sig.type === 'POC_REACTION') {
-        if (regime === 'RANGING') score *= 1.3;
-      }
+    if (sig.type === 'POC_REACTION') {
+      if (regime === 'RANGING') score *= 1.3;
+    }
 
-      // ── Killzone boosts ──────────────────────────────────────────
-      if (killzone.overlap) score *= 1.2;
-      else if (killzone.allowed) score *= 1.05;
+    // ── Killzone boosts ──────────────────────────────────────────
+    if (killzone.overlap) score *= 1.2;
+    else if (killzone.allowed) score *= 1.05;
 
-      // ── Regime confidence boost ──────────────────────────────────
-      if (regimeResult.confidence > 0.7) score *= 1.1;
+    // ── Regime confidence boost ──────────────────────────────────
+    if (regimeResult.confidence > 0.7) score *= 1.1;
 
-      return { ...sig, combinedScore: score };
-    });
-
-    scored.sort((a, b) => b.combinedScore - a.combinedScore);
-    return scored[0];
-  }
-
-  // ── Legacy signal combination (fallback) ─────────────────────────
-  _combineSignals(regime, ict, footprint, regimeResult, killzone) {
-    const allSignals = [...ict.signals, ...footprint.signals];
-    if (allSignals.length === 0) return null;
-
-    const best = this._scoreSignals(allSignals, regime, regimeResult, killzone, 1.0);
-    if (best.combinedScore < config.strategy.minCombinedScore) return null;
-    return best;
+    return { ...sig, combinedScore: score, source };
   }
 
   // ── Regime-Specific Filters ──────────────────────────────────────
@@ -158,7 +148,7 @@ export default class StrategyEngine {
       if (signal.confidence < 0.6) return null;
     }
 
-    // Ranging: trade at range extremes (slightly relaxed from 0.3/0.7 to 0.25/0.75)
+    // Ranging: only trade at range extremes (strict — 20/80)
     if (regime === 'RANGING') {
       const highs = candles.slice(-20).map(c => c.high);
       const lows = candles.slice(-20).map(c => c.low);
@@ -168,16 +158,20 @@ export default class StrategyEngine {
       if (rangeSpan === 0) return null;
       const rangePosition = (price - rangeLow) / rangeSpan;
 
-      // Buy near bottom (0-25%), sell near top (75-100%)
-      if (signal.action === 'buy' && rangePosition > 0.25) return null;
-      if (signal.action === 'sell' && rangePosition < 0.75) return null;
+      // Buy near bottom (0-20%), sell near top (80-100%)
+      if (signal.action === 'buy' && rangePosition > 0.2) return null;
+      if (signal.action === 'sell' && rangePosition < 0.8) return null;
     }
 
-    // Trending: must align with trend direction (use EMA21)
-    if (regime === 'TRENDING') {
+    // Trending: must align with trend direction — STRICT
+    if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') {
       const ema21 = this._cachedEMA(candles, 21);
+      // Block counter-trend trades
       if (signal.action === 'buy' && price < ema21) return null;
       if (signal.action === 'sell' && price > ema21) return null;
+      // Block opposite direction entirely
+      if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
+      if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
     }
 
     // ── Calculate SL/TP using ATR ──────────────────────────────────
@@ -210,9 +204,10 @@ export default class StrategyEngine {
     };
   }
 
-  // ── Killzone Check (FIXED: accepts timestamp) ────────────────────
+  // ── Killzone Check (deadzone-based filtering) ────────────────────
+  // Only blocks during true dead hours (4-6 UTC, 18-22 UTC)
+  // Active zones get score boosts, everything else is neutral (allowed)
   _checkKillzone(candleTimestamp) {
-    // Use candle timestamp for backtest, real clock for live
     const now = candleTimestamp ? new Date(candleTimestamp) : new Date();
     const utcHour = now.getUTCHours();
     const utcMinutes = now.getUTCMinutes();
@@ -220,24 +215,34 @@ export default class StrategyEngine {
 
     const kz = config.killzones;
 
+    // Check if in a deadzone (the ONLY thing that blocks signals)
+    const inDeadzone = kz.deadzones.some(dz => time >= dz.start && time < dz.end);
+
+    if (inDeadzone) {
+      return { allowed: false, overlap: false, strict: true, session: 'dead' };
+    }
+
+    // Determine session for scoring boost
     const inLondon = time >= kz.london.start && time < kz.london.end;
     const inNY = time >= kz.ny.start && time < kz.ny.end;
     const inOverlap = time >= kz.overlap.start && time < kz.overlap.end;
-    const inAsia = time >= kz.asia.start && time < kz.asia.end;
+    const inAsia = (time >= kz.asia.start || time < kz.asia.end); // wraps midnight
 
     return {
-      allowed: inLondon || inNY || inAsia,
+      allowed: true,       // always allowed outside deadzone
       overlap: inOverlap,
-      strict: !inAsia, // Asia zone is lenient (for low-vol regime)
-      session: inOverlap ? 'overlap' : inNY ? 'ny' : inLondon ? 'london' : inAsia ? 'asia' : 'none',
+      strict: false,       // never strictly blocks outside deadzone
+      session: inOverlap ? 'overlap' : inNY ? 'ny' : inLondon ? 'london' : inAsia ? 'asia' : 'off-session',
     };
   }
 
-  // ── Rate Limiting ────────────────────────────────────────────────
-  _isRateLimited(symbol) {
+  // ── Rate Limiting (adaptive to timeframe) ─────────────────────────
+  _isRateLimited(symbol, candleTimestamp) {
     const lastTime = this.lastSignalTime[symbol];
     if (!lastTime) return false;
-    return Date.now() - lastTime < config.strategy.signalCooldown;
+    // Use candle timestamp for backtest, Date.now() for live
+    const now = candleTimestamp || Date.now();
+    return now - lastTime < config.strategy.signalCooldown;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────

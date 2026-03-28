@@ -7,12 +7,15 @@ export default {
     macro: '1h',
   },
 
-  // Killzones (UTC hours) — only trade during high-probability sessions
+  // Killzones (UTC hours) — soft filter mode
+  // Active zones get a score BOOST, dead zones (4-6 UTC, 18-22 UTC) are blocked
+  // This covers ~83% of the day instead of 62%, filtering only true dead hours
   killzones: {
-    london:    { start: 7,  end: 10 },
-    ny:        { start: 13, end: 16 },
-    overlap:   { start: 13, end: 15 },  // highest volume
-    asia:      { start: 0,  end: 3 },   // lower vol, only for ranging
+    london:    { start: 6,  end: 12 },
+    ny:        { start: 12, end: 18 },
+    overlap:   { start: 12, end: 15 },
+    asia:      { start: 22, end: 4 },      // wraps midnight
+    deadzones: [{ start: 4, end: 6 }, { start: 18, end: 22 }],  // only these are truly blocked
   },
 
   // Regime detection thresholds
@@ -58,15 +61,20 @@ export default {
 
   // ── Strategy: confluence-based entries ────────────────────────────
   strategy: {
-    // Require multiple signal types to confirm (not just the best one)
-    requireConfluence: true,
-    minConfluenceScore: 0.5,    // minimum combined score after multipliers
-    ictWeight: 0.6,             // weight for ICT signals in confluence
-    footprintWeight: 0.4,       // weight for footprint signals in confluence
-    // Higher threshold = fewer but higher-quality trades
-    minCombinedScore: 0.35,     // slightly lower than 0.4 — compensated by confluence
-    // Cooldown between signals (ms)
-    signalCooldown: 120000,     // 2 min — less aggressive than 1 min
+    // ── SNIPER MODE: fewer trades, higher quality ──────────────────
+    // Confluence is a HARD REQUIREMENT for ICT + Footprint agreement
+    minConfluenceScore: 0.55,   // raised — only strong signals pass
+    ictWeight: 0.6,
+    footprintWeight: 0.4,
+    confluenceBonus: 0.15,      // bonus when both agree
+    requireConfluence: true,    // HARD GATE: must have ICT + FP agreement OR score > 0.75
+    minSoloScore: 0.75,         // if no confluence, score must be exceptional
+    // Cooldown: 45 min between signals per symbol (3 candles on 15m)
+    signalCooldown: 2700000,    // 45 min
+    // Skip LOW_VOL regime entirely — no momentum = death by 1000 cuts
+    skipLowVol: true,
+    // Stricter trend alignment: in TRENDING, only trade WITH the trend
+    strictTrendAlignment: true,
   },
 
   // Paper trading engine
