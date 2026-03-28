@@ -64,14 +64,16 @@ export default {
   volumeFilter: { enabled: true, lookback: 20, minMultiplier: 1.0 },
 
   // ── Risk per regime ──────────────────────────────────────────────
+  // Tightened: avg loss was 2x avg win. Reducing SL to balance R:R.
+  // Target: avg loss ≤ 1.5x avg win → SL tighter, TP unchanged
   risk: {
-    TRENDING_UP:   { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 },
-    TRENDING_DOWN: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 },
-    TRENDING:      { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 },
-    RANGING:       { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.8 },
-    VOL_EXPANSION: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 1.0 },
-    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 2.0, slMultiplier: 0.7 },
-    ABSORPTION:    { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.8 },
+    TRENDING_UP:   { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.65 },
+    TRENDING_DOWN: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.65 },
+    TRENDING:      { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.65 },
+    RANGING:       { riskPercent: 0.5,  tpMultiplier: 1.8, slMultiplier: 0.55 },
+    VOL_EXPANSION: { riskPercent: 0.75, tpMultiplier: 2.2, slMultiplier: 0.7 },
+    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 2.0, slMultiplier: 0.5 },
+    ABSORPTION:    { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.6 },
   },
 
   // ── Strategy: confluence-based entries ────────────────────────────
