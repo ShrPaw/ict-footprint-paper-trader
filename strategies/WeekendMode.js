@@ -26,6 +26,10 @@ export default class WeekendMode {
 
     const regimeResult = this.regime.detect(symbol, candles5m);
     const regime = regimeResult.regime;
+
+    // Skip LOW_VOL on weekends — no momentum = death by 1000 cuts (43% WR for ETH)
+    if (regime === 'LOW_VOL') return null;
+
     const price = lastCandle.close;
 
     // Only footprint — no ICT on weekends
@@ -136,9 +140,15 @@ export default class WeekendMode {
     scored.sort((a, b) => b.combinedScore - a.combinedScore);
     const best = scored[0];
 
-    // MUCH higher bar for weekends — was generating 277 trades/month!
-    const minScore = config.strategy.minConfluenceScore + profile.weekend.confluenceBoost + 0.10;
-    const minSolo = config.strategy.minSoloScore + profile.weekend.confluenceBoost + 0.10;
+    // MUCH higher bar for weekends — was generating 277 trades/month on SOL, 159 on ETH
+    // Per-asset: SOL weekends profitable, ETH weekends not. Raise bar accordingly.
+    const baseMinScore = config.strategy.minConfluenceScore + profile.weekend.confluenceBoost + 0.10;
+    const baseMinSolo = config.strategy.minSoloScore + profile.weekend.confluenceBoost + 0.15;
+
+    // ETH-specific: even higher bar (weekends losing for ETH)
+    const isETH = profile.coin === 'ETH';
+    const minScore = isETH ? baseMinScore + 0.10 : baseMinScore;
+    const minSolo = isETH ? baseMinSolo + 0.10 : baseMinSolo;
 
     if (best.confluence && best.combinedScore >= minScore) return best;
     if (best.combinedScore >= minSolo) return best;
