@@ -1,5 +1,84 @@
 # ICT + Footprint Paper Trader — Development Log
 
+## Session: 2026-03-29 — v1.0 Major Architecture Overhaul
+
+### 🎯 What We Built
+
+**Complete system redesign from single-strategy to 3-mode architecture.**
+
+### 🏗️ Architecture Changes
+
+**1. ModeRouter** (`strategies/ModeRouter.js`)
+- Detects weekday vs weekend automatically
+- Routes to correct mode: Daytrade → Weekend → Scalping
+- Each mode is fully independent with its own logic
+
+**2. DaytradeMode** (`strategies/DaytradeMode.js`)
+- ICT on 1H timeframe ONLY (where price action is clean)
+- Asset-specific ADX thresholds (BTC: 25, ETH: 28, SOL: 32, XRP: 35)
+- EMA alignment required (9 > 21 > 50 for longs)
+- Asset-specific ICT/Footprint weight balance
+- Session-weighted scoring (NY hours boost for BTC, etc.)
+
+**3. WeekendMode** (`strategies/WeekendMode.js`)
+- NO ICT (unreliable on weekends — no institutional sessions)
+- Pure footprint/cluster analysis on 5m/15m
+- Absorption, POC reactions, volume shelves, delta shifts
+- 15m confluence check across timeframes
+- Half risk, wider SL, shorter cooldown
+- XRP weekends disabled (no edge)
+
+**4. ScalpingProMode** (`strategies/ScalpingProMode.js`)
+- NO ICT on 15m (too noisy on low timeframes)
+- Footprint-led with order flow confirmation
+- 5m micro-confirmation for precision
+- Volume filter with asset-specific thresholds
+- Psychological level proximity bonus
+- Tighter stops than daytrade
+
+**5. Asset Profiles** (`config/assetProfiles.js`)
+- BTC, ETH, SOL, XRP each with dedicated profiles
+- Volatility, trend tendency, session weights
+- Per-mode overrides (ADX, ICT weight, weekend risk, etc.)
+- Psychological levels for each asset
+
+### 📊 Config Changes
+
+- `config.js` — Big Four symbols, 1H timeframe, MTF enabled
+- `engine/main.js` — ModeRouter integration, multi-TF candle collection
+- `engine/backtest.js` — 3-mode backtesting with mode/asset breakdowns
+- Dashboard shows active mode, per-asset regime, last mode used
+
+### 🔑 Key Design Decisions
+
+1. **ICT belongs on 1H** — 15m had 24% WR (FVG) and 18% WR (OB). Higher TF = less noise
+2. **Weekends: footprint only** — no institutional algorithms = no ICT value
+3. **Scalping: no ICT** — 15m microstructure > chart patterns
+4. **Asset-specific everything** — BTC trends differently than SOL, XRP is dead on weekends
+5. **Daytrade priority** — when both modes can fire, daytrade has higher quality
+
+### Files Added
+- `strategies/ModeRouter.js` — Mode routing orchestrator
+- `strategies/DaytradeMode.js` — 1H ICT trend mode
+- `strategies/WeekendMode.js` — Weekend footprint mode
+- `strategies/ScalpingProMode.js` — 15m hybrid scalping mode
+- `config/assetProfiles.js` — Big Four asset intelligence
+
+### Files Modified
+- `config.js` — Big Four symbols, 1H TF, MTF enabled
+- `engine/main.js` — ModeRouter, multi-TF, v1.0 dashboard
+- `engine/backtest.js` — 3-mode backtesting, mode/asset breakdowns
+- `README.md` — Complete rewrite for v1.0
+
+### Next Steps
+1. Run backtest on all 4 assets to validate mode separation
+2. Compare mode performance (Daytrade vs Scalping per asset)
+3. Fine-tune asset-specific ADX thresholds
+4. Test with real footprint data on Hyperliquid
+5. Consider per-symbol config overrides in assetProfiles
+
+---
+
 ## Session: 2026-03-28 (Fourth Session) — v0.6 Enhancement Testing
 
 ### 🎯 What We Did
