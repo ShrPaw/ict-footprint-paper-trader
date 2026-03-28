@@ -44,23 +44,19 @@ export default class ModeRouter {
     let signal = null;
     let mode = null;
 
-    if (isWeekend) {
-      // ── Weekend: Footprint/Cluster only ────────────────────────
-      // Use 5m as primary, 15m for confluence
-      signal = this.weekend.generateSignal(symbol, candles5m, candles15m, realFootprint);
-      mode = 'WEEKEND';
-    } else {
-      // ── Weekday: Try Daytrade first (higher quality), then Scalping ──
-      // Daytrade uses 1H — fewer signals but cleaner
+    // ── Weekday: Daytrade only (1H) ─────────────────────────────────
+    // Scalping disabled — 44% WR, -$421. No edge on 15m.
+    // Daytrade on 1H is cleaner and almost breakeven.
+    if (!isWeekend) {
       if (candles1h.length >= 50) {
         signal = this.daytrade.generateSignal(symbol, candles1h, candles15m, realFootprint);
         mode = 'DAYTRADE';
       }
-
-      // If no daytrade signal, try scalping on 15m
-      if (!signal && candles15m.length >= 50) {
-        signal = this.scalping.generateSignal(symbol, candles15m, candles5m, realFootprint);
-        mode = 'SCALPING';
+    } else {
+      // Weekend: footprint/cluster only
+      if (candles5m.length >= 30) {
+        signal = this.weekend.generateSignal(symbol, candles5m, candles15m, realFootprint);
+        mode = 'WEEKEND';
       }
     }
 

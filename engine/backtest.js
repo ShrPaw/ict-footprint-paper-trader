@@ -140,15 +140,9 @@ class Backtester {
       return null;
     }
 
-    // Weekday: Daytrade first (1H), then Scalping (15m)
+    // Weekday: Daytrade only (scalping disabled — no edge on 15m)
     if (window1h.length >= 50) {
-      const signal = this.daytradeMode.generateSignal(symbol, window1h, window15m, null);
-      if (signal) return signal;
-    }
-
-    // Fallback to scalping
-    if (window15m.length >= 50 && window5m.length >= 30) {
-      return this.scalpingMode.generateSignal(symbol, window15m, window5m, null);
+      return this.daytradeMode.generateSignal(symbol, window1h, window15m, null);
     }
 
     return null;
