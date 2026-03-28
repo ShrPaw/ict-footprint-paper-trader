@@ -1,32 +1,33 @@
 import config from './config.js';
 import PaperEngine from './engine/PaperEngine.js';
-import DataFeed from './data/DataFeed.js';
+import HyperliquidFeed from './data/HyperliquidFeed.js';
 import TradingViewWebhook from './data/TradingViewWebhook.js';
 import TelegramAlerter from './alerts/TelegramAlerter.js';
 import RegimeDetector from './analysis/RegimeDetector.js';
 import ICTAnalyzer from './analysis/ICTAnalyzer.js';
-import FootprintAnalyzer from './analysis/FootprintAnalyzer.js';
+import RealFootprintAnalyzer from './analysis/RealFootprintAnalyzer.js';
 import StrategyEngine from './strategies/StrategyEngine.js';
 
 class PaperTrader {
   constructor() {
     this.engine = new PaperEngine();
-    this.feed = new DataFeed();
+    this.feed = new HyperliquidFeed();
     this.webhook = new TradingViewWebhook(3456);
     this.telegram = new TelegramAlerter();
     this.regime = new RegimeDetector();
     this.ict = new ICTAnalyzer();
-    this.footprint = new FootprintAnalyzer();
+    this.footprint = new RealFootprintAnalyzer();
     this.strategy = new StrategyEngine(this.regime, this.ict, this.footprint);
     this.running = false;
     this.lastRegime = {};
     this.dailySummarySent = false;
+    this._latestFootprint = {};  // symbol -> latest real footprint
   }
 
   async start() {
     console.log('\n╔══════════════════════════════════════════════╗');
-    console.log('║   ICT + Footprint Paper Trader v0.3         ║');
-    console.log('║   MEXC · Telegram Alerts · Confluence       ║');
+    console.log('║   ICT + Footprint Paper Trader v0.5         ║');
+    console.log('║   Hyperliquid · Real Order Flow · Telegram   ║');
     console.log('╚══════════════════════════════════════════════╝\n');
 
     await this.feed.init();
@@ -37,14 +38,17 @@ class PaperTrader {
 
     this.feed.on('tick', (symbol, ticker) => this._onTick(symbol, ticker));
     this.feed.on('newCandle', (symbol, tf, candle) => this._onNewCandle(symbol, tf, candle));
+    this.feed.on('footprint', (symbol, tf, candle, footprint) => this._onFootprint(symbol, tf, candle, footprint));
+    this.feed.on('book', (symbol, book) => this._onBook(symbol, book));
 
-    this.feed.startPolling(5000);
+    this.feed.startPolling(3000);
     this.running = true;
 
     this._startDashboard();
     this._scheduleDailySummary();
 
-    await this.telegram.sendAlert('🚀 Paper Trader v0.3 started on MEXC\nSymbols: ' + config.symbols.join(', ') + '\nMode: Confluence-based entries');
+    const coins = config.symbols.map(s => s.split('/')[0]);
+    await this.telegram.sendAlert('🚀 Paper Trader v0.5 started on Hyperliquid\nCoins: ' + coins.join(', ') + '\nMode: Footprint-led, Real Order Flow');
 
     console.log('[Trader] Engine running. Press Ctrl+C to stop.\n');
   }
@@ -66,14 +70,14 @@ class PaperTrader {
     }
   }
 
-  // ── New Candle Handler (generate signals) ─────────────────────────
+  // ── New Candle Handler ───────────────────────────────────────────
   _onNewCandle(symbol, timeframe) {
     if (timeframe !== config.timeframes.primary) return;
 
     const candles = this.feed.getCandles(symbol, config.timeframes.primary);
     if (candles.length < 50) return;
 
-    // Check for regime changes
+    // Regime change detection
     const regimeResult = this.regime.detect(symbol, candles);
     const prevRegime = this.lastRegime[symbol];
     if (prevRegime && prevRegime !== regimeResult.regime) {
@@ -82,15 +86,14 @@ class PaperTrader {
     }
     this.lastRegime[symbol] = regimeResult.regime;
 
-    // Run strategy
-    const signal = this.strategy.generateSignal(symbol, candles);
+    // Run strategy with latest real footprint
+    const realFP = this._latestFootprint[symbol] || null;
+    const signal = this.strategy.generateSignal(symbol, candles, realFP);
     if (!signal) return;
 
-    // Execute paper trade — pass ATR for consistent stop management
+    // Execute
     let riskPercent = config.risk[signal.regime]?.riskPercent || 0.5;
-    if (signal.isWeekend) {
-      riskPercent *= config.weekend.riskMultiplier;
-    }
+    if (signal.isWeekend) riskPercent *= config.weekend.riskMultiplier;
 
     const riskAmount = this.engine.balance * (riskPercent / 100);
     const slDist = Math.abs(signal.price - signal.stopLoss);
@@ -104,10 +107,8 @@ class PaperTrader {
       signal.stopLoss,
       signal.takeProfit,
       signal.regime,
-      signal.confluence
-        ? `CONFLUENCE: ${signal.confluenceSignals?.join(' + ')}${signal.entryPattern ? ' [' + signal.entryPattern + ']' : ''}`
-        : (signal.reason || signal.type) + (signal.entryPattern ? ` [${signal.entryPattern}]` : ''),
-      signal.atr  // pass actual ATR
+      this._formatReason(signal),
+      signal.atr
     );
 
     if (result.ok) {
@@ -116,13 +117,33 @@ class PaperTrader {
         TRENDING: '📈', RANGING: '↔️', VOL_EXPANSION: '💥',
         LOW_VOL: '😴', ABSORPTION: '🧲',
       };
-      console.log(`\n${regimeEmoji[p.regime] || '🎯'} [${p.symbol}] ${p.side.toUpperCase()} @ ${p.entryPrice.toFixed(4)}`);
+      const dataMode = realFP ? '📊REAL' : '📐EST';
+      console.log(`\n${regimeEmoji[p.regime] || '🎯'} [${p.symbol}] ${p.side.toUpperCase()} @ ${p.entryPrice.toFixed(4)} ${dataMode}`);
       console.log(`   SL: ${p.stopLoss.toFixed(4)} | TP: ${p.takeProfit.toFixed(4)}`);
       console.log(`   Regime: ${p.regime} | Signal: ${p.reason}`);
-      console.log(`   Size: ${p.size.toFixed(4)} | Fee: $${p.fee.toFixed(2)}`);
 
       this.telegram.sendEntry(p);
     }
+  }
+
+  // ── Real Footprint Handler ───────────────────────────────────────
+  _onFootprint(symbol, tf, candle, footprint) {
+    if (tf !== config.timeframes.primary) return;
+
+    this._latestFootprint[symbol] = footprint;
+    this.footprint.ingestRealFootprint(footprint);
+
+    // Log significant footprint events
+    if (Math.abs(footprint.deltaPercent) > 30) {
+      const dir = footprint.deltaPercent > 0 ? 'BULLISH' : 'BEARISH';
+      console.log(`📊 [${symbol}] ${dir} flow: Δ${footprint.deltaPercent.toFixed(1)}% | ${footprint.trades} trades | POC: ${footprint.poc?.toFixed(4)}`);
+    }
+  }
+
+  // ── Book Handler ─────────────────────────────────────────────────
+  _onBook(symbol, book) {
+    // Book data available for future signals (depth analysis)
+    // Currently used by footprint analyzer for volume shelf detection
   }
 
   // ── TradingView Webhook Handler ───────────────────────────────────
@@ -131,10 +152,7 @@ class PaperTrader {
 
     const candles = this.feed.getCandles(signal.symbol, config.timeframes.primary);
     const price = signal.price || this.feed.getLatestPrice(signal.symbol);
-    if (!price) {
-      console.log(`[Webhook] No price data for ${signal.symbol}`);
-      return;
-    }
+    if (!price) return;
 
     const regime = this.regime.detect(signal.symbol, candles);
     const riskParams = config.risk[regime.regime] || config.risk.RANGING;
@@ -152,7 +170,7 @@ class PaperTrader {
       size,
       price, sl, tp,
       regime.regime,
-      `TradingView Webhook`,
+      'TradingView Webhook',
       atr
     );
 
@@ -171,7 +189,8 @@ class PaperTrader {
       process.stdout.write('\x1B[2J\x1B[0f');
 
       console.log('╔══════════════════════════════════════════════╗');
-      console.log('║   📊 PAPER TRADER DASHBOARD v0.3            ║');
+      console.log('║   📊 PAPER TRADER DASHBOARD v0.5            ║');
+      console.log('║   Hyperliquid · Real Order Flow              ║');
       console.log('╚══════════════════════════════════════════════╝\n');
 
       console.log(`💰 Balance:      $${stats.balance.toFixed(2)}`);
@@ -184,16 +203,29 @@ class PaperTrader {
       console.log(`💸 Total Fees:   $${stats.totalFees.toFixed(2)}`);
       console.log(`📊 Trades:       ${stats.totalTrades}`);
 
+      // Real data status
+      console.log('\n── Data Source ────────────────────────────');
+      for (const symbol of config.symbols) {
+        const coin = symbol.split('/')[0];
+        const fp = this._latestFootprint[coin];
+        const trades = this.feed.getTrades(coin);
+        const mode = fp ? `📊 REAL (${trades.length} trades buffered)` : '📐 ESTIMATED';
+        console.log(`  ${coin.padEnd(8)} ${mode}`);
+      }
+
       // Regime status
       console.log('\n── Market Regimes ──────────────────────────');
       for (const symbol of config.symbols) {
+        const coin = symbol.split('/')[0];
         const r = this.regime.getRegime(symbol);
         const price = this.feed.getLatestPrice(symbol);
         const regimeEmoji = {
           TRENDING: '📈', RANGING: '↔️', VOL_EXPANSION: '💥',
           LOW_VOL: '😴', ABSORPTION: '🧲',
         };
-        console.log(`  ${symbol.padEnd(18)} ${regimeEmoji[r.regime] || '❓'} ${r.regime.padEnd(14)} ${price ? '$' + price.toFixed(4) : '...'}`);
+        const fp = this._latestFootprint[coin];
+        const deltaInfo = fp ? ` | Δ${fp.deltaPercent.toFixed(1)}%` : '';
+        console.log(`  ${coin.padEnd(8)} ${regimeEmoji[r.regime] || '❓'} ${r.regime.padEnd(14)} ${price ? '$' + price.toFixed(4) : '...'}${deltaInfo}`);
       }
 
       // Open positions
@@ -202,23 +234,15 @@ class PaperTrader {
         for (const p of positions) {
           const pnlSign = p.unrealizedPnL >= 0 ? '+' : '';
           const trailing = p.trailingActive ? ' 📉trail' : '';
-          const be = p.breakevenTriggered ? ' ⚖️BE' : '';
-          console.log(`  ${p.symbol.padEnd(18)} ${p.side.padEnd(5)} @ ${p.entryPrice.toFixed(4)} | uPnL: ${pnlSign}$${p.unrealizedPnL.toFixed(2)} | SL: ${p.stopLoss.toFixed(4)} | ${p.regime}${trailing}${be}`);
+          console.log(`  ${p.symbol.padEnd(8)} ${p.side.padEnd(5)} @ ${p.entryPrice.toFixed(4)} | uPnL: ${pnlSign}$${p.unrealizedPnL.toFixed(2)} | SL: ${p.stopLoss.toFixed(4)} | ${p.regime}${trailing}`);
         }
       }
-
-      // Session info
-      const lastCandle = this.feed.getCandles(config.symbols[0], config.timeframes.primary);
-      const lastTs = lastCandle?.[lastCandle.length - 1]?.timestamp;
-      const kz = this.strategy._checkKillzone(lastTs);
-      console.log(`\n── Session: ${kz.session.toUpperCase()} ${kz.allowed ? '🟢' : '🔴'} ────────────`);
-      console.log(`── Telegram: ${this.telegram.enabled ? '🟢 Connected' : '🔴 Disabled'} ──────────`);
 
       console.log('\n(Ctrl+C to stop)');
     }, 3000);
   }
 
-  // ── Daily Summary Scheduler ───────────────────────────────────────
+  // ── Daily Summary ────────────────────────────────────────────────
   _scheduleDailySummary() {
     setInterval(() => {
       const now = new Date();
@@ -234,6 +258,19 @@ class PaperTrader {
         this.dailySummarySent = false;
       }
     }, 60000);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  _formatReason(signal) {
+    const parts = [];
+    if (signal.confluence) {
+      parts.push(`CONFLUENCE: ${signal.confluenceSignals?.join(' + ')}`);
+    } else {
+      parts.push(signal.reason || signal.type);
+    }
+    if (signal.entryPattern) parts.push(`[${signal.entryPattern}]`);
+    if (signal.realData) parts.push('[REAL]');
+    return parts.join(' ');
   }
 
   _currentATR(candles, period = 14) {

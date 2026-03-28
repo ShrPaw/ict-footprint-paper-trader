@@ -2,7 +2,7 @@ import ccxt from 'ccxt';
 import config from '../config.js';
 import RegimeDetector from '../analysis/RegimeDetector.js';
 import ICTAnalyzer from '../analysis/ICTAnalyzer.js';
-import FootprintAnalyzer from '../analysis/FootprintAnalyzer.js';
+import RealFootprintAnalyzer from '../analysis/RealFootprintAnalyzer.js';
 import StrategyEngine from '../strategies/StrategyEngine.js';
 import fs from 'fs';
 import path from 'path';
@@ -18,7 +18,7 @@ class Backtester {
     this.maxDrawdownPercent = 0;
     this.regime = new RegimeDetector();
     this.ict = new ICTAnalyzer();
-    this.footprint = new FootprintAnalyzer();
+    this.footprint = new RealFootprintAnalyzer();
     this.strategy = new StrategyEngine(this.regime, this.ict, this.footprint);
     this.position = null;
     this.dailyPnL = 0;

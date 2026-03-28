@@ -1,22 +1,33 @@
 import config from '../config.js';
 
+// Footprint-led signal types (measured, not narrative)
+const FP_SIGNALS = new Set([
+  'DELTA_DIVERGENCE', 'ABSORPTION', 'STACKED_IMBALANCE',
+  'DELTA_FLIP', 'POC_REACTION', 'VOLUME_SHELF', 'IMBALANCE',
+]);
+
+// ICT-led signal types (chart structure, multi-candle)
+const ICT_SIGNALS = new Set([
+  'FVG', 'ORDER_BLOCK', 'OTE', 'LIQUIDITY_SWEEP', 'BOS', 'CHoCH',
+]);
+
 export default class StrategyEngine {
   constructor(regimeDetector, ictAnalyzer, footprintAnalyzer) {
     this.regime = regimeDetector;
     this.ict = ictAnalyzer;
     this.footprint = footprintAnalyzer;
     this.lastSignalTime = {};
-    this._atrCache = {};   // symbol -> { candles_hash, atr }
-    this._emaCache = {};   // symbol -> { candles_hash, ema21 }
+    this._atrCache = {};
+    this._emaCache = {};
   }
 
-  generateSignal(symbol, candles) {
+  generateSignal(symbol, candles, realFootprint = null) {
     if (candles.length < 50) return null;
 
     const lastCandle = candles[candles.length - 1];
     const isWeekend = this._isWeekend(lastCandle.timestamp);
 
-    // 1. Killzone check — weekends have no sessions, so KZ is always "allowed" but without boost
+    // 1. Killzone check — weekends have no sessions
     const killzone = isWeekend
       ? { allowed: true, overlap: false, strict: false, session: 'weekend', isWeekend: true }
       : this._checkKillzone(lastCandle.timestamp);
@@ -27,16 +38,16 @@ export default class StrategyEngine {
     const regimeResult = this.regime.detect(symbol, candles);
     const regime = regimeResult.regime;
 
-    // 2b. Skip LOW_VOL regime — no edge, just bleeding fees
+    // 2b. Skip LOW_VOL regime
     if (config.strategy.skipLowVol && regime === 'LOW_VOL') return null;
 
     // 3. Run ICT analysis
     const ictResult = this.ict.analyze(symbol, candles);
 
-    // 4. Run Footprint analysis
-    const footprintResult = this.footprint.analyze(symbol, candles);
+    // 4. Run Footprint analysis (with real data if available)
+    const footprintResult = this.footprint.analyze(symbol, candles, realFootprint);
 
-    // 5. Score signals — strict confluence required
+    // 5. Score signals
     const signal = this._scoreWithConfluence(regime, ictResult, footprintResult, regimeResult, killzone, isWeekend);
     if (!signal) return null;
 
@@ -44,13 +55,13 @@ export default class StrategyEngine {
     const filtered = this._applyRegimeFilters(signal, regime, regimeResult, candles, isWeekend);
     if (!filtered) return null;
 
-    // 7. Entry confirmation — reject if no candle pattern validates the ICT zone
+    // 7. Entry confirmation
     if (config.strategy.entryConfirmation.enabled) {
       const confirmed = this._checkEntryConfirmation(candles, filtered);
       if (!confirmed) return null;
     }
 
-    // 8. Rate limit (uses candle timestamp in backtest)
+    // 8. Rate limit
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
     this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();
@@ -130,26 +141,26 @@ export default class StrategyEngine {
 
   _scoreSignal(sig, regime, regimeResult, killzone, weight, isWeekend) {
     let score = sig.confidence * weight;
-    const source = (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE' ||
-                    sig.type === 'LIQUIDITY_SWEEP' || sig.type === 'BOS' || sig.type === 'CHoCH')
-      ? 'ict' : 'footprint';
+    const source = FP_SIGNALS.has(sig.type) ? 'footprint' : 'ict';
+
+    // ── Real data bonus ───────────────────────────────────────────
+    if (sig.realData) score *= 1.15;
 
     // ── ORDER BLOCK DEMOTION ────────────────────────────────────────
-    // Worst signal: 77 trades, 18% WR, -$1,514
     if (sig.type === 'ORDER_BLOCK') {
       score *= config.strategy.orderBlockPenalty;
     }
 
-    // ── Regime-specific boosts ───────────────────────────────────
+    // FVG demotion: 24% WR, -$378
+    if (sig.type === 'FVG') {
+      score *= 0.7;
+    }
+
+    // ── Regime-specific boosts — ICT ─────────────────────────────
     if (sig.type === 'FVG' || sig.type === 'ORDER_BLOCK' || sig.type === 'OTE') {
       if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') score *= 1.3;
       if (regime === 'RANGING') score *= 0.8;
       if (regime === 'VOL_EXPANSION') score *= 1.1;
-    }
-
-    // FVG: 24% WR, -$378 — needs confluence to be worth anything
-    if (sig.type === 'FVG') {
-      score *= 0.7;  // demote — still usable but must clear higher bar
     }
 
     if (sig.type === 'LIQUIDITY_SWEEP') {
@@ -159,19 +170,33 @@ export default class StrategyEngine {
       if (regime === 'VOL_EXPANSION') score *= 0.7;
     }
 
-    if (sig.type === 'ABSORPTION' || sig.type === 'DELTA_DIVERGENCE') {
+    // ── Regime-specific boosts — Footprint ───────────────────────
+    if (sig.type === 'DELTA_DIVERGENCE') {
+      score *= 1.2;
+      if (regime === 'ABSORPTION') score *= 1.3;
+    }
+
+    if (sig.type === 'ABSORPTION') {
       if (regime === 'LOW_VOL') score *= 1.3;
       if (regime === 'ABSORPTION') score *= 1.5;
-      // DELTA_DIVERGENCE is the only profitable signal (38% WR, +$186) — boost it
-      if (sig.type === 'DELTA_DIVERGENCE') score *= 1.2;
+    }
+
+    if (sig.type === 'STACKED_IMBALANCE') {
+      if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') score *= 1.4;
+      if (regime === 'VOL_EXPANSION') score *= 1.2;
+    }
+
+    if (sig.type === 'DELTA_FLIP') {
+      if (regime === 'VOL_EXPANSION') score *= 1.3;
     }
 
     if (sig.type === 'IMBALANCE') {
       if (regime === 'VOL_EXPANSION') score *= 1.4;
     }
 
-    if (sig.type === 'POC_REACTION') {
+    if (sig.type === 'POC_REACTION' || sig.type === 'VOLUME_SHELF') {
       if (regime === 'RANGING') score *= 1.3;
+      if (regime === 'ABSORPTION') score *= 1.2;
     }
 
     // ── Killzone boosts ──────────────────────────────────────────
@@ -179,9 +204,8 @@ export default class StrategyEngine {
       if (killzone.overlap) score *= 1.2;
       else if (killzone.allowed) score *= 1.05;
     }
-    // Weekend: no KZ boost — neutral, rely on signal quality alone
 
-    // ── Weekend: penalize ICT signals slightly (less reliable without institutional flow) ──
+    // ── Weekend: penalize ICT signals ────────────────────────────
     if (isWeekend && source === 'ict') {
       score *= 0.9;
     }

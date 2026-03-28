@@ -79,8 +79,11 @@ export default {
     // ── SNIPER MODE: fewer trades, higher quality ──────────────────
     // Confluence is a HARD REQUIREMENT for ICT + Footprint agreement
     minConfluenceScore: 0.55,   // raised — only strong signals pass
-    ictWeight: 0.6,
-    footprintWeight: 0.4,
+    // ── Footprint-led: measured order flow > chart structure ─────
+    // Footprint tells us what's happening NOW (real buy/sell pressure)
+    // ICT tells us what happened THEN (chart patterns from 20+ candles ago)
+    ictWeight: 0.3,
+    footprintWeight: 0.7,
     confluenceBonus: 0.15,      // bonus when both agree
     requireConfluence: true,    // HARD GATE: must have ICT + FP agreement OR score > 0.75
     minSoloScore: 0.75,         // if no confluence, score must be exceptional
