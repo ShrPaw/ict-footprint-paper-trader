@@ -17,7 +17,7 @@ const ASSET_PROFILES = {
     riskMultiplier: 1.0,
     slTightness: 1.0,
     daytrade: { adxThreshold: 20, emaAlignment: true, ictWeight: 0.4, footprintWeight: 0.6 },
-    weekend: { enabled: true, confluenceBoost: 0.15, riskMultiplier: 0.4 },
+    weekend: { enabled: false, confluenceBoost: 0.15, riskMultiplier: 0.4 },
     scalping: { minVolumeMult: 1.2, deltaImbalanceRatio: 2.5 },
   },
   'ETH/USDT:USDT': {
@@ -53,7 +53,7 @@ const ASSET_PROFILES = {
     riskMultiplier: 0.8,
     slTightness: 1.3,
     daytrade: { adxThreshold: 22, emaAlignment: true, ictWeight: 0.25, footprintWeight: 0.75 },
-    weekend: { enabled: true, confluenceBoost: 0.18, riskMultiplier: 0.35 },
+    weekend: { enabled: false, confluenceBoost: 0.18, riskMultiplier: 0.35 },
     scalping: { minVolumeMult: 0.8, deltaImbalanceRatio: 1.8 },
   },
   'XRP/USDT:USDT': {
