@@ -31,21 +31,22 @@ class Backtester {
     this.startDate = options.startDate || null;
     this.endDate = options.endDate || null;
     this.verbose = options.verbose ?? false;
+    this.exchangeId = options.exchange || config.data.exchange;
   }
 
   async run() {
     console.log('\n╔══════════════════════════════════════════════╗');
-    console.log('║   📊 BACKTEST ENGINE v1.0                   ║');
+    console.log('║   📊 BACKTEST ENGINE v1.1                   ║');
     console.log('║   ICT + Footprint · Regime-Adaptive          ║');
     console.log('╚══════════════════════════════════════════════╝\n');
+    console.log(`  Exchange: ${this.exchangeId} | Timeframe: ${this.timeframe}`);
 
-    const exchange = new ccxt[config.data.exchange]({ enableRateLimit: true });
+    const exchange = new ccxt[this.exchangeId]({ enableRateLimit: true });
 
     for (const symbol of this.symbols) {
       console.log(`\n── Backtesting ${symbol} (${this.timeframe}) ──────────`);
-      
+
       try {
-        // Fetch historical candles
         const allCandles = await this._fetchHistoricalCandles(exchange, symbol);
         console.log(`  Loaded ${allCandles.length} candles`);
 
@@ -54,7 +55,6 @@ class Backtester {
           continue;
         }
 
-        // Run through candles
         for (let i = 50; i < allCandles.length; i++) {
           const window = allCandles.slice(0, i + 1);
           const candle = allCandles[i];
@@ -134,7 +134,6 @@ class Backtester {
 
         allCandles.push(...candles);
 
-        // Check if we've hit the end
         const lastTs = ohlcv[ohlcv.length - 1][0];
         if (lastTs >= endTime || ohlcv.length < limit) break;
 
@@ -154,13 +153,16 @@ class Backtester {
     const slDistance = Math.abs(price - signal.stopLoss);
     if (slDistance === 0) return;
 
+    // Use CURRENT balance for position sizing (not starting balance)
     const riskAmount = this.balance * (riskParams.riskPercent / 100);
     const size = riskAmount / slDistance;
     const fee = size * price * config.engine.takerFee;
     const margin = (size * price) / 10;
 
     if (margin + fee > this.balance) return;
-    if (this.dailyPnL / this.startingBalance <= -config.engine.maxDailyLoss) return;
+
+    // FIX: Use Math.abs for daily loss check
+    if (Math.abs(this.dailyPnL) / this.startingBalance >= config.engine.maxDailyLoss) return;
 
     const slippage = price * config.engine.slippage * (signal.action === 'buy' ? 1 : -1);
     const fillPrice = price + slippage;
@@ -177,16 +179,19 @@ class Backtester {
       signalType: signal.type,
       entryTime: timestamp,
       fee,
+      // Use actual ATR for stop management (consistent with live engine)
+      atr: signal.atr || Math.abs(signal.takeProfit - fillPrice) / 2,
       highestPrice: fillPrice,
       lowestPrice: fillPrice,
       breakevenTriggered: false,
+      trailingActive: false,
     };
 
     this.balance -= fee;
 
     if (this.verbose) {
       const emoji = signal.action === 'buy' ? '📈' : '📉';
-      console.log(`  ${emoji} ${signal.action.toUpperCase()} ${symbol} @ ${fillPrice.toFixed(4)} | SL: ${signal.stopLoss.toFixed(4)} | TP: ${signal.takeProfit.toFixed(4)} | ${signal.regime}`);
+      console.log(`  ${emoji} ${signal.action.toUpperCase()} ${symbol} @ ${fillPrice.toFixed(4)} | SL: ${signal.stopLoss.toFixed(4)} | TP: ${signal.takeProfit.toFixed(4)} | ${signal.regime}${signal.confluence ? ' [CONFLUENCE: ' + signal.confluenceSignals?.join('+') + ']' : ''}`);
     }
   }
 
@@ -195,44 +200,60 @@ class Backtester {
     const price = candle.close;
     const side = pos.side;
 
-    // Track extremes for trailing
+    // Track extremes
     if (side === 'long') {
       if (candle.high > pos.highestPrice) pos.highestPrice = candle.high;
     } else {
       if (candle.low < pos.lowestPrice) pos.lowestPrice = candle.low;
     }
 
-    // Breakeven: if price moves 1x ATR in profit, move SL to entry
+    // ── Breakeven (FIXED: uses actual ATR, same logic as live) ─────
     if (!pos.breakevenTriggered) {
-      const atrDist = Math.abs(pos.takeProfit - pos.entryPrice) / 2;
-      if (side === 'long' && candle.high >= pos.entryPrice + atrDist) {
-        pos.stopLoss = pos.entryPrice + pos.entryPrice * 0.0005; // tiny buffer for fees
+      const beActivation = pos.atr * config.engine.breakeven.activationATR;
+      const offset = pos.entryPrice * config.engine.breakeven.offset;
+
+      if (side === 'long' && candle.high >= pos.entryPrice + beActivation) {
+        pos.stopLoss = pos.entryPrice + offset;
         pos.breakevenTriggered = true;
-      } else if (side === 'short' && candle.low <= pos.entryPrice - atrDist) {
-        pos.stopLoss = pos.entryPrice - pos.entryPrice * 0.0005;
+      } else if (side === 'short' && candle.low <= pos.entryPrice - beActivation) {
+        pos.stopLoss = pos.entryPrice - offset;
         pos.breakevenTriggered = true;
       }
     }
 
-    // Trailing stop: trail by 0.5x ATR once in 1.5x ATR profit
-    const fullRange = Math.abs(pos.takeProfit - pos.entryPrice);
-    if (side === 'long' && candle.high >= pos.entryPrice + fullRange * 0.6) {
-      const trailDist = fullRange * 0.3;
-      const newSL = pos.highestPrice - trailDist;
-      if (newSL > pos.stopLoss) pos.stopLoss = newSL;
-    } else if (side === 'short' && candle.low <= pos.entryPrice - fullRange * 0.6) {
-      const trailDist = fullRange * 0.3;
-      const newSL = pos.lowestPrice + trailDist;
-      if (newSL < pos.stopLoss) pos.stopLoss = newSL;
+    // ── Trailing Stop (FIXED: uses actual ATR, same logic as live) ─
+    if (config.engine.trailingStop.enabled) {
+      const activationDist = pos.atr * config.engine.trailingStop.activationATR;
+      const trailDist = pos.atr * config.engine.trailingStop.trailATR;
+
+      if (!pos.trailingActive) {
+        if (side === 'long' && candle.high >= pos.entryPrice + activationDist) {
+          pos.trailingActive = true;
+        } else if (side === 'short' && candle.low <= pos.entryPrice - activationDist) {
+          pos.trailingActive = true;
+        }
+      }
+
+      if (pos.trailingActive) {
+        if (side === 'long') {
+          const newSL = pos.highestPrice - trailDist;
+          if (newSL > pos.stopLoss) pos.stopLoss = newSL;
+        } else {
+          const newSL = pos.lowestPrice + trailDist;
+          if (newSL < pos.stopLoss) pos.stopLoss = newSL;
+        }
+      }
     }
 
     // Check SL hit
     if (side === 'long' && candle.low <= pos.stopLoss) {
-      this._closePosition(pos.stopLoss, timestamp, pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss');
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      this._closePosition(pos.stopLoss, timestamp, reason);
       return;
     }
     if (side === 'short' && candle.high >= pos.stopLoss) {
-      this._closePosition(pos.stopLoss, timestamp, pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss');
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      this._closePosition(pos.stopLoss, timestamp, reason);
       return;
     }
 
@@ -317,23 +338,19 @@ class Backtester {
     const totalPnL = trades.reduce((s, t) => s + t.pnl, 0);
     const totalFees = trades.reduce((s, t) => s + t.totalFees, 0);
 
-    // Win/Loss metrics
     const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
     const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
     const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : Infinity;
 
-    // Average win/loss
     const avgWin = wins.length ? grossProfit / wins.length : 0;
     const avgLoss = losses.length ? grossLoss / losses.length : 0;
     const winLossRatio = avgLoss > 0 ? avgWin / avgLoss : Infinity;
 
-    // Expectancy per trade
     const winRate = trades.length ? wins.length / trades.length : 0;
     const expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss);
 
-    // Sharpe ratio (simplified — daily returns)
+    // Sharpe ratio
     const dailyReturns = [];
-    let prevEquity = this.startingBalance;
     const dayMap = {};
     for (const point of this.equityCurve) {
       const day = new Date(point.timestamp).toDateString();
@@ -349,18 +366,15 @@ class Backtester {
       : 0;
     const sharpe = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(365) : 0;
 
-    // Sortino (only downside deviation)
     const downsideReturns = dailyReturns.filter(r => r < 0);
     const downsideStd = downsideReturns.length > 1
       ? Math.sqrt(downsideReturns.reduce((s, r) => s + Math.pow(r, 2), 0) / (downsideReturns.length - 1))
       : 0;
     const sortino = downsideStd > 0 ? (avgReturn / downsideStd) * Math.sqrt(365) : 0;
 
-    // Duration stats
     const durations = trades.map(t => t.durationMin);
     const avgDuration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
 
-    // Consecutive wins/losses
     let maxConsecWins = 0, maxConsecLosses = 0, curWins = 0, curLosses = 0;
     for (const t of trades) {
       if (t.pnl > 0) { curWins++; curLosses = 0; } else { curLosses++; curWins = 0; }
@@ -368,7 +382,6 @@ class Backtester {
       maxConsecLosses = Math.max(maxConsecLosses, curLosses);
     }
 
-    // By regime
     const byRegime = {};
     for (const t of trades) {
       if (!byRegime[t.regime]) byRegime[t.regime] = { trades: 0, wins: 0, pnl: 0 };
@@ -377,7 +390,6 @@ class Backtester {
       byRegime[t.regime].pnl += t.pnl;
     }
 
-    // By signal type
     const bySignal = {};
     for (const t of trades) {
       const sig = t.signalType || 'unknown';
@@ -387,7 +399,6 @@ class Backtester {
       bySignal[sig].pnl += t.pnl;
     }
 
-    // By exit reason
     const byExit = {};
     for (const t of trades) {
       if (!byExit[t.closeReason]) byExit[t.closeReason] = { trades: 0, wins: 0, pnl: 0 };
@@ -397,7 +408,6 @@ class Backtester {
     }
 
     this.stats = {
-      // Core
       startingBalance: this.startingBalance,
       finalBalance: this.balance,
       totalPnL,
@@ -406,8 +416,6 @@ class Backtester {
       wins: wins.length,
       losses: losses.length,
       winRate: (winRate * 100).toFixed(1),
-
-      // PnL
       grossProfit,
       grossLoss,
       profitFactor: profitFactor === Infinity ? '∞' : profitFactor.toFixed(2),
@@ -417,22 +425,14 @@ class Backtester {
       winLossRatio: winLossRatio === Infinity ? '∞' : winLossRatio.toFixed(2),
       largestWin: wins.length ? Math.max(...wins.map(t => t.pnl)).toFixed(2) : 0,
       largestLoss: losses.length ? Math.min(...losses.map(t => t.pnl)).toFixed(2) : 0,
-
-      // Risk
       maxDrawdown: this.maxDrawdown.toFixed(2),
       maxDrawdownPercent: (this.maxDrawdownPercent * 100).toFixed(2),
       sharpeRatio: sharpe.toFixed(2),
       sortinoRatio: sortino.toFixed(2),
-
-      // Streaks
       maxConsecutiveWins: maxConsecWins,
       maxConsecutiveLosses: maxConsecLosses,
-
-      // Duration
       avgDurationMin: avgDuration.toFixed(0),
       totalFees: totalFees.toFixed(2),
-
-      // Breakdowns
       byRegime,
       bySignal,
       byExit,
@@ -490,7 +490,6 @@ class Backtester {
       console.log(`  ${reason.padEnd(16)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
     }
 
-    // Recent trades
     console.log('\n── Last 10 Trades ──────────────────────────');
     for (const t of this.trades.slice(-10)) {
       const emoji = t.pnl >= 0 ? '✅' : '❌';
@@ -507,7 +506,6 @@ class Backtester {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
-    // Export trades CSV
     const tradesCSV = [
       'symbol,side,entryPrice,exitPrice,entryTime,exitTime,pnl,pnlPercent,regime,signalType,closeReason,durationMin,totalFees,breakevenTriggered',
       ...this.trades.map(t =>
@@ -516,7 +514,6 @@ class Backtester {
     ].join('\n');
     fs.writeFileSync(path.join(outputDir, `trades-${timestamp}.csv`), tradesCSV);
 
-    // Export equity curve CSV
     const equityCSV = [
       'timestamp,equity,balance',
       ...this.equityCurve.map(e =>
@@ -525,7 +522,6 @@ class Backtester {
     ].join('\n');
     fs.writeFileSync(path.join(outputDir, `equity-${timestamp}.csv`), equityCSV);
 
-    // Export stats JSON
     fs.writeFileSync(path.join(outputDir, `stats-${timestamp}.json`), JSON.stringify(this.stats, null, 2));
 
     console.log(`📁 Results exported to backtest-results/`);
@@ -535,7 +531,6 @@ class Backtester {
 // ── Run ────────────────────────────────────────────────────────────
 const options = {};
 
-// Parse CLI args
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--symbol' && args[i + 1]) options.symbols = [args[++i]];
@@ -543,6 +538,7 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === '--from' && args[i + 1]) options.startDate = args[++i];
   if (args[i] === '--to' && args[i + 1]) options.endDate = args[++i];
   if (args[i] === '--balance' && args[i + 1]) options.startingBalance = parseFloat(args[++i]);
+  if (args[i] === '--exchange' && args[i + 1]) options.exchange = args[++i];
   if (args[i] === '--verbose' || args[i] === '-v') options.verbose = true;
 }
 

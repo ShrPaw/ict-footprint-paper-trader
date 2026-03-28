@@ -15,6 +15,7 @@ export default class ICTAnalyzer {
     this.orderBlocks = [];    // active Order Blocks
     this.liquidityLevels = []; // equal highs/lows
     this.lastStructure = null; // BOS / CHoCH tracking
+    this._lastAnalyzedLength = 0;
   }
 
   analyze(symbol, candles) {
@@ -22,12 +23,18 @@ export default class ICTAnalyzer {
 
     const signals = [];
 
-    // Run all detections
-    signals.push(...this._detectFVGs(candles));
-    signals.push(...this._detectOrderBlocks(candles));
+    // Run detections — only scan new candles since last analysis
+    const startIdx = Math.max(0, this._lastAnalyzedLength - 5); // re-scan last 5 for overlap
+    signals.push(...this._detectFVGs(candles, startIdx));
+    signals.push(...this._detectOrderBlocks(candles, startIdx));
     signals.push(...this._detectLiquiditySweeps(candles));
     signals.push(...this._detectBOS(candles));
     signals.push(...this._detectOTE(candles));
+
+    this._lastAnalyzedLength = candles.length;
+
+    // Prune old state to prevent unbounded growth
+    this._pruneState(candles);
 
     // Filter and score
     const scored = signals
@@ -43,12 +50,46 @@ export default class ICTAnalyzer {
     };
   }
 
-  // ── Fair Value Gaps ───────────────────────────────────────────────
-  _detectFVGs(candles) {
+  // ── State Pruning ────────────────────────────────────────────────
+  _pruneState(candles) {
+    const maxFVGs = config.ict.maxFVGs;
+    const maxOBs = config.ict.maxOrderBlocks;
+    const price = candles[candles.length - 1].close;
+
+    // Remove tested FVGs that price has moved far away from
+    this.fvgs = this.fvgs.filter(f => {
+      if (f.tested) return false;
+      // Keep if price is still within 5% of FVG zone
+      const dist = Math.abs(price - (f.top + f.bottom) / 2) / price;
+      return dist < 0.05;
+    });
+
+    // Cap at max
+    if (this.fvgs.length > maxFVGs) {
+      this.fvgs = this.fvgs.slice(-maxFVGs);
+    }
+
+    // Remove mitigated OBs
+    this.orderBlocks = this.orderBlocks.filter(ob => !ob.mitigated);
+
+    // Cap at max
+    if (this.orderBlocks.length > maxOBs) {
+      this.orderBlocks = this.orderBlocks.slice(-maxOBs);
+    }
+
+    // Keep only recent liquidity levels
+    if (this.liquidityLevels.length > 20) {
+      this.liquidityLevels = this.liquidityLevels.slice(-20);
+    }
+  }
+
+  // ── Fair Value Gaps (OPTIMIZED: scan from startIdx) ──────────────
+  _detectFVGs(candles, startIdx = 0) {
     const signals = [];
     const minGap = config.ict.fvgMinSize;
+    const begin = Math.max(2, startIdx);
 
-    for (let i = 2; i < candles.length; i++) {
+    for (let i = begin; i < candles.length; i++) {
       const c1 = candles[i - 2];
       const c3 = candles[i];
 
@@ -74,7 +115,13 @@ export default class ICTAnalyzer {
             signals.push({ ...fvg, action: 'buy', reason: 'Price filling bullish FVG' });
           }
 
-          this.fvgs.push(fvg);
+          // Only push if not duplicate
+          const isDup = this.fvgs.some(f =>
+            f.direction === 'bullish' &&
+            Math.abs(f.top - fvg.top) / fvg.top < 0.001 &&
+            Math.abs(f.bottom - fvg.bottom) / fvg.bottom < 0.001
+          );
+          if (!isDup) this.fvgs.push(fvg);
         }
       }
 
@@ -99,7 +146,12 @@ export default class ICTAnalyzer {
             signals.push({ ...fvg, action: 'sell', reason: 'Price filling bearish FVG' });
           }
 
-          this.fvgs.push(fvg);
+          const isDup = this.fvgs.some(f =>
+            f.direction === 'bearish' &&
+            Math.abs(f.top - fvg.top) / fvg.top < 0.001 &&
+            Math.abs(f.bottom - fvg.bottom) / fvg.bottom < 0.001
+          );
+          if (!isDup) this.fvgs.push(fvg);
         }
       }
     }
@@ -115,13 +167,13 @@ export default class ICTAnalyzer {
     return signals;
   }
 
-  // ── Order Blocks ──────────────────────────────────────────────────
-  _detectOrderBlocks(candles) {
+  // ── Order Blocks (OPTIMIZED) ─────────────────────────────────────
+  _detectOrderBlocks(candles, startIdx = 0) {
     const signals = [];
     const lookback = config.ict.orderBlockLookback;
-    const start = Math.max(4, candles.length - lookback);
+    const begin = Math.max(4, Math.max(startIdx, candles.length - lookback));
 
-    for (let i = start; i < candles.length; i++) {
+    for (let i = begin; i < candles.length; i++) {
       const candle = candles[i];
       const next = candles[i + 1];
       if (!next) continue;
@@ -129,7 +181,7 @@ export default class ICTAnalyzer {
       // Bullish Order Block: last bearish candle before strong bullish move
       if (candle.close < candle.open && next.close > next.open) {
         const move = (next.close - next.open) / next.open;
-        if (move > 0.003) { // significant move > 0.3%
+        if (move > 0.003) {
           const ob = {
             type: ICTSignalType.ORDER_BLOCK,
             direction: 'bullish',
@@ -147,7 +199,12 @@ export default class ICTAnalyzer {
             signals.push({ ...ob, action: 'buy', reason: 'Price at bullish order block' });
           }
 
-          this.orderBlocks.push(ob);
+          const isDup = this.orderBlocks.some(o =>
+            o.direction === 'bullish' &&
+            Math.abs(o.top - ob.top) / ob.top < 0.001 &&
+            Math.abs(o.bottom - ob.bottom) / ob.bottom < 0.001
+          );
+          if (!isDup) this.orderBlocks.push(ob);
         }
       }
 
@@ -172,7 +229,12 @@ export default class ICTAnalyzer {
             signals.push({ ...ob, action: 'sell', reason: 'Price at bearish order block' });
           }
 
-          this.orderBlocks.push(ob);
+          const isDup = this.orderBlocks.some(o =>
+            o.direction === 'bearish' &&
+            Math.abs(o.top - ob.top) / ob.top < 0.001 &&
+            Math.abs(o.bottom - ob.bottom) / ob.bottom < 0.001
+          );
+          if (!isDup) this.orderBlocks.push(ob);
         }
       }
     }
@@ -194,9 +256,11 @@ export default class ICTAnalyzer {
     const signals = [];
     const minWickRatio = config.ict.liquiditySweepWickRatio;
 
-    for (let i = 10; i < candles.length - 1; i++) {
+    // Only scan last 30 candles for sweeps
+    const start = Math.max(10, candles.length - 30);
+
+    for (let i = start; i < candles.length - 1; i++) {
       const c = candles[i];
-      const body = Math.abs(c.close - c.open);
       const range = c.high - c.low;
       if (range === 0) continue;
 
@@ -216,7 +280,7 @@ export default class ICTAnalyzer {
           wickRatio,
           index: i,
           confidence: Math.min(wickRatio, 1.0),
-          reason: `Bullish liquidity sweep below ${eqLow}`,
+          reason: `Bullish liquidity sweep below ${eqLow.toFixed(4)}`,
         });
       }
 
@@ -236,21 +300,21 @@ export default class ICTAnalyzer {
           wickRatio: upperWickRatio,
           index: i,
           confidence: Math.min(upperWickRatio, 1.0),
-          reason: `Bearish liquidity sweep above ${eqHigh}`,
+          reason: `Bearish liquidity sweep above ${eqHigh.toFixed(4)}`,
         });
       }
     }
 
-    return signals.slice(-3); // only recent sweeps
+    return signals.slice(-3);
   }
 
   // ── Break of Structure ────────────────────────────────────────────
   _detectBOS(candles) {
     const signals = [];
     const swingLength = 5;
+    const start = Math.max(swingLength * 2, candles.length - 50);
 
-    for (let i = swingLength * 2; i < candles.length - 1; i++) {
-      // Find swing high
+    for (let i = start; i < candles.length - 1; i++) {
       const swingSlice = candles.slice(i - swingLength, i + swingLength + 1);
       const current = candles[i];
       const isSwingHigh = swingSlice.every(c => c.high <= current.high);
@@ -286,18 +350,18 @@ export default class ICTAnalyzer {
     const signals = [];
     const price = candles[candles.length - 1].close;
 
-    // Check if price is in OTE zone of recent impulse move
-    for (let i = candles.length - 20; i < candles.length - 1; i++) {
+    // Only check last 20 candles for OTE zones
+    const start = Math.max(10, candles.length - 20);
+
+    for (let i = start; i < candles.length - 1; i++) {
       if (i < 10) continue;
 
-      // Look for impulse moves
       const lookback = candles.slice(i - 10, i);
       const impulse = candles[i];
       const moveSize = Math.abs(impulse.close - impulse.open) / impulse.open;
 
-      if (moveSize > 0.005) { // > 0.5% impulse
+      if (moveSize > 0.005) {
         if (impulse.close > impulse.open) {
-          // Bullish impulse — look for OTE buy in retracement
           const low = Math.min(...lookback.map(c => c.low));
           const high = impulse.high;
           const range = high - low;
@@ -312,11 +376,10 @@ export default class ICTAnalyzer {
               oteZone: { low: ote786, high: ote618 },
               price,
               confidence: 0.7,
-              reason: `Price in bullish OTE zone (${(ote786).toFixed(4)} - ${(ote618).toFixed(4)})`,
+              reason: `Price in bullish OTE zone (${ote786.toFixed(4)} - ${ote618.toFixed(4)})`,
             });
           }
         } else {
-          // Bearish impulse — look for OTE sell in retracement
           const high = Math.max(...lookback.map(c => c.high));
           const low = impulse.low;
           const range = high - low;
@@ -331,25 +394,22 @@ export default class ICTAnalyzer {
               oteZone: { low: ote618, high: ote786 },
               price,
               confidence: 0.7,
-              reason: `Price in bearish OTE zone (${(ote618).toFixed(4)} - ${(ote786).toFixed(4)})`,
+              reason: `Price in bearish OTE zone (${ote618.toFixed(4)} - ${ote786.toFixed(4)})`,
             });
           }
         }
       }
     }
 
-    return signals.slice(-2); // only recent OTE zones
+    return signals.slice(-2);
   }
 
   _fvgConfidence(gapSize, candles, index) {
     let score = 0.4;
-    // Larger gap = more significant
     if (gapSize > 0.005) score += 0.2;
     if (gapSize > 0.01) score += 0.1;
-    // Volume confirmation
     const avgVol = candles.slice(-20).reduce((s, c) => s + c.volume, 0) / 20;
     if (candles[index].volume > avgVol) score += 0.15;
-    // Recent = more relevant
     const recency = 1 - (candles.length - index) / candles.length;
     score += recency * 0.15;
     return Math.min(score, 1.0);

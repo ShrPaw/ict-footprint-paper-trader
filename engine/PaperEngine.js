@@ -13,7 +13,7 @@ export default class PaperEngine {
   }
 
   // ── Order Management ──────────────────────────────────────────────
-  openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason) {
+  openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason, atr = null) {
     this._resetDailyIfNewDay();
 
     if (this.positions.size >= config.engine.maxOpenPositions) {
@@ -49,6 +49,8 @@ export default class PaperEngine {
       entryTime: Date.now(),
       fee,
       unrealizedPnL: 0,
+      // Use actual ATR for BE/trailing (not TP-derived)
+      atr: atr || Math.abs(takeProfit - fillPrice) / 2,
       // Trailing stop state
       highestPrice: fillPrice,
       lowestPrice: fillPrice,
@@ -115,10 +117,10 @@ export default class PaperEngine {
       ? (currentPrice - pos.entryPrice) * pos.size
       : (pos.entryPrice - currentPrice) * pos.size;
 
-    // ATR-based distance (estimate from SL distance)
-    const atrDist = Math.abs(pos.takeProfit - pos.entryPrice) / 2;
+    // Use actual ATR for stop management
+    const atrDist = pos.atr;
 
-    // ── Breakeven Logic ─────────────────────────────────────────────
+    // ── Breakeven Logic (FIXED: uses actual ATR) ───────────────────
     if (config.engine.breakeven.enabled && !pos.breakevenTriggered) {
       const beActivation = atrDist * config.engine.breakeven.activationATR;
       const offset = pos.entryPrice * config.engine.breakeven.offset;
@@ -132,7 +134,7 @@ export default class PaperEngine {
       }
     }
 
-    // ── Trailing Stop Logic ─────────────────────────────────────────
+    // ── Trailing Stop Logic (FIXED: uses actual ATR) ───────────────
     if (config.engine.trailingStop.enabled) {
       const activationDist = atrDist * config.engine.trailingStop.activationATR;
       const trailDist = atrDist * config.engine.trailingStop.trailATR;
@@ -189,7 +191,6 @@ export default class PaperEngine {
     const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
     const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
 
-    // Max drawdown from trades
     let peak = this.startingBalance;
     let maxDD = 0;
     let runningBalance = this.startingBalance;

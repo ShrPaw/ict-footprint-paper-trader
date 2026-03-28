@@ -33,6 +33,8 @@ export default {
     orderBlockLookback: 50,
     liquiditySweepWickRatio: 0.6,
     oteRetracement: { min: 0.618, max: 0.786 },
+    maxFVGs: 30,           // prune old FVGs beyond this
+    maxOrderBlocks: 30,    // prune old OBs beyond this
   },
 
   // Footprint parameters
@@ -40,15 +42,31 @@ export default {
     deltaImbalanceRatio: 2.0,
     absorptionVolumeMult: 2.0,
     pocTolerance: 0.002,
+    maxDeltaHistory: 200,  // rolling window for delta
   },
 
-  // Risk per regime
+  // ── Risk per regime — upgraded R:R ────────────────────────────────
+  // Philosophy: wider TP, tighter SL = better R:R per trade
+  // Minimum 1:2 everywhere, 1:3 in trending (where momentum carries)
   risk: {
-    TRENDING:      { riskPercent: 1.0,  tpMultiplier: 2.5, slMultiplier: 1.0 },
-    RANGING:       { riskPercent: 0.5,  tpMultiplier: 1.5, slMultiplier: 1.0 },
-    VOL_EXPANSION: { riskPercent: 0.75, tpMultiplier: 2.0, slMultiplier: 1.2 },
-    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 1.0, slMultiplier: 0.8 },
-    ABSORPTION:    { riskPercent: 0.75, tpMultiplier: 2.0, slMultiplier: 1.0 },
+    TRENDING:      { riskPercent: 1.0,  tpMultiplier: 3.0, slMultiplier: 0.8 },
+    RANGING:       { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.8 },
+    VOL_EXPANSION: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 1.0 },
+    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 2.0, slMultiplier: 0.7 },
+    ABSORPTION:    { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.8 },
+  },
+
+  // ── Strategy: confluence-based entries ────────────────────────────
+  strategy: {
+    // Require multiple signal types to confirm (not just the best one)
+    requireConfluence: true,
+    minConfluenceScore: 0.5,    // minimum combined score after multipliers
+    ictWeight: 0.6,             // weight for ICT signals in confluence
+    footprintWeight: 0.4,       // weight for footprint signals in confluence
+    // Higher threshold = fewer but higher-quality trades
+    minCombinedScore: 0.35,     // slightly lower than 0.4 — compensated by confluence
+    // Cooldown between signals (ms)
+    signalCooldown: 120000,     // 2 min — less aggressive than 1 min
   },
 
   // Paper trading engine

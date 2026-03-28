@@ -1,12 +1,12 @@
-import config from '../config.js';
-import PaperEngine from './PaperEngine.js';
-import DataFeed from '../data/DataFeed.js';
-import TradingViewWebhook from '../data/TradingViewWebhook.js';
-import TelegramAlerter from '../alerts/TelegramAlerter.js';
-import RegimeDetector from '../analysis/RegimeDetector.js';
-import ICTAnalyzer from '../analysis/ICTAnalyzer.js';
-import FootprintAnalyzer from '../analysis/FootprintAnalyzer.js';
-import StrategyEngine from '../strategies/StrategyEngine.js';
+import config from './config.js';
+import PaperEngine from './engine/PaperEngine.js';
+import DataFeed from './data/DataFeed.js';
+import TradingViewWebhook from './data/TradingViewWebhook.js';
+import TelegramAlerter from './alerts/TelegramAlerter.js';
+import RegimeDetector from './analysis/RegimeDetector.js';
+import ICTAnalyzer from './analysis/ICTAnalyzer.js';
+import FootprintAnalyzer from './analysis/FootprintAnalyzer.js';
+import StrategyEngine from './strategies/StrategyEngine.js';
 
 class PaperTrader {
   constructor() {
@@ -19,40 +19,32 @@ class PaperTrader {
     this.footprint = new FootprintAnalyzer();
     this.strategy = new StrategyEngine(this.regime, this.ict, this.footprint);
     this.running = false;
-    this.lastRegime = {};     // symbol -> regime (for change detection)
+    this.lastRegime = {};
     this.dailySummarySent = false;
   }
 
   async start() {
     console.log('\n╔══════════════════════════════════════════════╗');
-    console.log('║   ICT + Footprint Paper Trader v0.2         ║');
-    console.log('║   MEXC · Telegram Alerts · Trailing Stops    ║');
+    console.log('║   ICT + Footprint Paper Trader v0.3         ║');
+    console.log('║   MEXC · Telegram Alerts · Confluence       ║');
     console.log('╚══════════════════════════════════════════════╝\n');
 
-    // Initialize data feed
     await this.feed.init();
     await this.feed.loadInitialCandles();
 
-    // Start TradingView webhook
     this.webhook.start();
     this.webhook.on('signal', (signal) => this._handleWebhookSignal(signal));
 
-    // Event listeners
     this.feed.on('tick', (symbol, ticker) => this._onTick(symbol, ticker));
     this.feed.on('newCandle', (symbol, tf, candle) => this._onNewCandle(symbol, tf, candle));
 
-    // Start polling
     this.feed.startPolling(5000);
     this.running = true;
 
-    // Dashboard loop
     this._startDashboard();
-
-    // Daily summary at midnight UTC
     this._scheduleDailySummary();
 
-    // Startup alert
-    await this.telegram.sendAlert('🚀 Paper Trader started on MEXC\nSymbols: ' + config.symbols.join(', '));
+    await this.telegram.sendAlert('🚀 Paper Trader v0.3 started on MEXC\nSymbols: ' + config.symbols.join(', ') + '\nMode: Confluence-based entries');
 
     console.log('[Trader] Engine running. Press Ctrl+C to stop.\n');
   }
@@ -70,7 +62,6 @@ class PaperTrader {
       const emoji = t.pnl >= 0 ? '✅' : '❌';
       console.log(`${emoji} [${symbol}] ${t.closeReason.toUpperCase()} | PnL: $${t.pnl.toFixed(2)} (${t.pnlPercent.toFixed(2)}%) | ${t.regime}`);
 
-      // Telegram exit alert
       this.telegram.sendExit(t);
     }
   }
@@ -95,7 +86,7 @@ class PaperTrader {
     const signal = this.strategy.generateSignal(symbol, candles);
     if (!signal) return;
 
-    // Execute paper trade
+    // Execute paper trade — pass ATR for consistent stop management
     const result = this.engine.openPosition(
       symbol,
       signal.action === 'buy' ? 'long' : 'short',
@@ -104,7 +95,10 @@ class PaperTrader {
       signal.stopLoss,
       signal.takeProfit,
       signal.regime,
-      signal.reason || signal.type
+      signal.confluence
+        ? `CONFLUENCE: ${signal.confluenceSignals?.join(' + ')}`
+        : (signal.reason || signal.type),
+      signal.atr  // pass actual ATR
     );
 
     if (result.ok) {
@@ -118,7 +112,6 @@ class PaperTrader {
       console.log(`   Regime: ${p.regime} | Signal: ${p.reason}`);
       console.log(`   Size: ${p.size.toFixed(4)} | Fee: $${p.fee.toFixed(2)}`);
 
-      // Telegram entry alert
       this.telegram.sendEntry(p);
     }
   }
@@ -138,8 +131,8 @@ class PaperTrader {
     const riskParams = config.risk[regime.regime] || config.risk.RANGING;
     const atr = candles.length > 15 ? this._currentATR(candles) : price * 0.005;
 
-    const sl = signal.stopLoss || (signal.action === 'buy' ? price - atr : price + atr);
-    const tp = signal.takeProfit || (signal.action === 'buy' ? price + atr * 2 : price - atr * 2);
+    const sl = signal.stopLoss || (signal.action === 'buy' ? price - atr * riskParams.slMultiplier : price + atr * riskParams.slMultiplier);
+    const tp = signal.takeProfit || (signal.action === 'buy' ? price + atr * riskParams.tpMultiplier : price - atr * riskParams.tpMultiplier);
     const riskAmount = this.engine.balance * (riskParams.riskPercent / 100);
     const slDist = Math.abs(price - sl);
     const size = slDist > 0 ? riskAmount / slDist : 0;
@@ -150,7 +143,8 @@ class PaperTrader {
       size,
       price, sl, tp,
       regime.regime,
-      `TradingView Webhook`
+      `TradingView Webhook`,
+      atr
     );
 
     if (result.ok) {
@@ -165,11 +159,10 @@ class PaperTrader {
       const stats = this.engine.getStats();
       const positions = [...this.engine.positions.values()];
 
-      // Clear and reprint
       process.stdout.write('\x1B[2J\x1B[0f');
 
       console.log('╔══════════════════════════════════════════════╗');
-      console.log('║   📊 PAPER TRADER DASHBOARD v0.2            ║');
+      console.log('║   📊 PAPER TRADER DASHBOARD v0.3            ║');
       console.log('╚══════════════════════════════════════════════╝\n');
 
       console.log(`💰 Balance:      $${stats.balance.toFixed(2)}`);
@@ -206,7 +199,9 @@ class PaperTrader {
       }
 
       // Session info
-      const kz = this.strategy._checkKillzone();
+      const lastCandle = this.feed.getCandles(config.symbols[0], config.timeframes.primary);
+      const lastTs = lastCandle?.[lastCandle.length - 1]?.timestamp;
+      const kz = this.strategy._checkKillzone(lastTs);
       console.log(`\n── Session: ${kz.session.toUpperCase()} ${kz.allowed ? '🟢' : '🔴'} ────────────`);
       console.log(`── Telegram: ${this.telegram.enabled ? '🟢 Connected' : '🔴 Disabled'} ──────────`);
 
@@ -221,7 +216,6 @@ class PaperTrader {
       const utcHour = now.getUTCHours();
       const utcMin = now.getUTCMinutes();
 
-      // Send daily summary at 00:00 UTC
       if (utcHour === 0 && utcMin === 0 && !this.dailySummarySent) {
         this.dailySummarySent = true;
         const stats = this.engine.getStats();
@@ -235,15 +229,14 @@ class PaperTrader {
 
   _currentATR(candles, period = 14) {
     const tr = [];
-    for (let i = 1; i < candles.length; i++) {
+    for (let i = Math.max(1, candles.length - period - 1); i < candles.length; i++) {
       tr.push(Math.max(
         candles[i].high - candles[i].low,
         Math.abs(candles[i].high - candles[i - 1].close),
         Math.abs(candles[i].low - candles[i - 1].close)
       ));
     }
-    const recent = tr.slice(-period);
-    return recent.reduce((a, b) => a + b, 0) / recent.length;
+    return tr.reduce((a, b) => a + b, 0) / tr.length;
   }
 }
 
@@ -267,7 +260,6 @@ process.on('SIGINT', async () => {
     }
   }
 
-  // Send shutdown alert
   await trader.telegram.sendAlert('🛑 Paper Trader stopped. Final balance: $' + stats.balance.toFixed(2));
 
   trader.feed.stop();
