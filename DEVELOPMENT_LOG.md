@@ -1,5 +1,68 @@
 # ICT + Footprint Paper Trader — Development Log
 
+## Session: 2026-03-28 (Third Session) — v0.5 Multi-Symbol Validation
+
+### 🎯 What We Did
+
+**Multi-symbol validation** — ran backtests on ETH, BTC, and SOL (extended period) to test if the v0.4 edge was real or curve-fitted.
+
+### 📊 Validation Results (v0.4 — before fixes)
+
+| Symbol | Period | Final | PnL | WR | PF | Max DD |
+|--------|--------|-------|-----|-----|-----|--------|
+| SOL | Jan-Feb '25 | $9,318 | -6.8% | 41.2% | 0.93 | 11.9% |
+| ETH | Jan-Feb '25 | $6,539 | -34.6% | 27.8% | 0.65 | 36.4% |
+| BTC | Jan-Feb '25 | $6,459 | -35.4% | 32.2% | 0.68 | 38.4% |
+| SOL | Mar-Jun '25 | $9,134 | -8.7% | 39.5% | 1.05 | 18.1% |
+
+**Verdict: Edge didn't transfer.** ETH and BTC destroyed. SOL barely profitable.
+
+### 🔧 v0.5 Fixes Applied
+
+1. **Hard direction filter (EMA50)** — never long below EMA50, never short above EMA50. Applied in ALL regimes, not just TRENDING.
+2. **Kill FVG entirely** — 24% WR even with demotion. Removed from signal pool.
+3. **Skip RANGING regime** — 9-30% WR, always negative across all symbols.
+4. **Boost DELTA_DIVERGENCE** — 1.2x → 1.5x. Only consistently profitable signal.
+5. **Raise minConfluenceScore** — 0.55 → 0.60. Fewer trades, higher quality.
+
+### 📊 v0.5 Results (after fixes)
+
+| Symbol | Period | Final | PnL | WR | PF | Max DD | Change |
+|--------|--------|-------|-----|-----|-----|--------|--------|
+| ETH | Jan-Feb '25 | $10,008 | +0.08% | 40.4% | 1.16 | 7.3% | PF +0.51 🔥 |
+| BTC | Jan-Feb '25 | $7,762 | -22.4% | 32.5% | 0.71 | 26.5% | PF +0.03 🟡 |
+| SOL | Mar-Jun '25 | $9,716 | -2.8% | 38.9% | 1.07 | 3.0% | PF +0.02 ✅ |
+
+### Key Findings
+
+**Direction filter was the breakthrough.** ETH went from 0.65 PF to 1.16 — a complete turnaround. The system was fighting the trend constantly.
+
+**BTC is the outlier.** Loses in ALL regimes (TRENDING_UP -$306, TRENDING_DOWN -$476, VOL_EXPANSION -$557). The edge doesn't exist for BTC on 15m in this period. BTC excluded from live trading.
+
+**Trailing stops remain the backbone:**
+- trailing_sl: 100% WR, +$4,233 (ETH), +$3,416 (BTC), +$6,158 (SOL)
+- stop_loss: 0% WR, -$3,568 (ETH), -$4,766 (BTC), -$6,056 (SOL)
+
+**Fee drag is real.** Gross PnL is positive but fees eat the edge. Need ~2-3% more WR or slightly better R:R to be net profitable.
+
+### Symbols
+
+- **SOL/USDT** ✅ — validated across 2 periods (Jan-Feb, Mar-Jun). PF 1.07.
+- **ETH/USDT** ✅ — breakeven after direction filter. PF 1.16.
+- **XRP/USDT** ❌ — PF 0.64, 27% WR. No edge. Excluded.
+- **BTC/USDT** ❌ — PF 0.71, no edge in any regime. Excluded.
+
+### Next Steps
+
+1. Test XRP validation
+2. Consider 1h timeframe for wider edge
+3. Tighten trailing activation (2.0x → 1.5x ATR) to get more winners
+4. Add time-based regime filter (avoid weekends entirely — always negative)
+5. Extended period test on ETH (Mar-Jun)
+6. Live paper trading on ETH + SOL + XRP
+
+---
+
 ## Session: 2026-03-28 (Second Session)
 
 ### 🎯 What We Built

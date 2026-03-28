@@ -41,6 +41,9 @@ export default class StrategyEngine {
     // 2b. Skip LOW_VOL regime
     if (config.strategy.skipLowVol && regime === 'LOW_VOL') return null;
 
+    // 2c. Skip RANGING — always negative across all symbols
+    if (config.strategy.skipRanging && regime === 'RANGING') return null;
+
     // 3. Run ICT analysis
     const ictResult = this.ict.analyze(symbol, candles);
 
@@ -140,6 +143,9 @@ export default class StrategyEngine {
   }
 
   _scoreSignal(sig, regime, regimeResult, killzone, weight, isWeekend) {
+    // ── FVG: kill entirely — 24% WR, -$378+ across all tests ──────
+    if (sig.type === 'FVG') return { ...sig, combinedScore: 0, source: 'ict' };
+
     let score = sig.confidence * weight;
     const source = FP_SIGNALS.has(sig.type) ? 'footprint' : 'ict';
 
@@ -149,11 +155,6 @@ export default class StrategyEngine {
     // ── ORDER BLOCK DEMOTION ────────────────────────────────────────
     if (sig.type === 'ORDER_BLOCK') {
       score *= config.strategy.orderBlockPenalty;
-    }
-
-    // FVG demotion: 24% WR, -$378
-    if (sig.type === 'FVG') {
-      score *= 0.7;
     }
 
     // ── Regime-specific boosts — ICT ─────────────────────────────
@@ -170,10 +171,12 @@ export default class StrategyEngine {
       if (regime === 'VOL_EXPANSION') score *= 0.7;
     }
 
-    // ── Regime-specific boosts — Footprint ───────────────────────
+    // ── DELTA_DIVERGENCE: the only consistently profitable signal ──
+    // 38-41% WR across all tests. Boost it hard.
     if (sig.type === 'DELTA_DIVERGENCE') {
-      score *= 1.2;
+      score *= 1.5;
       if (regime === 'ABSORPTION') score *= 1.3;
+      if (regime === 'VOL_EXPANSION') score *= 1.15;
     }
 
     if (sig.type === 'ABSORPTION') {
@@ -223,33 +226,18 @@ export default class StrategyEngine {
     const price = candles[candles.length - 1].close;
     const riskParams = config.risk[regime] || config.risk.RANGING;
 
-    // Low volatility: only take high-confidence, tight stops
-    if (regime === 'LOW_VOL') {
-      if (signal.confidence < 0.6) return null;
-    }
+    // ── HARD DIRECTION FILTER — enforce in ALL regimes ─────────────
+    // Data: longs below EMA50 and shorts above EMA50 are catastrophic
+    // across ETH, BTC, and SOL. This is the single biggest edge.
+    const ema50 = this._cachedEMA(candles, 50);
 
-    // Ranging: only trade at range extremes (strict — 20/80)
-    if (regime === 'RANGING') {
-      const highs = candles.slice(-20).map(c => c.high);
-      const lows = candles.slice(-20).map(c => c.low);
-      const rangeHigh = Math.max(...highs);
-      const rangeLow = Math.min(...lows);
-      const rangeSpan = rangeHigh - rangeLow;
-      if (rangeSpan === 0) return null;
-      const rangePosition = (price - rangeLow) / rangeSpan;
+    // Absolute gate: never long below EMA50, never short above EMA50
+    if (signal.action === 'buy' && price < ema50) return null;
+    if (signal.action === 'sell' && price > ema50) return null;
 
-      if (signal.action === 'buy' && rangePosition > 0.2) return null;
-      if (signal.action === 'sell' && rangePosition < 0.8) return null;
-    }
-
-    // Trending: must align with trend direction — STRICT
-    if (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN') {
-      const ema21 = this._cachedEMA(candles, 21);
-      if (signal.action === 'buy' && price < ema21) return null;
-      if (signal.action === 'sell' && price > ema21) return null;
-      if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
-      if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
-    }
+    // TRENDING: double-check regime direction alignment
+    if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
+    if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
 
     // ── Calculate SL/TP using ATR ──────────────────────────────────
     const atr = this._currentATR(candles);

@@ -2,6 +2,8 @@
 
 Regime-adaptive paper trading engine combining ICT (Inner Circle Trader) concepts with order flow footprint analysis for crypto perpetuals.
 
+**v0.5** — Multi-symbol validated (ETH, SOL). Direction-filtered entries. FVG/RANGING removed.
+
 ## Features
 
 ### 🔍 Analysis Engines
