@@ -1,10 +1,5 @@
 export default {
-  symbols: ['SOL/USDT:USDT', 'ETH/USDT:USDT'],
-  // BTC: PF 0.71, no edge in any regime
-  // XRP: PF 0.64, 27% WR — worst performer
-  // Only SOL and ETH have validated edge (PF 1.07 and 1.16)
-  // BTC excluded — PF 0.71, no edge found in any regime (Jan-Feb '25)
-  // ETH validated PF 1.16, SOL validated PF 1.07 across different periods
+  symbols: ['SOL/USDT:USDT', 'XRP/USDT:USDT'],
   timeframes: {
     primary: '1m',
     secondary: '5m',
@@ -83,7 +78,7 @@ export default {
   strategy: {
     // ── SNIPER MODE: fewer trades, higher quality ──────────────────
     // Confluence is a HARD REQUIREMENT for ICT + Footprint agreement
-    minConfluenceScore: 0.60,   // raised — only strong signals pass
+    minConfluenceScore: 0.55,   // raised — only strong signals pass
     // ── Footprint-led: measured order flow > chart structure ─────
     // Footprint tells us what's happening NOW (real buy/sell pressure)
     // ICT tells us what happened THEN (chart patterns from 20+ candles ago)
@@ -96,8 +91,6 @@ export default {
     signalCooldown: 2700000,    // 45 min
     // Skip LOW_VOL regime entirely — no momentum = death by 1000 cuts
     skipLowVol: true,
-    // Skip RANGING — 9-30% WR across all symbols, always negative PnL
-    skipRanging: true,
     // Stricter trend alignment: in TRENDING, only trade WITH the trend
     strictTrendAlignment: true,
     // ── ENTRY CONFIRMATION ────────────────────────────────────────
@@ -136,7 +129,7 @@ export default {
     // Reduces "trailing stopped out too early" scenarios
     trailingStop: {
       enabled: true,
-      activationATR: 1.5,   // activate after 1.5x ATR in profit (was 2.0) — lock in earlier
+      activationATR: 2.0,   // activate after 2x ATR in profit (was 1.5) — let winners breathe
       trailATR: 0.5,        // trail by 0.5x ATR
     },
     // Breakeven config
