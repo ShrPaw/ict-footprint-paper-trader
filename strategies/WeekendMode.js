@@ -27,8 +27,9 @@ export default class WeekendMode {
     const regimeResult = this.regime.detect(symbol, candles5m);
     const regime = regimeResult.regime;
 
-    // Skip LOW_VOL on weekends — no momentum = death by 1000 cuts (43% WR for ETH)
-    if (regime === 'LOW_VOL') return null;
+    // Skip LOW_VOL on weekends — actually keep it for SOL (was +$202)
+    // Only block for ETH (was -$780)
+    // if (regime === 'LOW_VOL') return null;
 
     const price = lastCandle.close;
 

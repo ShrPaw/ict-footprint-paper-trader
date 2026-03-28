@@ -35,7 +35,7 @@ const ASSET_PROFILES = {
     riskMultiplier: 0.9,
     slTightness: 1.1,
     daytrade: { adxThreshold: 20, emaAlignment: true, ictWeight: 0.35, footprintWeight: 0.65 },
-    weekend: { enabled: true, confluenceBoost: 0.12, riskMultiplier: 0.5 },
+    weekend: { enabled: false, confluenceBoost: 0.12, riskMultiplier: 0.5 },
     scalping: { minVolumeMult: 1.0, deltaImbalanceRatio: 2.0 },
   },
   'SOL/USDT:USDT': {
