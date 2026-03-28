@@ -4,9 +4,9 @@ export default class PaperEngine {
   constructor() {
     this.balance = config.engine.startingBalance;
     this.startingBalance = config.engine.startingBalance;
-    this.positions = new Map();       // symbol -> position
-    this.trades = [];                 // completed trades log
-    this.openOrders = [];             // limit orders waiting to fill
+    this.positions = new Map();
+    this.trades = [];
+    this.openOrders = [];
     this.dailyPnL = 0;
     this.dailyTradeCount = 0;
     this.lastResetDay = new Date().toDateString();
@@ -29,7 +29,7 @@ export default class PaperEngine {
     const slippage = price * config.engine.slippage * (side === 'long' ? 1 : -1);
     const fillPrice = price + slippage;
     const fee = size * fillPrice * config.engine.takerFee;
-    const margin = (size * fillPrice) / 10; // 10x leverage
+    const margin = (size * fillPrice) / 10;
 
     if (margin + fee > this.balance) {
       return { ok: false, reason: 'insufficient_balance' };
@@ -41,6 +41,7 @@ export default class PaperEngine {
       side,
       size,
       entryPrice: fillPrice,
+      originalStopLoss: stopLoss,
       stopLoss,
       takeProfit,
       regime,
@@ -48,6 +49,11 @@ export default class PaperEngine {
       entryTime: Date.now(),
       fee,
       unrealizedPnL: 0,
+      // Trailing stop state
+      highestPrice: fillPrice,
+      lowestPrice: fillPrice,
+      trailingActive: false,
+      breakevenTriggered: false,
     };
 
     this.positions.set(symbol, position);
@@ -83,6 +89,7 @@ export default class PaperEngine {
       pnlPercent,
       totalFees: pos.fee + fee,
       duration: Date.now() - pos.entryTime,
+      durationMin: Math.round((Date.now() - pos.entryTime) / 60000),
     };
 
     this.trades.push(trade);
@@ -92,20 +99,83 @@ export default class PaperEngine {
   }
 
   // ── Tick Check (call on every new price) ──────────────────────────
-  checkExits(symbol, currentPrice) {
+  checkExits(symbol, currentPrice, currentHigh = null, currentLow = null) {
     const pos = this.positions.get(symbol);
     if (!pos) return null;
 
+    const high = currentHigh ?? currentPrice;
+    const low = currentLow ?? currentPrice;
+
+    // Update extremes
+    if (high > pos.highestPrice) pos.highestPrice = high;
+    if (low < pos.lowestPrice) pos.lowestPrice = low;
+
+    // Unrealized PnL
     pos.unrealizedPnL = pos.side === 'long'
       ? (currentPrice - pos.entryPrice) * pos.size
       : (pos.entryPrice - currentPrice) * pos.size;
 
-    if (pos.side === 'long') {
-      if (currentPrice <= pos.stopLoss) return this.closePosition(symbol, pos.stopLoss, 'stop_loss');
-      if (currentPrice >= pos.takeProfit) return this.closePosition(symbol, pos.takeProfit, 'take_profit');
-    } else {
-      if (currentPrice >= pos.stopLoss) return this.closePosition(symbol, pos.stopLoss, 'stop_loss');
-      if (currentPrice <= pos.takeProfit) return this.closePosition(symbol, pos.takeProfit, 'take_profit');
+    // ATR-based distance (estimate from SL distance)
+    const atrDist = Math.abs(pos.takeProfit - pos.entryPrice) / 2;
+
+    // ── Breakeven Logic ─────────────────────────────────────────────
+    if (config.engine.breakeven.enabled && !pos.breakevenTriggered) {
+      const beActivation = atrDist * config.engine.breakeven.activationATR;
+      const offset = pos.entryPrice * config.engine.breakeven.offset;
+
+      if (pos.side === 'long' && high >= pos.entryPrice + beActivation) {
+        pos.stopLoss = pos.entryPrice + offset;
+        pos.breakevenTriggered = true;
+      } else if (pos.side === 'short' && low <= pos.entryPrice - beActivation) {
+        pos.stopLoss = pos.entryPrice - offset;
+        pos.breakevenTriggered = true;
+      }
+    }
+
+    // ── Trailing Stop Logic ─────────────────────────────────────────
+    if (config.engine.trailingStop.enabled) {
+      const activationDist = atrDist * config.engine.trailingStop.activationATR;
+      const trailDist = atrDist * config.engine.trailingStop.trailATR;
+
+      // Activate trailing
+      if (!pos.trailingActive) {
+        if (pos.side === 'long' && high >= pos.entryPrice + activationDist) {
+          pos.trailingActive = true;
+        } else if (pos.side === 'short' && low <= pos.entryPrice - activationDist) {
+          pos.trailingActive = true;
+        }
+      }
+
+      // Update trailing stop
+      if (pos.trailingActive) {
+        if (pos.side === 'long') {
+          const newSL = pos.highestPrice - trailDist;
+          if (newSL > pos.stopLoss) pos.stopLoss = newSL;
+        } else {
+          const newSL = pos.lowestPrice + trailDist;
+          if (newSL < pos.stopLoss) pos.stopLoss = newSL;
+        }
+      }
+    }
+
+    // ── Exit Checks ─────────────────────────────────────────────────
+
+    // Stop loss
+    if (pos.side === 'long' && low <= pos.stopLoss) {
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      return this.closePosition(symbol, pos.stopLoss, reason);
+    }
+    if (pos.side === 'short' && high >= pos.stopLoss) {
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      return this.closePosition(symbol, pos.stopLoss, reason);
+    }
+
+    // Take profit
+    if (pos.side === 'long' && high >= pos.takeProfit) {
+      return this.closePosition(symbol, pos.takeProfit, 'take_profit');
+    }
+    if (pos.side === 'short' && low <= pos.takeProfit) {
+      return this.closePosition(symbol, pos.takeProfit, 'take_profit');
     }
 
     return null;
@@ -116,6 +186,19 @@ export default class PaperEngine {
     const wins = this.trades.filter(t => t.pnl > 0);
     const losses = this.trades.filter(t => t.pnl <= 0);
     const totalPnL = this.trades.reduce((s, t) => s + t.pnl, 0);
+    const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+
+    // Max drawdown from trades
+    let peak = this.startingBalance;
+    let maxDD = 0;
+    let runningBalance = this.startingBalance;
+    for (const t of this.trades) {
+      runningBalance += t.pnl;
+      if (runningBalance > peak) peak = runningBalance;
+      const dd = (peak - runningBalance) / peak;
+      if (dd > maxDD) maxDD = dd;
+    }
 
     return {
       balance: this.balance,
@@ -125,8 +208,10 @@ export default class PaperEngine {
       wins: wins.length,
       losses: losses.length,
       winRate: this.trades.length ? (wins.length / this.trades.length * 100).toFixed(1) : 0,
-      avgWin: wins.length ? (wins.reduce((s, t) => s + t.pnl, 0) / wins.length).toFixed(2) : 0,
-      avgLoss: losses.length ? (losses.reduce((s, t) => s + t.pnl, 0) / losses.length).toFixed(2) : 0,
+      avgWin: wins.length ? (grossProfit / wins.length).toFixed(2) : 0,
+      avgLoss: losses.length ? (grossLoss / losses.length).toFixed(2) : 0,
+      profitFactor: grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : '∞',
+      maxDrawdown: (maxDD * 100).toFixed(2) + '%',
       totalFees: this.trades.reduce((s, t) => s + t.totalFees, 0),
       openPositions: this.positions.size,
       dailyPnL: this.dailyPnL,

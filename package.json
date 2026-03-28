@@ -1,11 +1,12 @@
 {
   "name": "ict-footprint-paper-trader",
-  "version": "0.1.0",
-  "description": "ICT + Footprint paper trading engine with regime-adaptive strategies",
+  "version": "0.2.0",
+  "description": "ICT + Footprint paper trading engine with regime-adaptive strategies for MEXC perps",
   "type": "module",
   "scripts": {
-    "start": "node engine/main.js",
-    "backtest": "node engine/backtest.js"
+    "start": "node --env-file=.env engine/main.js",
+    "backtest": "node engine/backtest.js",
+    "backtest:verbose": "node engine/backtest.js --verbose"
   },
   "dependencies": {
     "ccxt": "^4.4.0",

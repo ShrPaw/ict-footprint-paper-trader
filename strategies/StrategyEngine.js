@@ -141,8 +141,8 @@ export default class StrategyEngine {
       ? price + atr * riskParams.tpMultiplier
       : price - atr * riskParams.tpMultiplier;
 
-    // Position sizing based on regime risk
-    const accountBalance = 10000; // will be injected from engine
+    // Position sizing — use config starting balance as risk baseline
+    const accountBalance = config.engine.startingBalance;
     const riskAmount = accountBalance * (riskParams.riskPercent / 100);
     const slDistance = Math.abs(price - sl);
     const size = slDistance > 0 ? riskAmount / slDistance : 0;
