@@ -71,7 +71,11 @@ export default class ScalpingProMode {
     if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
     if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
 
-    // 11. Volume confirmation (asset-specific threshold)
+    // 11. In TRENDING_UP: only take FOOTPRINT signals, not ICT
+    // Longs in uptrend with ICT signals are the worst performers
+    if (regime === 'TRENDING_UP' && signal.source === 'ict') return null;
+
+    // 12. Volume confirmation (asset-specific threshold)
     const minVolMult = profile.scalping.minVolumeMult;
     if (!this._checkVolumeFilter(candles15m, minVolMult)) return null;
 
@@ -79,11 +83,11 @@ export default class ScalpingProMode {
     const cooldown = config.strategy.signalCooldown * 0.75; // ~34 min
     if (this._isRateLimited(symbol, lastCandle.timestamp, cooldown)) return null;
 
-    // 13. SL/TP — tighter than daytrade for scalping
+    // 14. SL/TP — tighter for scalping
     const atr = this._currentATR(candles15m);
-    const baseSlMult = config.risk[regime]?.slMultiplier || 0.8;
-    const slMult = baseSlMult * 0.85; // tighter stops for scalping
-    const tpMult = (config.risk[regime]?.tpMultiplier || 2.0) * 0.9;
+    const baseSlMult = config.risk[regime]?.slMultiplier || 0.5;
+    const slMult = baseSlMult * 0.9; // slightly tighter than config default
+    const tpMult = config.risk[regime]?.tpMultiplier || 2.0;
 
     const sl = signal.action === 'buy'
       ? price - atr * slMult
@@ -199,9 +203,9 @@ export default class ScalpingProMode {
     scored.sort((a, b) => b.combinedScore - a.combinedScore);
     const best = scored[0];
 
-    // Thresholds
+    // Thresholds — more selective for scalping
     const minScore = config.strategy.minConfluenceScore;
-    const minSolo = config.strategy.minSoloScore;
+    const minSolo = 0.80; // higher bar for scalping without confluence
 
     if (best.confluence && best.combinedScore >= minScore) return best;
     if (best.combinedScore >= minSolo) return best;

@@ -71,11 +71,12 @@ export default class DaytradeMode {
     if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
     if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
 
-    // 11. Entry confirmation
-    if (config.strategy.entryConfirmation.enabled) {
-      const confirmed = this._checkEntryConfirmation(candles1h, signal);
-      if (!confirmed) return null;
-    }
+    // 11. Entry confirmation — DISABLED for 1H (pin bars/engulfing too rare on hourly)
+    // ICT zones on 1H are already high-quality; candle patterns add noise not signal
+    // if (config.strategy.entryConfirmation.enabled) {
+    //   const confirmed = this._checkEntryConfirmation(candles1h, signal);
+    //   if (!confirmed) return null;
+    // }
 
     // 12. Rate limit (longer for 1H — fewer candles)
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
