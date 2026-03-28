@@ -34,8 +34,12 @@ export default class DaytradeMode {
     const regimeResult = this.regime.detect(symbol, candles1h);
     const regime = regimeResult.regime;
 
-    // 4. Skip LOW_VOL only — allow RANGING on 1H (it's cleaner than 15m)
+    // 4. Skip unfavorable regimes
     if (regime === 'LOW_VOL') return null;
+    // TRENDING_DOWN: -$167 ETH (42% WR), -$830 SOL (41% WR). No edge.
+    if (regime === 'TRENDING_DOWN') return null;
+    // TRENDING_UP: re-enable — was profitable for ETH (+$475) in Jan-May 2025
+    // if (regime === 'TRENDING_UP') return null;
 
     const price = candles1h[candles1h.length - 1].close;
 

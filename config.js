@@ -1,6 +1,10 @@
 export default {
-  // ── The Big Four — each with independent asset profiles ──────────
-  symbols: ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'XRP/USDT:USDT'],
+  // ── Validated Assets — only ETH and SOL have edge ────────────────
+  // BTC: PF 0.61, -\$1,623 over 5 months. No edge in any regime.
+  // XRP: PF 0.85, -\$849. Only works in VOL_EXPANSION, destroyed in TRENDING_DOWN.
+  // ETH: PF 1.16, +\$675. Best performer, cleanest edge.
+  // SOL: PF 1.06, +\$356. Profitable but more volatile.
+  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT'],
 
   // Multi-timeframe: 1H for daytrade, 15m for scalping, 5m for weekend
   timeframes: {
