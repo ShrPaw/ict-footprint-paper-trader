@@ -76,8 +76,11 @@ export default {
   // ── Risk per regime — upgraded R:R ────────────────────────────────
   // Philosophy: wider TP, tighter SL = better R:R per trade
   // Minimum 1:2 everywhere, 1:3 in trending (where momentum carries)
+  // NOTE: RegimeDetector returns TRENDING_UP / TRENDING_DOWN (not TRENDING)
   risk: {
-    TRENDING:      { riskPercent: 1.0,  tpMultiplier: 3.0, slMultiplier: 0.8 },
+    TRENDING_UP:   { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 },
+    TRENDING_DOWN: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 },
+    TRENDING:      { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.9 }, // fallback
     RANGING:       { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.8 },
     VOL_EXPANSION: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 1.0 },
     LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 2.0, slMultiplier: 0.7 },
@@ -141,18 +144,28 @@ export default {
     // Reduces "trailing stopped out too early" scenarios
     trailingStop: {
       enabled: true,
-      activationATR: 1.15,
+      activationATR: 0.9,
       trailATR: 0.5,
     },
     // Regime-adaptive trailing overrides (set to same as default = no effect)
     trailingStopRegime: {},
+    // ── Partial Take Profit ───────────────────────────────────────
+    // Trail SL captures small profits (100% WR) but avg win < avg loss
+    // Partial TP at a middle target locks in profit on the full size
+    // while the runner continues with trailing
+    partialTP: {
+      enabled: true,
+      closePercent: 0.5,       // close 50% of position at TP1
+      tpMultiplier: 1.5,       // TP1 at 1.5x ATR (between SL and full TP)
+    },
+
     // Breakeven config
     // DEV LOG: BE stops killed $218 in potential profit — trades that should've trailed
     // Trailing SL handles winners perfectly (100% WR). BE is redundant and harmful.
     // Keeping it but making it fire MUCH later — only protects big moves, doesn't cut runners
     breakeven: {
       enabled: false,          // disabled — trailing SL handles everything
-      activationATR: 2.0,     // if re-enabled, fire much later (was 1.0)
+      activationATR: 1.15,     // if re-enabled, fire much later (was 1.0)
       offset: 0.0005,
     },
   },

@@ -56,6 +56,8 @@ export default class PaperEngine {
       lowestPrice: fillPrice,
       trailingActive: false,
       breakevenTriggered: false,
+      partialTPDone: false,
+      originalSize: size,
     };
 
     this.positions.set(symbol, position);
@@ -119,6 +121,56 @@ export default class PaperEngine {
 
     // Use actual ATR for stop management
     const atrDist = pos.atr;
+
+    // ── Partial Take Profit ───────────────────────────────────────
+    if (config.engine.partialTP?.enabled && !pos.partialTPDone) {
+      const tp1Dist = atrDist * config.engine.partialTP.tpMultiplier;
+      const closePercent = config.engine.partialTP.closePercent;
+
+      let hitTP1 = false;
+      if (pos.side === 'long' && high >= pos.entryPrice + tp1Dist) hitTP1 = true;
+      if (pos.side === 'short' && low <= pos.entryPrice - tp1Dist) hitTP1 = true;
+
+      if (hitTP1) {
+        const partialSize = pos.size * closePercent;
+        const remainingSize = pos.size * (1 - closePercent);
+        const tp1Price = pos.side === 'long' ? pos.entryPrice + tp1Dist : pos.entryPrice - tp1Dist;
+
+        // Close partial position
+        const slippage = tp1Price * config.engine.slippage * (pos.side === 'long' ? -1 : 1);
+        const fillPrice = tp1Price + slippage;
+        const fee = partialSize * fillPrice * config.engine.takerFee;
+
+        const priceDiff = pos.side === 'long'
+          ? fillPrice - pos.entryPrice
+          : pos.entryPrice - fillPrice;
+
+        const partialPnL = priceDiff * partialSize - (pos.fee * closePercent) - fee;
+
+        this.balance += partialPnL;
+        this.dailyPnL += partialPnL;
+
+        this.trades.push({
+          ...pos,
+          size: partialSize,
+          exitPrice: fillPrice,
+          exitTime: Date.now(),
+          closeReason: 'partial_tp',
+          pnl: partialPnL,
+          pnlPercent: partialPnL / (partialSize * pos.entryPrice) * 100,
+          totalFees: pos.fee * closePercent + fee,
+          duration: Date.now() - pos.entryTime,
+          durationMin: Math.round((Date.now() - pos.entryTime) / 60000),
+        });
+
+        // Update remaining position
+        pos.size = remainingSize;
+        pos.fee *= (1 - closePercent);
+        pos.partialTPDone = true;
+
+        return { ok: true, trade: this.trades[this.trades.length - 1], partial: true };
+      }
+    }
 
     // ── Breakeven Logic (FIXED: uses actual ATR) ───────────────────
     if (config.engine.breakeven.enabled && !pos.breakevenTriggered) {

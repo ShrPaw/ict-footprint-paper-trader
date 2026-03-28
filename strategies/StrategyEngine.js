@@ -27,11 +27,12 @@ export default class StrategyEngine {
     const lastCandle = candles[candles.length - 1];
     const isWeekend = this._isWeekend(lastCandle.timestamp);
 
-    // 1. Killzone check — weekends have no sessions
-    const killzone = isWeekend
-      ? { allowed: true, overlap: false, strict: false, session: 'weekend', isWeekend: true }
-      : this._checkKillzone(lastCandle.timestamp);
+    // 1. Weekend hard block — weekends have 20-41% WR and -$110 to -$228 PnL
+    // Lower volume, no institutional sessions, more violent candles = consistent losses
+    if (isWeekend) return null;
 
+    // 2. Killzone check
+    const killzone = this._checkKillzone(lastCandle.timestamp);
     if (!killzone.allowed && killzone.strict) return null;
 
     // 2. Detect current regime
@@ -74,7 +75,17 @@ export default class StrategyEngine {
       if (!this._checkVolumeFilter(candles, filtered)) return null;
     }
 
-    // 10. Rate limit
+    // 10. Bullish pattern penalty — bullish patterns underperform in most periods
+    // Pin_bar_bullish and bullish_engulfing are consistently the worst entry patterns
+    if (filtered.entryPattern && filtered.entryPattern.includes('bullish')) {
+      // In bearish-leaning regimes, block bullish patterns entirely
+      if (regime === 'TRENDING_DOWN' || regime === 'VOL_EXPANSION') {
+        const bearishCandles = candles.slice(-10).filter(c => c.close < c.open).length;
+        if (bearishCandles >= 6) return null; // 6/10 recent candles bearish = bearish context
+      }
+    }
+
+    // 11. Rate limit
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
     this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();

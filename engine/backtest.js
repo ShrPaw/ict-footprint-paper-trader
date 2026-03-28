@@ -206,6 +206,8 @@ class Backtester {
       trailingActive: false,
       isWeekend: signal.isWeekend || false,
       entryPattern: signal.entryPattern || null,
+      partialTPDone: false,       // track if partial TP has been taken
+      originalSize: size,         // remember full size for partial close
     };
 
     this.balance -= fee;
@@ -228,6 +230,67 @@ class Backtester {
       if (candle.high > pos.highestPrice) pos.highestPrice = candle.high;
     } else {
       if (candle.low < pos.lowestPrice) pos.lowestPrice = candle.low;
+    }
+
+    // ── Partial Take Profit ───────────────────────────────────────
+    // Close 50% of position at TP1 (1.5x ATR), let runner trail
+    if (config.engine.partialTP?.enabled && !pos.partialTPDone) {
+      const tp1Dist = pos.atr * config.engine.partialTP.tpMultiplier;
+      const closePercent = config.engine.partialTP.closePercent;
+
+      let hitTP1 = false;
+      if (side === 'long' && candle.high >= pos.entryPrice + tp1Dist) hitTP1 = true;
+      if (side === 'short' && candle.low <= pos.entryPrice - tp1Dist) hitTP1 = true;
+
+      if (hitTP1) {
+        const partialSize = pos.size * closePercent;
+        const remainingSize = pos.size * (1 - closePercent);
+        const tp1Price = side === 'long' ? pos.entryPrice + tp1Dist : pos.entryPrice - tp1Dist;
+        const slippage = tp1Price * config.engine.slippage * (side === 'long' ? -1 : 1);
+        const fillPrice = tp1Price + slippage;
+        const fee = partialSize * fillPrice * config.engine.takerFee;
+
+        const priceDiff = side === 'long'
+          ? fillPrice - pos.entryPrice
+          : pos.entryPrice - fillPrice;
+
+        const partialPnL = priceDiff * partialSize - (pos.fee * closePercent) - fee;
+
+        this.balance += partialPnL;
+        this.dailyPnL += partialPnL;
+
+        // Log partial TP as a sub-trade
+        this.trades.push({
+          symbol: pos.symbol,
+          side: pos.side,
+          size: partialSize,
+          entryPrice: pos.entryPrice,
+          exitPrice: fillPrice,
+          entryTime: pos.entryTime,
+          exitTime: timestamp,
+          closeReason: 'partial_tp',
+          regime: pos.regime,
+          signalType: pos.signalType,
+          reason: pos.reason,
+          pnl: partialPnL,
+          pnlPercent: partialPnL / (partialSize * pos.entryPrice) * 100,
+          totalFees: pos.fee * closePercent + fee,
+          duration: timestamp - pos.entryTime,
+          durationMin: Math.round((timestamp - pos.entryTime) / 60000),
+          breakevenTriggered: pos.breakevenTriggered,
+          isWeekend: pos.isWeekend || false,
+          entryPattern: pos.entryPattern || null,
+        });
+
+        // Reduce position size, proportionally reduce fee
+        pos.size = remainingSize;
+        pos.fee *= (1 - closePercent);
+        pos.partialTPDone = true;
+
+        if (this.verbose) {
+          console.log(`  💰 PARTIAL TP @ ${fillPrice.toFixed(4)} | 50% closed | PnL: $${partialPnL.toFixed(2)} | Runner: ${remainingSize.toFixed(4)}`);
+        }
+      }
     }
 
     // ── Breakeven (FIXED: uses actual ATR, same logic as live) ─────
