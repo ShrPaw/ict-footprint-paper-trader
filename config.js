@@ -136,7 +136,7 @@ export default {
     // Reduces "trailing stopped out too early" scenarios
     trailingStop: {
       enabled: true,
-      activationATR: 1.5,   // activate after 1.5x ATR in profit (was 2.0) — lock in earlier
+      activationATR: 1.15,   // activate after 1.15x ATR in profit — tight lock-in
       trailATR: 0.5,        // trail by 0.5x ATR
     },
     // Breakeven config
