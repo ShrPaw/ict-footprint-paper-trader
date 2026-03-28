@@ -86,9 +86,12 @@ class PaperTrader {
     }
     this.lastRegime[symbol] = regimeResult.regime;
 
-    // Run strategy with latest real footprint
+    // Run strategy with latest real footprint and 1h context
     const realFP = this._latestFootprint[symbol] || null;
-    const signal = this.strategy.generateSignal(symbol, candles, realFP);
+    const contextCandles = config.multiTimeframe.enabled
+      ? this.feed.getCandles(symbol, config.multiTimeframe.contextTimeframe)
+      : null;
+    const signal = this.strategy.generateSignal(symbol, candles, realFP, contextCandles);
     if (!signal) return;
 
     // Execute

@@ -68,6 +68,11 @@ export default {
     maxDeltaHistory: 200,  // rolling window for delta
   },
 
+  // Multi-timeframe trend filter (1h EMA50)
+  multiTimeframe: { enabled: false, contextTimeframe: '1h', contextEMA: 50 },
+  // Volume confirmation at entry
+  volumeFilter: { enabled: true, lookback: 20, minMultiplier: 1.0 },
+
   // ── Risk per regime — upgraded R:R ────────────────────────────────
   // Philosophy: wider TP, tighter SL = better R:R per trade
   // Minimum 1:2 everywhere, 1:3 in trending (where momentum carries)
@@ -136,9 +141,11 @@ export default {
     // Reduces "trailing stopped out too early" scenarios
     trailingStop: {
       enabled: true,
-      activationATR: 1.15,   // activate after 1.15x ATR in profit — tight lock-in
-      trailATR: 0.5,        // trail by 0.5x ATR
+      activationATR: 1.15,
+      trailATR: 0.5,
     },
+    // Regime-adaptive trailing overrides (set to same as default = no effect)
+    trailingStopRegime: {},
     // Breakeven config
     // DEV LOG: BE stops killed $218 in potential profit — trades that should've trailed
     // Trailing SL handles winners perfectly (100% WR). BE is redundant and harmful.

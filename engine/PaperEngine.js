@@ -134,10 +134,15 @@ export default class PaperEngine {
       }
     }
 
-    // ── Trailing Stop Logic (FIXED: uses actual ATR) ───────────────
+    // ── Trailing Stop Logic (regime-adaptive, uses actual ATR) ─────
     if (config.engine.trailingStop.enabled) {
-      const activationDist = atrDist * config.engine.trailingStop.activationATR;
-      const trailDist = atrDist * config.engine.trailingStop.trailATR;
+      // Use regime-specific trailing if available, else default
+      const regimeTrail = config.engine.trailingStopRegime?.[pos.regime] || {};
+      const activationATR = regimeTrail.activationATR || config.engine.trailingStop.activationATR;
+      const trailATR = regimeTrail.trailATR || config.engine.trailingStop.trailATR;
+
+      const activationDist = atrDist * activationATR;
+      const trailDist = atrDist * trailATR;
 
       // Activate trailing
       if (!pos.trailingActive) {

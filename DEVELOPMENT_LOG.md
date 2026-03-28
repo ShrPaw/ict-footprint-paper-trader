@@ -1,5 +1,76 @@
 # ICT + Footprint Paper Trader — Development Log
 
+## Session: 2026-03-28 (Fourth Session) — v0.6 Enhancement Testing
+
+### 🎯 What We Did
+
+**Trailing stop comparison** — tested activationATR at 1.15x, 1.5x, and 2.0x on SOL Jan-Feb '25.
+1.15x confirmed as best (45.5% WR, PF 0.89). Higher activation = fewer trailing triggers = more trades dying at raw SL.
+
+**Three enhancement candidates** implemented and tested pragmatically (one at a time):
+
+1. **Multi-timeframe trend filter (1h EMA50)** — signal direction must agree with 1h trend
+2. **Volume confirmation** — entry candle must be ≥1.0x average volume
+3. **Regime-adaptive trailing** — different activation/trail per regime (TRENDING: 1.0x, VOL_EXPANSION: 1.5x)
+
+### 📊 Baseline (no enhancements)
+
+| Period | SOL Final | SOL PF | ETH Final | ETH PF |
+|--------|-----------|--------|-----------|--------|
+| Jan-Feb '25 | $9,250 (-7.5%) | 0.89 | $9,345 (-6.6%) | 0.97 |
+| Mar-Jun '25 | $8,144 (-18.6%) | 0.76 | $7,706 (-22.9%) | 0.76 |
+
+### 📊 MTF Filter Only (1h EMA50 direction agreement)
+
+| Period | PF | Max DD | vs Baseline |
+|--------|-----|--------|-------------|
+| SOL Jan-Feb | **1.06** | **11.2%** | ✅ +0.17 PF, -4pp DD |
+| ETH Jan-Feb | 0.92 | 9.6% | ≈ -0.05 PF (flat) |
+| SOL Mar-Jun | **0.82** | **16.4%** | ✅ +0.06 PF, -5.2pp DD |
+| ETH Mar-Jun | **0.88** | **14.0%** | ✅ +0.12 PF, -9.3pp DD |
+
+**Verdict: KEEP.** Improves 3/4, never hurts badly. Consistent across symbols and periods.
+
+### 📊 MTF + Volume Filter (1.0x avg volume required)
+
+| Period | PF | Max DD | vs Baseline |
+|--------|-----|--------|-------------|
+| SOL Jan-Feb | **1.26** | **4.93%** | ✅ big improvement |
+| ETH Jan-Feb | **0.50** | 11.4% | ❌ destroyed |
+| SOL Mar-Jun | 0.70 | **10.1%** | 🟡 mixed |
+| ETH Mar-Jun | **1.27** | **4.87%** | ✅ big improvement |
+
+**Verdict: NOT CONSISTENT.** Helps some periods, destroys others. Volume filter alone also inconsistent. Needs softer threshold or per-symbol tuning.
+
+### 📊 Regime-Adaptive Trailing (TRENDING 1.0x, VOL 1.5x)
+
+Made SOL Jan-Feb worse (PF 0.78 vs 0.89). Tighter trailing in TRENDING cuts winners short.
+**Verdict: DISCARD.** Uniform 1.15x activation is better.
+
+### 🔧 Code Changes
+
+- `config.js` — added multiTimeframe, volumeFilter, trailingStopRegime config sections (all disabled except MTF)
+- `strategies/StrategyEngine.js` — added `_checkMultiTimeframe()` and `_checkVolumeFilter()` methods
+- `engine/backtest.js` — fetches 1h context candles, passes to strategy, regime-adaptive trailing in exits
+- `engine/PaperEngine.js` — regime-adaptive trailing support (falls back to default)
+- `engine/main.js` — passes 1h context candles from feed to strategy
+
+### Current Config State
+
+- MTF filter: **ENABLED** (1h EMA50 direction agreement)
+- Volume filter: **DISABLED** (inconsistent results)
+- Regime-adaptive trailing: **DISABLED** (empty overrides = uses default 1.15x)
+
+### Next Steps
+
+1. Test softer volume threshold (0.7x or 0.8x avg) — may be less aggressive
+2. Test MTF with different EMA periods (30, 100) on 1h
+3. Push to GitHub for continuity
+4. Extended period testing (Jul-Dec '25) if available on Binance
+5. Consider per-symbol config overrides (different settings for SOL vs ETH)
+
+---
+
 ## Session: 2026-03-28 (Third Session) — v0.5 Multi-Symbol Validation
 
 ### 🎯 What We Did

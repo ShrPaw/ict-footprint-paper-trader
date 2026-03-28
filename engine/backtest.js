@@ -24,6 +24,7 @@ class Backtester {
     this.dailyPnL = 0;
     this.lastResetDay = null;
     this.stats = null;
+    this._contextCandles = {}; // symbol -> 1h candles for multi-timeframe
 
     // Config overrides
     this.symbols = options.symbols || config.symbols;
@@ -48,7 +49,14 @@ class Backtester {
 
       try {
         const allCandles = await this._fetchHistoricalCandles(exchange, symbol);
-        console.log(`  Loaded ${allCandles.length} candles`);
+        console.log(`  Loaded ${allCandles.length} candles (${this.timeframe})`);
+
+        // Fetch 1h context candles for multi-timeframe filter
+        let contextCandlesAll = [];
+        if (config.multiTimeframe.enabled) {
+          contextCandlesAll = await this._fetchHistoricalCandles(exchange, symbol, config.multiTimeframe.contextTimeframe);
+          console.log(`  Loaded ${contextCandlesAll.length} context candles (${config.multiTimeframe.contextTimeframe})`);
+        }
 
         if (allCandles.length < 100) {
           console.log(`  ⚠️  Not enough candles, skipping`);
@@ -59,6 +67,12 @@ class Backtester {
           const window = allCandles.slice(0, i + 1);
           const candle = allCandles[i];
           const timestamp = candle.timestamp;
+
+          // Build filtered context candles up to current timestamp
+          let contextWindow = null;
+          if (config.multiTimeframe.enabled && contextCandlesAll.length > 0) {
+            contextWindow = contextCandlesAll.filter(c => c.timestamp <= timestamp);
+          }
 
           // Reset daily PnL
           const day = new Date(timestamp).toDateString();
@@ -74,7 +88,7 @@ class Backtester {
 
           // Generate signal if no position
           if (!this.position) {
-            const signal = this.strategy.generateSignal(symbol, window);
+            const signal = this.strategy.generateSignal(symbol, window, null, contextWindow);
             if (signal) {
               this._openPosition(symbol, signal, candle.close, timestamp);
             }
@@ -112,7 +126,8 @@ class Backtester {
     return this.stats;
   }
 
-  async _fetchHistoricalCandles(exchange, symbol) {
+  async _fetchHistoricalCandles(exchange, symbol, timeframe) {
+    const tf = timeframe || this.timeframe;
     const allCandles = [];
     let since = this.startDate ? new Date(this.startDate).getTime() : undefined;
     const endTime = this.endDate ? new Date(this.endDate).getTime() : Date.now();
@@ -120,7 +135,7 @@ class Backtester {
 
     while (true) {
       try {
-        const ohlcv = await exchange.fetchOHLCV(symbol, this.timeframe, since, limit);
+        const ohlcv = await exchange.fetchOHLCV(symbol, tf, since, limit);
         if (ohlcv.length === 0) break;
 
         const candles = ohlcv.map(c => ({
@@ -229,10 +244,15 @@ class Backtester {
       }
     }
 
-    // ── Trailing Stop (FIXED: uses actual ATR, same logic as live) ─
+    // ── Trailing Stop (regime-adaptive, uses actual ATR) ──────────
     if (config.engine.trailingStop.enabled) {
-      const activationDist = pos.atr * config.engine.trailingStop.activationATR;
-      const trailDist = pos.atr * config.engine.trailingStop.trailATR;
+      // Use regime-specific trailing if available, else default
+      const regimeTrail = config.engine.trailingStopRegime?.[pos.regime] || {};
+      const activationATR = regimeTrail.activationATR || config.engine.trailingStop.activationATR;
+      const trailATR = regimeTrail.trailATR || config.engine.trailingStop.trailATR;
+
+      const activationDist = pos.atr * activationATR;
+      const trailDist = pos.atr * trailATR;
 
       if (!pos.trailingActive) {
         if (side === 'long' && candle.high >= pos.entryPrice + activationDist) {

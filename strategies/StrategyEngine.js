@@ -21,7 +21,7 @@ export default class StrategyEngine {
     this._emaCache = {};
   }
 
-  generateSignal(symbol, candles, realFootprint = null) {
+  generateSignal(symbol, candles, realFootprint = null, contextCandles = null) {
     if (candles.length < 50) return null;
 
     const lastCandle = candles[candles.length - 1];
@@ -58,13 +58,23 @@ export default class StrategyEngine {
     const filtered = this._applyRegimeFilters(signal, regime, regimeResult, candles, isWeekend);
     if (!filtered) return null;
 
-    // 7. Entry confirmation
+    // 7. Multi-timeframe trend filter — 1h EMA50 must agree with direction
+    if (config.multiTimeframe.enabled && contextCandles && contextCandles.length >= config.multiTimeframe.contextEMA) {
+      if (!this._checkMultiTimeframe(contextCandles, filtered)) return null;
+    }
+
+    // 8. Entry confirmation (with volume check)
     if (config.strategy.entryConfirmation.enabled) {
       const confirmed = this._checkEntryConfirmation(candles, filtered);
       if (!confirmed) return null;
     }
 
-    // 8. Rate limit
+    // 9. Volume filter — above-average volume required at entry
+    if (config.volumeFilter.enabled) {
+      if (!this._checkVolumeFilter(candles, filtered)) return null;
+    }
+
+    // 10. Rate limit
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
     this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();
@@ -396,6 +406,39 @@ export default class StrategyEngine {
     return false;
   }
 
+  // ── Multi-Timeframe Trend Filter ─────────────────────────────────
+  // Check that the higher TF (1h) trend agrees with signal direction
+  // Counter-trend on 1h = trades that immediately die at SL
+  _checkMultiTimeframe(contextCandles, signal) {
+    if (contextCandles.length < config.multiTimeframe.contextEMA) return true; // not enough data, pass
+
+    const ema = this._cachedEMA(contextCandles, config.multiTimeframe.contextEMA, 'ctx');
+    const price = contextCandles[contextCandles.length - 1].close;
+
+    // Buy: price must be ABOVE 1h EMA50
+    if (signal.action === 'buy' && price < ema) return false;
+    // Sell: price must be BELOW 1h EMA50
+    if (signal.action === 'sell' && price > ema) return false;
+
+    return true;
+  }
+
+  // ── Volume Filter ────────────────────────────────────────────────
+  // Require above-average volume on the confirmation candle
+  // Low volume entries are knife catches — more likely to hit SL
+  _checkVolumeFilter(candles, signal) {
+    const lookback = config.volumeFilter.lookback;
+    const minMult = config.volumeFilter.minMultiplier;
+
+    if (candles.length < lookback + 1) return true;
+
+    const recentCandles = candles.slice(-lookback - 1, -1); // exclude current
+    const avgVolume = recentCandles.reduce((s, c) => s + c.volume, 0) / recentCandles.length;
+    const currentVolume = candles[candles.length - 1].volume;
+
+    return currentVolume >= avgVolume * minMult;
+  }
+
   // ── Killzone Check (deadzone-based filtering) ────────────────────
   _checkKillzone(candleTimestamp) {
     const now = candleTimestamp ? new Date(candleTimestamp) : new Date();
@@ -433,9 +476,9 @@ export default class StrategyEngine {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
-  _cachedEMA(candles, period) {
-    const key = `${candles.length}-${candles[candles.length - 1].timestamp}`;
-    const cacheKey = `ema${period}`;
+  _cachedEMA(candles, period, prefix = '') {
+    const key = `${prefix}${candles.length}-${candles[candles.length - 1].timestamp}`;
+    const cacheKey = `ema${prefix}${period}`;
     if (this._emaCache[cacheKey]?.key === key) {
       return this._emaCache[cacheKey].value;
     }
