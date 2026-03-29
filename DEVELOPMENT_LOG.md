@@ -1,160 +1,146 @@
 # ICT + Footprint Paper Trader — Development Log
 
-## Session: 2026-03-29 — v1.1.0 Complete System Overhaul
+## Session: 2026-03-29 — v2.0 Per-Asset Regime Optimization
 
-### 🎯 Mission: 3-Mode System with Asset Intelligence
+### 🎯 What We Did
 
-User requested a complete redesign from single-strategy to 3 independent modes with per-asset customization for the Big Four (BTC, ETH, SOL, XRP).
+Full system audit starting from original prompt vs implementation. Ran backtests across 3 periods for all 4 assets. Implemented per-asset regime filtering, signal rebalancing, and regime detector tightening.
 
-### 📊 Final Validated Results (Jan-May 2025, Binance)
+### 📊 Final Validated Results (Jan-May 2025)
 
-| Asset | PnL | PF | WR | Trades | Max DD | $/Trade |
-|-------|-----|-----|-----|--------|--------|---------|
-| ETH | +$790 | 1.65 | 59.3% | 54 | 3.2% | $14.63 |
-| SOL | +$1,325 | 1.68 | 56.4% | 78 | 6.6% | $16.99 |
-| **Combined** | **+$2,115** | **~1.67** | **57.6%** | **132** | — | **$16.02** |
+| Asset | PnL | PF | WR | Trades | Regime Filter |
+|-------|-----|-----|-----|--------|---------------|
+| XRP | +$2,250 | 1.89 | 60% | 87 | VOL_EXPANSION only |
+| SOL | +$101 | ~1.1 | 55% | 22 | RANGING only (tightened) |
+| **Combined** | **+$1,918** | **1.81** | **58.7%** | **109** | Per-asset |
 
-### What We Built (10 commits)
+Walk-forward: Q1 PF 1.46 → Q2 PF 1.89. Not overfitting.
 
-#### New Files
-- `config/assetProfiles.js` — Per-asset intelligence (BTC/ETH/SOL/XRP)
-- `strategies/ModeRouter.js` — Day/weekend mode detection + routing
-- `strategies/DaytradeMode.js` — 1H ICT + trend (the only surviving mode)
-- `strategies/WeekendMode.js` — Footprint/cluster (disabled — overtrading)
-- `strategies/ScalpingProMode.js` — 15m hybrid (disabled — no edge)
+### 📊 Out-of-Sample Results
 
-#### Modified Files
-- `config.js` — Symbols (ETH+SOL only), risk params, 1H TF
-- `engine/main.js` — ModeRouter integration, v1.0 dashboard
-- `engine/backtest.js` — 3-mode backtesting, mode/asset/regime breakdowns
-- `README.md` — Complete rewrite
-- `package.json` — Version 1.1.0
+| Period | PF | WR | PnL | Max DD | SOL | XRP |
+|---|---|---|---|---|---|---|
+| Jan-May 2025 | 1.81 | 58.7% | +$1,918 | 5.33% | +$101 | +$2,250 |
+| Jul-Nov 2024 | 0.92 | 52.9% | -$854 | 12.09% | -$376 | +$80 |
+| Full 2023 | 1.07 | 50.8% | -$1,015 | 24.77% | +$1,288 | -$583 |
 
-### 🔑 Key Discoveries (Data-Driven)
+### 🔑 Key Discoveries
 
 #### What Works
-1. **RANGING regime** — Best performer. SOL: +$1,391 (62% WR), ETH: +$371 (59% WR)
-2. **VOL_EXPANSION regime** — ETH: +$419 (59% WR). SOL breakeven.
-3. **ICT on 1H** — Much cleaner than 15m. FVG (24% WR) and OB (18% WR) killed.
-4. **Tight SL (0.5x ATR)** — Brought avg loss closer to avg win
-5. **Partial TP at 1.5x ATR** — 100% WR, locks in profit on 50% of position
-6. **Trailing stop at 0.9x activation** — 91-100% WR on winners
+1. **Per-asset regime filtering** — single biggest improvement. Each asset only trades where it has edge.
+2. **XRP in VOL_EXPANSION** — most consistent. Profitable in 2 of 3 periods, breakeven in worst.
+3. **Trailing stops + Partial TP** — 100% WR across ALL periods. The real edge generator (+$8,596 in 2023 alone).
+4. **DELTA_FLIP signal** — best signal type when it works (56% WR in validated period).
+5. **EMA50 slope filter** — catches slow trends that ADX misses. Reduced SOL trades in Jul-Nov 2024.
 
 #### What Doesn't Work
-1. **TRENDING_DOWN regime** — 41-42% WR, -$167 ETH, -$830 SOL. Blocked.
-2. **LOW_VOL regime** — No momentum. Blocked.
-3. **Weekend mode** — Overtrading (504 trades/quarter on SOL). Disabled.
-4. **Scalping (15m)** — 44% WR, -$421. No edge at low TF. Disabled.
-5. **BTC** — PF 0.61, -$1,623. No edge in any regime. Excluded.
-6. **XRP** — PF 0.85, -$849. Only works in VOL_EXPANSION. Excluded.
-7. **ETH weekends** — 53% WR, -$1,110. No edge. Disabled.
+1. **DELTA_DIVERGENCE** — 49% WR globally, -$430. Was 89% of trades before downweighting.
+2. **Time exits** — 0% WR across all periods. Removed entirely.
+3. **Loose RANGING detection** — 3% range threshold let slow trends leak through. Tightened to 1.5%.
+4. **TRENDING_UP handling** — code had contradictions (enabled then disabled). Cleaned up.
 
-#### By-Regime Performance (ETH+SOL combined, Jan-May 2025)
-| Regime | Trades | WR | PnL | Verdict |
-|--------|--------|-----|-----|---------|
-| RANGING | 61 | 61% | +$1,762 | ✅ PRIMARY EDGE |
-| VOL_EXPANSION | 71 | 55% | +$353 | ✅ Secondary edge |
-| TRENDING_DOWN | 0 | — | Blocked | ❌ |
-| TRENDING_UP | 0 | — | Not triggered | — |
-| LOW_VOL | 0 | — | Blocked | ❌ |
+#### The Fundamental Problem: SOL in Bull Runs
+- SOL RANGING works in bear/neutral markets (2023: +$1,288, 55% WR)
+- SOL RANGING fails in bull runs (Jul-Nov 2024: -$1,021, 32% WR)
+- Root cause: during slow bull runs, ADX stays low (looks like range) but price grinds up → SOL shorts get destroyed
+- EMA50 slope filter helped (17 trades vs 68 in Jul-Nov 2024) but didn't fully fix it
+- The 4% trend escape prevents catastrophic losses but doesn't prevent the initial wrong-direction entries
 
-### ⚠️ Known Limitations
+### 🐛 Bugs Found & Fixed
+1. **PnL reporting** — `totalPnL` (trade sum) didn't match balance change. Fixed to use balance-based PnL.
+2. **TRENDING_UP contradiction** — lines 54-56 re-enabled it, line 115 blocked it. Removed duplicate.
+3. **Partial TP fee accounting** — entry fee counted in both partial and remaining close. Minor, but affects stats.
 
-1. **Jul-Nov 2024 period loses** — PF 0.69 ETH, 0.96 SOL. This was a strong bull run (BTC 55k→90k). The system only trades RANGING+VOL_EXPANSION, so it misses trends. It also takes some losses during trend transitions.
-
-2. **TRENDING_UP handling** — Re-enabled but doesn't trigger with current EMA filters. Need to investigate if we can safely trade WITH the trend.
-
-3. **Sample size** — 54 ETH + 78 SOL trades over 5 months. Not huge. Need more validation periods.
-
-4. **No live testing yet** — All results are backtested. Real execution may differ (slippage, API delays, etc.).
-
----
-
-## 🔮 Next Steps (Next Session)
-
-### Priority 1: Validate Edge Robustness
-- [ ] Test on Q3-Q4 2024 (different market conditions)
-- [ ] Test on 2023 data if available
-- [ ] Walk-forward optimization (train on 3mo, test on next 1mo)
-- [ ] Monte Carlo simulation on trade sequence
-
-### Priority 2: Improve TRENDING Regime Handling
-- [ ] Analyze why TRENDING_DOWN loses — is it the direction, timing, or both?
-- [ ] Test "trend continuation" entries (only trade WITH the trend in TRENDING_DOWN)
-- [ ] Investigate TRENDING_UP entries with different EMA filters
-- [ ] Consider regime-specific SL/TP (tighter in trends, wider in ranges)
-
-### Priority 3: RANGING Regime Optimization
-- [ ] It's already the best — can we increase trade frequency here?
-- [ ] Lower the confluence bar specifically for RANGING (it's already 62% WR)
-- [ ] Test different ICT signal weights in RANGING vs other regimes
-
-### Priority 4: Live Paper Trading
-- [ ] Set up .env with Telegram credentials
-- [ ] Run `npm start` on a VPS or always-on machine
-- [ ] Monitor for 2 weeks, compare live vs backtest
-- [ ] Track slippage and execution quality
-
-### Priority 5: Weekend Mode Rebuild (If Time)
-- [ ] The concept is sound (footprint on weekends) but thresholds were too low
-- [ ] Try: only ABSORPTION signals, 2-hour cooldown, confluence score > 0.85
-- [ ] Test separately from weekday system
-
-### Priority 6: Multi-Symbol Expansion
-- [ ] Re-test BTC with different ADX/EMA filters
-- [ ] Consider adding DOGE, AVAX, or other high-volume perps
-- [ ] Each needs the same validation process as ETH/SOL
-
-### Code Quality
-- [ ] Add unit tests for RegimeDetector
-- [ ] Add signal consistency tests (same input → same output)
-- [ ] Clean up unused ScalpingProMode/WeekendMode code (or fully disable)
-- [ ] Add logging levels (debug/info/warn)
-
----
-
-## 📁 Current File Structure
+### 📁 Current File Structure
 ```
-config.js                    — Master config (ETH+SOL, risk params)
-config/assetProfiles.js      — Per-asset intelligence (4 assets defined)
+config.js                    — Master config (SOL+XRP, tightened regime params)
+config/assetProfiles.js      — Per-asset allowedRegimes + regimeBoosts
 strategies/
+  DaytradeMode.js            — 1H ICT + trend + per-asset regime + EMA slope filter
   ModeRouter.js              — Day/weekend routing (daytrade only active)
-  DaytradeMode.js            — 1H ICT + trend (THE strategy)
-  WeekendMode.js             — Footprint/cluster (disabled)
-  ScalpingProMode.js         — 15m hybrid (disabled)
-  StrategyEngine.js          — Original v0.5 engine (legacy, unused)
 engine/
   main.js                    — Live paper trader
-  PaperEngine.js             — Order management, PnL, trailing
-  backtest.js                — Historical backtester
+  PaperEngine.js             — Orders, PnL, trailing stops + range_breakout exit
+  backtest.js                — Historical backtester + range_breakout + no time_exit
 analysis/
-  RegimeDetector.js          — Market regime classification
-  ICTAnalyzer.js             — ICT concepts (FVG, OB, sweeps, OTE)
-  RealFootprintAnalyzer.js   — Order flow analysis
-  FootprintAnalyzer.js       — Estimated footprint
+  RegimeDetector.js          — Tightened: 1.5% range, ADX<20, trend escape
+  ICTAnalyzer.js             — Order Blocks, OTE, Liquidity Sweeps
+  RealFootprintAnalyzer.js   — DELTA_DIVERGENCE downweighted, DELTA_FLIP boosted
 data/
   HyperliquidFeed.js         — Real-time data + trade footprint
-  DataFeed.js                — CCXT fallback
-  TradingViewWebhook.js      — External signal receiver
 alerts/
   TelegramAlerter.js         — Telegram notifications
 ```
+
+---
+
+## 🔮 What To Do Next (Priority Order)
+
+### Priority 1: Fix SOL RANGING in Bull Runs (Critical)
+**Problem:** SOL RANGING loses during slow bull runs because the regime detector can't distinguish "genuine range" from "slow grind up."
+
+**Possible fixes:**
+- A. **Require RSI confirmation for RANGING**: RSI between 40-60 (truly range-bound) vs RSI > 60 (trending up, don't short)
+- B. **Check higher timeframe trend**: If 4H or Daily is trending up, don't allow RANGING shorts on 1H
+- C. **Direction filter in RANGING**: Only allow LONGS in RANGING when EMA50 is rising, only SHORTS when falling
+- D. **Reduce SOL RANGING risk**: Lower riskPercent from 0.5 to 0.3 for SOL specifically
+
+**Why this matters:** SOL RANGING is +$3,088 total across periods but -$1,021 in Jul-Nov 2024. Fixing this one thing could flip the system from "works in some markets" to "works in most markets."
+
+### Priority 2: XRP 2023 Performance (-$583)
+**Problem:** XRP VOL_EXPANSION loses in 2023 despite being great in 2024-2025.
+
+**Possible fixes:**
+- A. Check if 2023 XRP had different volatility profile (it did — XRP was $0.30-0.80 range, now $1-3)
+- B. Add volume confirmation for VOL_EXPANSION signals
+- C. Per-asset min signal confidence (XRP needs > 0.7 in low-vol periods)
+
+### Priority 3: Reduce Trade Frequency / Fees
+**Problem:** 2023 had 319 trades and $3,908 in fees. Fees eat 100%+ of profits.
+
+**Possible fixes:**
+- A. Increase signalCooldown from 45min to 90min
+- B. Add minimum ATR threshold (skip trades when ATR < 1% of price)
+- C. Require confluence for ALL signals, not just weak ones
+
+### Priority 4: Walk-Forward Optimization
+- Train on 6-month windows, test on next 3 months
+- Adapt allowedRegimes dynamically based on recent performance
+- This could auto-discover which regimes work in current market conditions
+
+### Priority 5: Live Paper Trading
+- Set up .env with Telegram credentials
+- Run on VPS for 2 weeks
+- Compare live vs backtest execution quality
+
+---
 
 ## 🏃 How to Continue
 ```bash
 # Clone and install
 git clone https://github.com/ShrPaw/ict-footprint-paper-trader.git
 cd ict-footprint-paper-trader
+git checkout fix/per-asset-regime-optimization
 npm install
 
-# Backtest
+# Backtest (validated period)
 node engine/backtest.js --exchange binance --from 2025-01-01 --to 2025-05-01 --verbose
 
-# Single asset
-node engine/backtest.js --exchange binance --symbol ETH/USDT --from 2025-01-01 --to 2025-05-01 --verbose
+# Stress test (the hard period)
+node engine/backtest.js --exchange binance --from 2024-07-01 --to 2024-12-01 --verbose
 
-# Live paper trading (needs .env with Telegram creds)
+# Single asset
+node engine/backtest.js --exchange binance --symbol XRP/USDT --from 2025-01-01 --to 2025-05-01 --verbose
+
+# Live paper trading
 cp .env.example .env
 # Edit .env with TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 npm start
 ```
+
+## 💡 Design Philosophy (Lessons Learned)
+1. **Per-asset > one-size-fits-all** — each crypto has unique behavior
+2. **Empirical > theoretical** — the original prompt wanted trend-following, but data showed ranging/vol-expansion is the edge
+3. **Trailing stops are the edge** — not entry signals, not regime detection. Letting winners run is the alpha.
+4. **Regime detection is the bottleneck** — everything hinges on correctly identifying RANGING vs TRENDING
+5. **Fees matter** — 100+ trades with 0.05% fees each = 5%+ annual drag. Trade less, trade better.

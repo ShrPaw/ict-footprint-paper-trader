@@ -43,6 +43,21 @@ export default class DaytradeMode {
     if (regime === 'TRENDING_DOWN') return null;
     if (regime === 'TRENDING_UP') return null;
 
+    // 6. EMA50 slope trend escape for RANGING regime
+    // In Jul-Nov 2024, SOL's regime detector classified slow uptrends as "RANGING"
+    // because ADX was low. But EMA50 was clearly rising → it's a trend, not a range.
+    // Check: if EMA50 slope over 20 candles is > 0.5%, it's trending — not ranging.
+    if (regime === 'RANGING') {
+      const ema50Now = this._cachedEMA(candles1h, 50);
+      const ema50Past = candles1h.length >= 70 ? this._emaFromIndex(candles1h, 50, candles1h.length - 20) : null;
+      if (ema50Past && ema50Past > 0) {
+        const emaSlope = (ema50Now - ema50Past) / ema50Past;
+        if (Math.abs(emaSlope) > 0.005) {
+          return null; // EMA50 is sloping >0.5% → trending, not ranging
+        }
+      }
+    }
+
     const price = candles1h[candles1h.length - 1].close;
 
     // 5. EMA alignment — require price above/below EMA21 (not full 9>21>50 stack)
@@ -275,6 +290,15 @@ export default class DaytradeMode {
     let ema = candles[0].close;
     for (let i = 1; i < candles.length; i++) ema = candles[i].close * k + ema * (1 - k);
     this._emaCache[ck] = { key, value: ema };
+    return ema;
+  }
+
+  _emaFromIndex(candles, period, endIndex) {
+    const k = 2 / (period + 1);
+    let ema = candles[0].close;
+    for (let i = 1; i <= endIndex && i < candles.length; i++) {
+      ema = candles[i].close * k + ema * (1 - k);
+    }
     return ema;
   }
 

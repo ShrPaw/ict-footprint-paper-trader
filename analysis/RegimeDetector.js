@@ -49,13 +49,18 @@ export default class RegimeDetector {
     const inSqueeze = bbWidth < config.regime.bollingerSqueeze;
 
     // Check if price is ranging (staying within recent high/low)
+    // TIGHTENED: 1.5% range (was 3%) — Jul-Nov 2024 showed slow trends leak through at 3%
     const lookback = config.regime.rangeLookback;
     const recentHighs = highs.slice(-lookback);
     const recentLows = lows.slice(-lookback);
     const rangeHigh = Math.max(...recentHighs);
     const rangeLow = Math.min(...recentLows);
     const rangeSize = (rangeHigh - rangeLow) / rangeLow;
-    const inRange = rangeSize < 0.03 && !inSqueeze; // < 3% range and not in squeeze
+    const rangeMidpoint = (rangeHigh + rangeLow) / 2;
+    const priceFromMidpoint = Math.abs(price - rangeMidpoint) / rangeMidpoint;
+    // Trend escape: if price >2% from range midpoint, it's breaking out — not ranging
+    const trendEscape = priceFromMidpoint > 0.02;
+    const inRange = rangeSize < 0.015 && !inSqueeze && !trendEscape;
 
     // ── 4. Volume Analysis ──────────────────────────────────────────
     const avgVolume = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
@@ -90,9 +95,12 @@ export default class RegimeDetector {
       if (price < currentEMA21) scores.TRENDING_DOWN += 2;
     }
 
-    // Range scores
+    // Range scores — TIGHTENED: require ADX < 20 for RANGING (was < 25)
+    // Slow trends with ADX 20-25 were misclassified as ranges in Jul-Nov 2024
     if (inRange) scores.RANGING += 3;
-    if (currentADX < config.regime.trendThreshold) scores.RANGING += 1;
+    if (currentADX < 20) scores.RANGING += 2;
+    // Penalize RANGING if ADX is rising toward trend territory
+    if (currentADX >= 20 && currentADX < config.regime.trendThreshold) scores.RANGING -= 1;
 
     // Absorption: high volume but low price movement = absorption
     const recentRange = (Math.max(...highs.slice(-5)) - Math.min(...lows.slice(-5))) / price;

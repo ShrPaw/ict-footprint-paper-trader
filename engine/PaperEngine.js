@@ -217,6 +217,17 @@ export default class PaperEngine {
       }
     }
 
+    // ── Trend Escape for RANGING positions ──────────────────────────
+    // If price moved >4% from entry in a RANGING trade, the regime detector
+    // likely misclassified a trend as a range. Exit to prevent disaster.
+    // (Jul-Nov 2024 SOL: -$1,063 from this exact scenario)
+    if (pos.regime === 'RANGING') {
+      const moveFromEntry = Math.abs(currentPrice - pos.entryPrice) / pos.entryPrice;
+      if (moveFromEntry > 0.04) {
+        return this.closePosition(symbol, currentPrice, 'range_breakout');
+      }
+    }
+
     // ── Exit Checks ─────────────────────────────────────────────────
 
     // Stop loss

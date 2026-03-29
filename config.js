@@ -31,7 +31,7 @@ export default {
     riskMultiplier: 0.5,
   },
 
-  // Regime detection thresholds
+  // Regime detection thresholds — tightened after Jul-Nov 2024 validation
   regime: {
     atrPeriod: 14,
     lowVolPercentile: 20,
@@ -41,6 +41,10 @@ export default {
     strongTrendThreshold: 40,
     bollingerSqueeze: 0.02,
     rangeLookback: 20,
+    // Tightened: RANGING now requires ADX < 20, BB width < 1.5%, no trend escape
+    rangeMaxADX: 20,         // RANGING requires ADX below this
+    rangeMaxSize: 0.015,     // 1.5% max range size (was 3%)
+    trendEscapePercent: 0.02, // 2% from midpoint = breakout
   },
 
   // ICT parameters (used by DaytradeMode on 1H)

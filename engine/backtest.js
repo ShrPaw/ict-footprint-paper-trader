@@ -317,6 +317,15 @@ class Backtester {
       }
     }
 
+    // Trend escape for RANGING positions — if price moved >4% from entry, regime was wrong
+    if (pos.regime === 'RANGING') {
+      const moveFromEntry = Math.abs(price - pos.entryPrice) / pos.entryPrice;
+      if (moveFromEntry > 0.04) {
+        this._closePosition(price, timestamp, 'range_breakout');
+        return;
+      }
+    }
+
     // SL check
     if (side === 'long' && candle.low <= pos.stopLoss) {
       const reason = pos.trailingActive ? 'trailing_sl' : 'stop_loss';
