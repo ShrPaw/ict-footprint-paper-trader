@@ -52,6 +52,13 @@ class Backtester {
     for (const symbol of this.symbols) {
       console.log(`\n── Backtesting ${symbol} ─────────────────────────`);
 
+      // Reset analyzer state per symbol — prevents cross-symbol contamination
+      this.ict = new ICTAnalyzer();
+      this.footprint = new RealFootprintAnalyzer();
+      this.daytradeMode = new DaytradeMode(this.regime, this.ict, this.footprint);
+      this.weekendMode = new WeekendMode(this.regime, this.footprint);
+      this.scalpingMode = new ScalpingProMode(this.regime, this.footprint);
+
       try {
         // Fetch candles for all timeframes
         const candles15m = await this._fetchHistoricalCandles(exchange, symbol, '15m');
@@ -339,11 +346,11 @@ class Backtester {
       return;
     }
 
-    // Time exit (4h for non-profitable)
+    // Time exit (4h, only if loss > 0.5x ATR — trade clearly isn't working)
     const elapsed = timestamp - pos.entryTime;
     if (elapsed > 4 * 60 * 60 * 1000) {
       const unrealized = side === 'long' ? (price - pos.entryPrice) : (pos.entryPrice - price);
-      if (unrealized < 0) {
+      if (unrealized < 0 && Math.abs(unrealized) > pos.atr * 0.5) {
         this._closePosition(price, timestamp, 'time_exit');
       }
     }

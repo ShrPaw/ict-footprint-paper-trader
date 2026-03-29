@@ -1,12 +1,21 @@
 {
   "name": "ict-footprint-paper-trader",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ICT + Footprint paper trading engine with regime-adaptive strategies for MEXC perps",
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env engine/main.js",
     "backtest": "node engine/backtest.js",
-    "backtest:verbose": "node engine/backtest.js --verbose"
+    "backtest:verbose": "node engine/backtest.js --verbose",
+    "backtest:eth": "node engine/backtest.js --exchange binance --symbol ETH/USDT --from 2025-01-01 --to 2025-05-01",
+    "backtest:sol": "node engine/backtest.js --exchange binance --symbol SOL/USDT --from 2025-01-01 --to 2025-05-01",
+    "backtest:btc": "node engine/backtest.js --exchange binance --symbol BTC/USDT --from 2025-01-01 --to 2025-05-01",
+    "backtest:xrp": "node engine/backtest.js --exchange binance --symbol XRP/USDT --from 2025-01-01 --to 2025-05-01",
+    "bot:eth": "node --env-file=.env bots/eth/bot.js",
+    "bot:sol": "node --env-file=.env bots/sol/bot.js",
+    "bot:btc": "node --env-file=.env bots/btc/bot.js",
+    "bot:xrp": "node --env-file=.env bots/xrp/bot.js",
+    "bots:all": "node --env-file=.env bots/eth/bot.js & node --env-file=.env bots/sol/bot.js & node --env-file=.env bots/btc/bot.js & node --env-file=.env bots/xrp/bot.js & wait"
   },
   "dependencies": {
     "ccxt": "^4.4.0",

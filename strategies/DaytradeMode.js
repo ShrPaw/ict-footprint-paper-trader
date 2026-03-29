@@ -38,6 +38,8 @@ export default class DaytradeMode {
     if (regime === 'LOW_VOL') return null;
     // TRENDING_DOWN: -$167 ETH (42% WR), -$830 SOL (41% WR). No edge.
     if (regime === 'TRENDING_DOWN') return null;
+    // Per-asset regime blocks (e.g., SOL VOL_EXPANSION: 51% WR, -$66 noise)
+    if (profile.blockedRegimes?.includes(regime)) return null;
     // TRENDING_UP: re-enable — was profitable for ETH (+$475) in Jan-May 2025
     // if (regime === 'TRENDING_UP') return null;
 

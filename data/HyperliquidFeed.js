@@ -15,7 +15,8 @@ export default class HyperliquidFeed extends EventEmitter {
   }
 
   async init() {
-    for (const symbol of config.symbols) {
+    const symbols = this.symbolsOverride || config.symbols;
+    for (const symbol of symbols) {
       const coin = this._symbolToCoin(symbol);
       this.candles[coin] = {};
       for (const [label, tf] of Object.entries(config.timeframes)) {
@@ -23,13 +24,14 @@ export default class HyperliquidFeed extends EventEmitter {
       }
       this.trades[coin] = [];
     }
-    console.log(`[HyperliquidFeed] Initialized | ${config.symbols.map(s => this._symbolToCoin(s)).join(', ')}`);
+    console.log(`[HyperliquidFeed] Initialized | ${symbols.map(s => this._symbolToCoin(s)).join(', ')}`);
   }
 
   async loadInitialCandles() {
     const intervalMap = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h' };
+    const symbols = this.symbolsOverride || config.symbols;
 
-    for (const symbol of config.symbols) {
+    for (const symbol of symbols) {
       const coin = this._symbolToCoin(symbol);
 
       for (const [label, tf] of Object.entries(config.timeframes)) {
@@ -79,7 +81,8 @@ export default class HyperliquidFeed extends EventEmitter {
     console.log(`[HyperliquidFeed] Polling every ${intervalMs}ms`);
 
     this.pollInterval = setInterval(async () => {
-      for (const symbol of config.symbols) {
+      const symbols = this.symbolsOverride || config.symbols;
+      for (const symbol of symbols) {
         const coin = this._symbolToCoin(symbol);
 
         try {

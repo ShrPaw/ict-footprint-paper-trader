@@ -2,28 +2,51 @@
 
 Regime-adaptive paper trading engine for crypto perpetuals. ICT concepts on higher timeframes (1H) where they actually work.
 
-**v1.1.0** — Validated: PF 1.67, +$2,115 over 5 months (ETH + SOL).
+**v1.2.0** — 4 independent bots, per-asset regime filtering.
 
-## Validated Results (Jan-May 2025)
+## Validated Results (Jan-May 2025, Binance)
 
-| Asset | PnL | Profit Factor | Win Rate | Max DD |
-|-------|-----|---------------|----------|--------|
-| **ETH** | **+$790** | **1.65** | **59.3%** | **3.2%** |
-| **SOL** | **+$1,325** | **1.68** | **56.4%** | **6.6%** |
+| Asset | PnL | PF | WR | Trades | Max DD | Sharpe | Regime Edge |
+|-------|-----|-----|-----|--------|--------|--------|-------------|
+| **ETH** | **+$684** | **1.52** | **59.3%** | 54 | 3.5% | 1.18 | RANGING + VOL_EXP |
+| **SOL** | **+$1,426** | **1.72** | **59.7%** | 77 | 5.5% | 1.71 | RANGING only |
+| **BTC** | **+$317** | **1.53** | **65.4%** | 26 | 2.9% | 0.85 | VOL_EXPANSION only |
+| **XRP** | **+$1,242** | **2.27** | **65.9%** | 44 | 4.1% | 2.57 | VOL_EXPANSION only |
+| **Total** | **+$3,669** | **~1.75** | **61.8%** | 201 | — | — | |
 
-**~26 trades/month. $16 expectancy per trade after fees.**
+**~40 trades/month combined. $18 expectancy per trade after fees.**
+
+## Per-Bot Architecture
+
+Each asset runs as an independent bot with its own engine, analyzers, and config. No shared state.
+
+```bash
+npm run bot:eth     # ETH bot (port 3451)
+npm run bot:sol     # SOL bot (port 3452)
+npm run bot:btc     # BTC bot (port 3453)
+npm run bot:xrp     # XRP bot (port 3454)
+npm run bots:all    # All 4 bots
+```
+
+### Per-Asset Regime Filtering
+
+| Asset | RANGING | VOL_EXPANSION | TRENDING_DOWN | LOW_VOL |
+|-------|---------|---------------|---------------|---------|
+| ETH | ✅ +$334 | ✅ +$350 | ❌ blocked | ❌ blocked |
+| SOL | ✅ +$1,397 | ✅ +$29 | ❌ blocked | ❌ blocked |
+| BTC | ❌ **blocked** (-$728) | ✅ +$317 | ❌ blocked | ❌ blocked |
+| XRP | ❌ **blocked** (-$282) | ✅ +$1,242 | ❌ blocked | ❌ blocked |
+
+**Key insight:** BTC and XRP are the inverse of SOL. They thrive in volatility, die in ranging.
 
 ## How It Works
 
-The system trades **only in favorable regimes**:
-- ✅ **RANGING** — Primary edge (61% WR, +$1,762 combined)
-- ✅ **VOL_EXPANSION** — Secondary edge (55% WR, +$353)
-- ❌ TRENDING_DOWN — Blocked (41% WR, always negative)
-- ❌ LOW_VOL — Blocked (no momentum)
+The system trades **only in favorable regimes** (per asset):
+- Each asset's `blockedRegimes` in `config/assetProfiles.js` filters out losing regimes
+- Entry requires ICT + Footprint signal confluence on 1H candles
+- Trailing stops (100% WR across all assets) + partial TP lock in profits
 
-**Strategy:** ICT concepts (Order Blocks, OTE, Liquidity Sweeps) on 1H candles with EMA alignment filter. Entry requires confluence of ICT + Footprint signals.
-
-**Assets:** ETH + SOL only. BTC and XRP have no validated edge.
+**Strategy:** ICT concepts (Order Blocks, OTE, Liquidity Sweeps) on 1H candles with EMA alignment filter.
 
 ## Quick Start
 
@@ -31,59 +54,73 @@ The system trades **only in favorable regimes**:
 npm install
 cp .env.example .env
 
-# Backtest (5-month validation)
-node engine/backtest.js --exchange binance --from 2025-01-01 --to 2025-05-01 --verbose
-
-# Single asset
-node engine/backtest.js --exchange binance --symbol ETH/USDT --from 2025-01-01 --to 2025-05-01 --verbose
+# Backtest per asset
+npm run backtest:eth
+npm run backtest:sol
+npm run backtest:btc
+npm run backtest:xrp
 
 # Live paper trading (needs Telegram creds in .env)
-npm start
+npm run bot:eth    # single bot
+npm run bots:all   # all 4
 ```
 
 ## Configuration
 
-### `config.js`
-- `symbols` — ETH/USDT, SOL/USDT (validated edge)
-- `risk.*` — Per-regime SL/TP multipliers (tight 0.5x SL)
-- `strategy.*` — Confluence scoring, entry confirmation
-
 ### `config/assetProfiles.js`
-- Per-asset volatility, trend behavior, session weights
-- ADX thresholds, ICT/Footprint weight balancing
-- Weekend enabled/disabled per asset
+- `blockedRegimes` — per-asset regime blacklist (the edge)
+- `riskMultiplier` — per-asset risk scaling
+- `slTightness` — per-asset stop loss width
+- `daytrade.ictWeight / footprintWeight` — signal balance
+
+### `config.js`
+- `symbols` — all 4 assets
+- `risk.*` — per-regime SL/TP multipliers
+- `strategy.*` — confluence scoring, entry confirmation
 
 ## Architecture
 
 ```
+bots/
+  BotRunner.js          — Shared bot runner (per-asset config)
+  eth/bot.js            — ETH entry point
+  sol/bot.js            — SOL entry point
+  btc/bot.js            — BTC entry point (research mode)
+  xrp/bot.js            — XRP entry point (research mode)
 strategies/
-  DaytradeMode.js      — 1H ICT + trend (THE strategy)
-  ModeRouter.js        — Routes to daytrade (weekends disabled)
+  DaytradeMode.js       — 1H ICT + trend (THE strategy)
+  ModeRouter.js         — Routes to daytrade
+  WeekendMode.js        — Footprint (disabled)
+  ScalpingProMode.js    — 15m hybrid (disabled)
 engine/
-  main.js              — Live paper trader
-  PaperEngine.js       — Orders, PnL, trailing stops
-  backtest.js          — Historical backtester with regime breakdowns
+  main.js               — Legacy multi-asset trader
+  PaperEngine.js        — Orders, PnL, trailing stops
+  backtest.js           — Historical backtester
 analysis/
-  RegimeDetector.js    — RANGING/VOL_EXPANSION/TRENDING classification
-  ICTAnalyzer.js       — Order Blocks, OTE, Liquidity Sweeps
+  RegimeDetector.js     — Market regime classification
+  ICTAnalyzer.js        — Order Blocks, OTE, Liquidity Sweeps
   RealFootprintAnalyzer.js — Order flow delta, absorption, POC
+config/
+  assetProfiles.js      — Per-asset intelligence + regime filters
 data/
-  HyperliquidFeed.js   — Real-time candles + trade-level footprint
+  HyperliquidFeed.js    — Real-time candles + trade-level footprint
 ```
 
 ## Key Design Decisions
 
-1. **ICT on 1H only** — 15m FVG had 24% WR, OB had 18%. Higher TF = clean signals.
-2. **TRENDING_DOWN blocked** — 41-42% WR across both assets. Always negative.
-3. **Tight stops (0.5x ATR)** — Brought avg loss closer to avg win.
-4. **No weekends** — Overtrading (504 trades/quarter). No edge.
-5. **No scalping** — 15m had 44% WR. No edge at low timeframes.
-6. **BTC/XRP excluded** — PF 0.61 and 0.85. No edge in any regime.
+1. **Per-asset regime blocking** — The real edge. BTC/XRP block RANGING, SOL works best in RANGING.
+2. **ICT on 1H only** — 15m FVG had 24% WR. Higher TF = clean signals.
+3. **TRENDING_DOWN blocked globally** — 41% WR across all assets. Always negative.
+4. **Tight stops (0.5x ATR)** — Brought avg loss closer to avg win.
+5. **No weekends** — Overtrading. No edge.
+6. **Smart time_exit** — Only exits if loss > 0.5x ATR after 4h. Eliminated 0% WR premature exits.
+7. **Independent bots** — No shared state. Each bot runs its own engine + analyzers.
 
 ## Known Limitations
 
 - Jul-Nov 2024 bull run period loses (system sits out strong trends)
-- 132 trades over 5 months — moderate sample size
+- 201 trades over 5 months — moderate sample size
+- BTC/XRP only validated in VOL_EXPANSION — fragile if market shifts to ranging
 - No live execution validation yet
 
 ## Telegram Setup
