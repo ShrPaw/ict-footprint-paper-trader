@@ -1,166 +1,140 @@
-# SESSION SUMMARY & PROJECT CONTEXT
-# Updated: 2026-03-29
+# ICT + FOOTPRINT PAPER TRADER — FULL PROJECT CONTEXT
+# Last updated: 2026-03-30
 # Author: ShrPaw + AI Assistant
+# SINGLE SOURCE OF TRUTH — read this first in any new session
 
-## WHAT HAPPENED THIS SESSION (2026-03-29)
+# ═══════════════════════════════════════════════════════════════════
+# WHAT THIS IS
+# ═══════════════════════════════════════════════════════════════════
 
-### Session Timeline
-1. Full code review of the entire repository (~15 source files read)
-2. Identified bugs, strengths, weaknesses, and improvement areas
-3. Fixed ecosystem.config.cjs: `env_file` (invalid PM2 field) → `node_args: '--env-file=.env'`
-4. Created PROJECT_CONTEXT.txt for future reference
-5. Guided user through Google Cloud Platform VM creation for deployment
-6. User created e2-medium VM (2 vCPU, 4GB RAM) in us-central1-a
-7. External IP: 35.225.81.118
-8. Encountered 404 when trying to run deploy.sh from raw GitHub URL (private repo)
-9. Solution: clone repo with token directly on VM, then run deploy.sh
-
-### Current Deployment Status
-- VM created and running on GCP (ict-trader, e2-medium, Ubuntu 22.04 LTS)
-- NOT YET DEPLOYED — user needs to SSH in, clone repo, run deploy.sh
-- Dashboard will be at http://35.225.81.118:3500 once deployed
-
-### What User Needs To Do Next
-```bash
-# SSH into VM (click SSH button in GCP console)
-# Then run:
-git clone https://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@github.com/ShrPaw/ict-footprint-paper-trader.git
-cd ict-footprint-paper-trader
-bash deploy.sh
-# Then edit .env with Telegram creds:
-nano .env
-# Then restart:
-pm2 restart all
-pm2 save
-```
-
----
-
-## THE PROJECT: ICT + Footprint Paper Trader
-
-### What It Is
 A regime-adaptive paper trading engine for crypto perpetuals (ETH, SOL, BTC, XRP).
 Uses ICT (Inner Circle Trader) concepts on 1H candles combined with order flow footprint analysis.
-Built in Node.js. Trades on Hyperliquid (live market data). Backtests on Binance (historical).
+Built in Node.js (ES modules). Trades on Hyperliquid (live market data). Backtests on Binance (historical).
 Paper trading only — NO real money at risk. Generates signals, tracks virtual PnL.
 
-### The Core Idea
-Different crypto assets behave differently in different market regimes. Instead of one strategy
-for all assets in all conditions, the system:
-1. Detects the current market regime (TRENDING_UP, TRENDING_DOWN, RANGING, VOL_EXPANSION, LOW_VOL)
-2. Blocks trading in regimes where each asset historically loses money
-3. Only trades when the regime favors the specific asset
+VERSION: v1.2.2
 
-### Validated Results (Jan-May 2025, Binance backtest)
+# ═══════════════════════════════════════════════════════════════════
+# VALIDATED RESULTS (Jan-May 2025, Binance backtest)
+# ═══════════════════════════════════════════════════════════════════
 
-| Asset | PnL     | Profit Factor | Win Rate | Trades | Max DD | Sharpe | Edge In              |
-|-------|---------|---------------|----------|--------|--------|--------|----------------------|
-| ETH   | +$684   | 1.52          | 59.3%    | 54     | 3.5%   | 1.18   | RANGING + VOL_EXP    |
-| SOL   | +$1,426 | 1.72          | 59.7%    | 77     | 5.5%   | 1.71   | RANGING only         |
-| BTC   | +$317   | 1.53          | 65.4%    | 26     | 2.9%   | 0.85   | VOL_EXPANSION only   |
-| XRP   | +$1,242 | 2.27          | 65.9%    | 44     | 4.1%   | 2.57   | VOL_EXPANSION only   |
-| TOTAL | +$3,669 | ~1.75         | 61.8%    | 201    | —      | —      |                      |
+| Asset | PnL     | PF   | WR    | Trades | Max DD | Sharpe | Regime Edge           |
+|-------|---------|------|-------|--------|--------|--------|-----------------------|
+| ETH   | +$684   | 1.52 | 59.3% | 54     | 3.5%   | 1.18   | RANGING + VOL_EXP     |
+| SOL   | +$1,426 | 1.72 | 59.7% | 77     | 5.5%   | 1.71   | RANGING only          |
+| BTC   | +$317   | 1.53 | 65.4% | 26     | 2.9%   | 0.85   | VOL_EXPANSION only    |
+| XRP   | +$1,242 | 2.27 | 65.9% | 44     | 4.1%   | 2.57   | VOL_EXPANSION only    |
+| Total | +$3,669 | ~1.75| 61.8% | 201    | —      | —      |                       |
 
 ~40 trades/month combined. $18 expectancy per trade after fees.
 
-### THE EDGE: Per-Asset Regime Blocking
+# ═══════════════════════════════════════════════════════════════════
+# THE EDGE: Per-Asset Regime Blocking
+# ═══════════════════════════════════════════════════════════════════
 
-| Asset | RANGING     | VOL_EXPANSION | TRENDING_DOWN | LOW_VOL |
-|-------|-------------|---------------|---------------|---------|
-| ETH   | ✅ +$334    | ✅ +$350      | ❌ blocked    | ❌ blocked |
-| SOL   | ✅ +$1,397  | ✅ +$29       | ❌ blocked    | ❌ blocked |
-| BTC   | ❌ blocked  | ✅ +$317      | ❌ blocked    | ❌ blocked |
-|       | (-$728)     |               |               |         |
-| XRP   | ❌ blocked  | ✅ +$1,242    | ❌ blocked    | ❌ blocked |
-|       | (-$282)     |               |               |         |
+| Asset | RANGING       | VOL_EXPANSION | TRENDING_DOWN | LOW_VOL |
+|-------|---------------|---------------|---------------|---------|
+| ETH   | ✅ +$334      | ✅ +$350      | ❌ blocked    | ❌ blocked |
+| SOL   | ✅ +$1,397    | ✅ +$29       | ❌ blocked    | ❌ blocked |
+| BTC   | ❌ blocked    | ✅ +$317      | ❌ blocked    | ❌ blocked |
+|       | (-$728)       |               |               |         |
+| XRP   | ❌ blocked    | ✅ +$1,242    | ❌ blocked    | ❌ blocked |
+|       | (-$282)       |               |               |         |
 
-Key insight: BTC and XRP are the INVERSE of SOL. They thrive in volatility, die in ranging.
-SOL thrives in ranging, breakeven in volatility. ETH works in both.
+Key insight: BTC and XRP are the INVERSE of SOL. They thrive in VOL_EXPANSION, die in RANGING.
+SOL thrives in RANGING, breakeven in VOL_EXPANSION. ETH works in both.
 
----
+# ═══════════════════════════════════════════════════════════════════
+# DEPLOYMENT STATUS
+# ═══════════════════════════════════════════════════════════════════
 
-## WHAT'S EXCELLENT
+Platform: Google Cloud Platform (GCP)
+VM Name: ict-trader
+Zone: us-central1-c
+Machine: e2-medium (2 vCPU, 4GB RAM)
+OS: Ubuntu 22.04 LTS
+External IP: 35.202.132.115 (CHANGED from 35.225.81.118 after VM restart)
+Internal IP: 10.128.0.2
+Project Number: 916793927984
 
-1. **Architecture is solid** — Per-bot independence (own engine, analyzers, feed). No shared state
-   means no cross-contamination bugs. Clean separation of concerns.
+SSH Access:
+  - GCP Browser SSH (IAP) — works from GCP console
+  - Direct SSH port 22 — firewall rule "allow-ssh-all" created (0.0.0.0/0, tcp:22)
+  - SSH key for AI assistant — NOT YET ADDED (needs manual step in VM terminal)
 
-2. **Per-asset regime blocking is the real edge** — Data-driven discovery baked into config.
-   BTC/XRP block RANGING, SOL works best in RANGING. Configurable, testable, data-proven.
+Deployment Steps Completed:
+  ✅ VM created and running
+  ✅ Code cloned to VM (ict-footprint-paper-trader)
+  ✅ deploy.sh ran (Node 22, PM2, npm install)
+  ✅ PM2 ecosystem.config.cjs configured
+  ✅ Dashboard port 3500 (need to verify firewall)
+  ✅ Firewall rule "allow-ssh-all" created (tcp:22 from 0.0.0.0/0)
 
-3. **Exit logic is well-designed** — Partial TP at 1.5x ATR (100% WR), trailing stop at 0.9x
-   activation (91-100% WR), smart time_exit (only if loss > 0.5x ATR after 4h).
+Deployment Steps NOT Completed:
+  ❌ .env file needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+  ❌ SSH key for AI assistant not added to VM
+  ❌ PM2 bots status not verified
+  ❌ Dashboard access not verified (port 3500)
+  ❌ State persistence not implemented
+  ❌ Dashboard auth not added
 
-4. **Backtest engine is comprehensive** — By-regime, by-signal, by-exit, by-mode, by-asset
-   breakdowns. CSV export. Equity curve. Sharpe calculation. Better than most retail tools.
+# ═══════════════════════════════════════════════════════════════════
+# KNOWN BUGS & ISSUES
+# ═══════════════════════════════════════════════════════════════════
 
-5. **Real footprint from Hyperliquid** — Actual buy/sell delta from trade-level data, not
-   estimated from OHLCV like most "order flow" tools.
+CRITICAL:
+1. config.js symbols only has ['ETH/USDT:USDT', 'SOL/USDT:USDT']
+   but assetProfiles.js defines 4 assets AND 4 bot entry points exist
+   (eth/bot.js, sol/bot.js, btc/bot.js, xrp/bot.js)
+   — Inconsistency. Config should have all 4 symbols.
 
-6. **Telegram integration with rate-limiting queue** — Proper implementation with 350ms
-   spacing between messages.
+2. ADX in RegimeDetector uses SMA not Wilder's smoothing
+   — _calcADX() uses _sma() for smoothing DM and TR
+   — Wilder's uses: smoothed = (prev_smoothed * (period-1) + current) / period
+   — Affects ALL regime detection thresholds downstream
+   — May cause incorrect regime classification
 
-7. **Deployment-ready** — PM2 config, deploy.sh, one-command VPS setup.
+3. No state persistence — crash = lost trade history
+   — PaperEngine keeps everything in memory
+   — Need JSON dump every 60s to survive restarts
 
----
+4. Dashboard has no auth — anyone at port 3500 sees everything
+   — Need basic HTTP auth or IP whitelist
 
-## WHAT'S BAD / NEEDS FIXING
+5. No walk-forward validation — single period (Jan-May 2025)
+   — Possible curve-fit. Need train 3mo, test 1mo, slide
 
-1. **RegimeDetector ADX is simplified** — Not using Wilder's smoothing. ADX values used for
-   regime classification thresholds may be wrong, affecting ALL downstream logic.
+MODERATE:
+6. TRENDING_UP blocked in two contradictory places in DaytradeMode.js
+   — Line ~48: "re-enable — was profitable" (commented out)
+   — Line ~110: "if (regime === 'TRENDING_UP') return null;" (active)
+   — Confusing. Also TRENDING_UP is re-exported as TRENDING in Regime.js enum
 
-2. **Footprint estimation from OHLCV is crude** — closePosition = buy/sell ratio. Barely
-   better than random for signals weighted 60-75% of scoring.
+7. Footprint estimation from OHLCV is crude
+   — closePosition = buy/sell ratio in FootprintAnalyzer
+   — RealFootprintAnalyzer's estimated fallback is same crude method
+   — Footprint weighted 60-75% of signal scoring, so this matters
 
-3. **BTC/XRP sample sizes are thin** — 26 and 44 trades over 5 months. Need 100+ for
-   statistical confidence.
+8. BTC/XRP sample sizes are thin (26 and 44 trades)
+   — Need 100+ for statistical confidence
 
-4. **TRENDING_UP blocked in two places contradicting each other** — Line 48 says "re-enable"
-   but line 156 blocks it again. Confusing.
+9. _cachedEMA bias — calculates EMA from start of array (candles[0])
+   — Should use SMA for first N periods then switch to EMA
 
-5. **No state persistence** — Bot crash = lost trade history. Need JSON dump every minute.
+MINOR:
+10. WeekendMode/ScalpingProMode dead code still imported
+11. Package version says 1.2.0 but context files say 1.2.2
+12. Jul-Nov 2024 bull run loses (PF 0.69 ETH, 0.96 SOL)
 
-6. **Dashboard has no auth** — Anyone who finds port 3500 can see trading activity.
-
-7. **No walk-forward validation** — Single period (Jan-May 2025). Edge might be curve-fit.
-   Need train 3mo, test 1mo, slide.
-
-8. **Jul-Nov 2024 bull run loses** — PF 0.69 ETH, 0.96 SOL. System misses strong trends.
-
-9. **ecosystem.config.cjs was broken** — Used `env_file` (invalid PM2 field). FIXED this session.
-
-10. **Weekend/Scalping code still imported** — Dead weight. Should be removed or flagged.
-
----
-
-## OBJECTIVES
-
-### Immediate (This Week)
-1. ✅ Deploy to GCP VM — IN PROGRESS (VM created, need to install and start)
-2. Run live paper trading for 2 weeks
-3. Compare live results vs backtest
-4. Track slippage and execution quality
-
-### Short Term (Next 2 Weeks)
-5. Fix RegimeDetector ADX (Wilder's smoothing)
-6. Walk-forward validation (train 3mo, test 1mo)
-7. Add state persistence (JSON dump)
-8. Dashboard auth (basic HTTP auth)
-
-### Medium Term (Next Month)
-9. Test on 2023-2024 data for robustness
-10. Monte Carlo simulation on trade sequence
-11. Improve BTC/XRP with more data periods
-12. Unit tests for RegimeDetector
-
----
-
-## FILE STRUCTURE
+# ═══════════════════════════════════════════════════════════════════
+# ARCHITECTURE
+# ═══════════════════════════════════════════════════════════════════
 
 ```
 bots/
   BotRunner.js          — Shared bot runner (per-asset config, dashboard reporting)
-  eth/bot.js            — ETH entry point (port 3451)
-  sol/bot.js            — SOL entry point (port 3452)
+  eth/bot.js            — ETH entry point (port 3451, $10k balance)
+  sol/bot.js            — SOL entry point (port 3452, $10k balance)
   btc/bot.js            — BTC entry point (port 3453, $5k balance, research mode)
   xrp/bot.js            — XRP entry point (port 3454, $5k balance, research mode)
 dashboard/
@@ -192,54 +166,119 @@ alerts/
   TelegramAlerter.js    — Telegram notifications (entries, exits, regime, daily summary)
 ```
 
-## DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO RUN
+# ═══════════════════════════════════════════════════════════════════
+
+```bash
+# Install
+npm install
+cp .env.example .env
+# Edit .env with TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+
+# Backtest per asset
+npm run backtest:eth
+npm run backtest:sol
+npm run backtest:btc
+npm run backtest:xrp
+
+# Run single bot
+npm run bot:eth
+
+# Run all bots + dashboard (development)
+npm run dashboard & npm run bots:all
+
+# Run with PM2 (production)
+pm2 start ecosystem.config.cjs
+pm2 logs
+pm2 monit
+```
+
+# ═══════════════════════════════════════════════════════════════════
+# KEY DESIGN DECISIONS (DATA-DRIVEN)
+# ═══════════════════════════════════════════════════════════════════
+
+1. Per-asset regime blocking — The real edge. BTC/XRP block RANGING, SOL works best in RANGING.
+2. ICT on 1H only — 15m FVG had 24% WR. Higher TF = clean signals.
+3. TRENDING_DOWN blocked globally — 41% WR across all assets. Always negative.
+4. Tight stops (0.5x ATR) — Brought avg loss closer to avg win.
+5. No weekends — Overtrading. No edge.
+6. Smart time_exit — Only exits if loss > 0.5x ATR after 4h. Eliminated 0% WR premature exits.
+7. Independent bots — No shared state. Each bot runs its own engine + analyzers.
+8. Partial TP at 1.5x ATR — 100% WR, locks in profit on 50% of position.
+9. Trailing stop at 0.9x activation — 91-100% WR on winners.
+
+# ═══════════════════════════════════════════════════════════════════
+# TODO — PRIORITY ORDER
+# ═══════════════════════════════════════════════════════════════════
+
+IMMEDIATE (DO NOW):
+  [ ] Fix config.js symbols — add BTC and XRP to match bot architecture
+  [ ] Fix ADX — replace SMA with Wilder's smoothing in RegimeDetector._calcADX()
+  [ ] Add state persistence — JSON dump every 60s in PaperEngine
+  [ ] Add dashboard auth — basic HTTP auth middleware
+  [ ] Verify VM deployment — check PM2 status, .env, dashboard
+  [ ] Finish .env setup — TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+
+SHORT TERM (THIS WEEK):
+  [ ] Walk-forward validation — train 3mo, test 1mo, slide through data
+  [ ] Monte Carlo simulation — shuffle 201 trades 10k times
+  [ ] Fix _cachedEMA bias — use SMA for first N periods
+  [ ] Clean up TRENDING_UP contradiction in DaytradeMode.js
+
+MEDIUM TERM (NEXT 2 WEEKS):
+  [ ] Test on 2023-2024 data for robustness
+  [ ] Improve BTC/XRP with more data periods
+  [ ] Dashboard enhancements (equity curve chart, start/stop buttons)
+  [ ] Clean up dead code (WeekendMode, ScalpingProMode)
+
+LONG TERM:
+  [ ] Unit tests for RegimeDetector
+  [ ] Add logging levels (debug/info/warn)
+  [ ] Consider WebSocket instead of polling for Hyperliquid feed
+  [ ] Explore live execution (not paper) — only after extensive validation
+
+# ═══════════════════════════════════════════════════════════════════
+# GIT HISTORY (recent)
+# ═══════════════════════════════════════════════════════════════════
+
+f0429e1 Session 2026-03-29: GCP deployment complete, code review notes added
+cc10a69 add FULL_SESSION_CONTEXT.txt — project summary, session log, objectives, deployment status
+2b47d89 fix: PM2 env_file -> node_args --env-file, add PROJECT_CONTEXT.txt
+34bef30 Add SESSION_CONTEXT.md — full project state + session summary
+c77f69c v1.2.2: PM2 config + one-click deploy script
+101cd62 v1.2.1: Web dashboard for live bot monitoring
+99ef521 v1.2.0: Per-asset bot architecture + regime filtering
+7ad20d7 v1.1.0 FINAL: README + DevLog updated with validated results
+
+# ═══════════════════════════════════════════════════════════════════
+# DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════════
 
 - ccxt ^4.4.0 (exchange data)
-- ws ^8.18.0 (websocket)
+- ws ^8.18.0 (websocket — imported but not actively used by feeds)
 - chalk ^5.3.0 (terminal colors)
 - dayjs ^1.11.10 (date utils)
 
-## GIT HISTORY (recent)
+# ═══════════════════════════════════════════════════════════════════
+# SESSION LOG: 2026-03-30 (CURRENT)
+# ═══════════════════════════════════════════════════════════════════
 
-- 2b47d89 fix: PM2 env_file -> node_args --env-file, add PROJECT_CONTEXT.txt
-- 34bef30 Add SESSION_CONTEXT.md — full project state + session summary
-- c77f69c v1.2.2: PM2 config + one-click deploy script
-- 101cd62 v1.2.1: Web dashboard for live bot monitoring
-- 99ef521 v1.2.0: Per-asset bot architecture + regime filtering
-- 7ad20d7 v1.1.0: README + DevLog updated with validated results
+01:59 — User back. Shared repo + GitHub token. Full context read.
+02:01 — VM was stopped. Guided user to start it.
+02:03 — GCP IAP error (4003). Needed firewall rule for IAP (35.235.240.0/20).
+02:04 — Tried broader rule (0.0.0.0/0). User navigated GCP console.
+02:09 — Created firewall rule "allow-ssh-all" (tcp:22, 0.0.0.0/0, ingress, allow).
+02:26 — Error persists. External IP changed from 35.225.81.118 to 35.202.132.115.
+02:37 — Generated SSH key pair (ed25519) for AI assistant access.
+02:41 — User tried to add SSH key but firewall still blocking.
+02:49 — Still can't SSH in. Firewall rule may need more time to propagate,
+       or there may be another issue (SSH daemon? network tags?).
 
----
+NEXT: Wait for firewall to propagate, then retry. User should click
+"Reintentar" in GCP browser SSH. If that works, add AI SSH key.
+Then start fixing code issues.
 
-## SESSION: 2026-03-29 (LATE NIGHT) — Deployment + Deep Code Review
-
-### What Happened
-1. Full deep code review of entire repo with OpenClaw AI assistant
-2. Identified critical bugs and improvement priorities
-3. Deployed to GCP VM (35.225.81.118) — sudo bash deploy.sh
-4. PM2 running all 4 bots + dashboard
-5. Firewall opened for port 3500
-6. Telegram bot created with BotFather — need to finish .env setup
-
-### Current Status
-- ✅ VM created and running
-- ✅ Code deployed and installed
-- ✅ PM2 configured with startup on boot
-- ✅ Firewall port 3500 open
-- ⚠️ .env still needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID filled in
-- ⚠️ Need to verify bots are running (pm2 logs)
-
-### Critical Findings from Code Review
-1. **ADX uses SMA not Wilder's** — regime detection may be off
-2. **No state persistence** — crash loses trade history
-3. **Dashboard has no auth** — anyone can see port 3500
-4. **No walk-forward validation** — possible curve-fit
-5. **_cachedEMA bias** — calculates from start of array
-
-### Next Steps
-1. Finish Telegram .env setup
-2. Check pm2 logs for bot startup
-3. Verify dashboard at http://35.225.81.118:3500
-4. Fix ADX (Wilder's smoothing)
-5. Add state persistence (JSON dump every 60s)
-6. Walk-forward validation
-7. Dashboard auth
+# ═══════════════════════════════════════════════════════════════════
+# END OF CONTEXT FILE
+# ═══════════════════════════════════════════════════════════════════
