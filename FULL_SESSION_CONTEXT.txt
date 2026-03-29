@@ -207,3 +207,39 @@ alerts/
 - 101cd62 v1.2.1: Web dashboard for live bot monitoring
 - 99ef521 v1.2.0: Per-asset bot architecture + regime filtering
 - 7ad20d7 v1.1.0: README + DevLog updated with validated results
+
+---
+
+## SESSION: 2026-03-29 (LATE NIGHT) — Deployment + Deep Code Review
+
+### What Happened
+1. Full deep code review of entire repo with OpenClaw AI assistant
+2. Identified critical bugs and improvement priorities
+3. Deployed to GCP VM (35.225.81.118) — sudo bash deploy.sh
+4. PM2 running all 4 bots + dashboard
+5. Firewall opened for port 3500
+6. Telegram bot created with BotFather — need to finish .env setup
+
+### Current Status
+- ✅ VM created and running
+- ✅ Code deployed and installed
+- ✅ PM2 configured with startup on boot
+- ✅ Firewall port 3500 open
+- ⚠️ .env still needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID filled in
+- ⚠️ Need to verify bots are running (pm2 logs)
+
+### Critical Findings from Code Review
+1. **ADX uses SMA not Wilder's** — regime detection may be off
+2. **No state persistence** — crash loses trade history
+3. **Dashboard has no auth** — anyone can see port 3500
+4. **No walk-forward validation** — possible curve-fit
+5. **_cachedEMA bias** — calculates from start of array
+
+### Next Steps
+1. Finish Telegram .env setup
+2. Check pm2 logs for bot startup
+3. Verify dashboard at http://35.225.81.118:3500
+4. Fix ADX (Wilder's smoothing)
+5. Add state persistence (JSON dump every 60s)
+6. Walk-forward validation
+7. Dashboard auth
