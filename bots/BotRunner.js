@@ -18,6 +18,7 @@ export default class BotRunner {
     this.name = botConfig.name || 'BOT';
     this.symbol = botConfig.symbol;
     this.coin = this.symbol?.split('/')[0] || '?';
+    this.dashboardUrl = botConfig.dashboardUrl || 'http://localhost:3500';
 
     // Merge bot-specific config overrides with base config
     this.cfg = this._mergeConfig(config, botConfig.configOverrides || {});
@@ -78,6 +79,65 @@ export default class BotRunner {
     );
 
     console.log(`[${this.name}] Running. Ctrl+C to stop.\n`);
+
+    // Start reporting to dashboard
+    this._startStatusReporting();
+  }
+
+  _startStatusReporting() {
+    const reportStatus = async () => {
+      try {
+        const stats = this.engine.getStats();
+        const positions = [...this.engine.positions.values()];
+        const regime = this.regime.getRegime(this.symbol);
+
+        const payload = {
+          status: 'online',
+          symbol: this.symbol,
+          coin: this.coin,
+          balance: stats.balance,
+          totalPnL: stats.totalPnL,
+          totalPnLPercent: stats.totalPnLPercent,
+          dailyPnL: stats.dailyPnL,
+          totalTrades: stats.totalTrades,
+          wins: stats.wins,
+          losses: stats.losses,
+          winRate: stats.winRate,
+          profitFactor: stats.profitFactor,
+          avgWin: stats.avgWin,
+          avgLoss: stats.avgLoss,
+          maxDrawdown: stats.maxDrawdown,
+          totalFees: stats.totalFees,
+          regime: regime.regime,
+          regimeConfidence: regime.confidence,
+          position: positions.length > 0 ? {
+            side: positions[0].side,
+            entryPrice: positions[0].entryPrice,
+            stopLoss: positions[0].stopLoss,
+            takeProfit: positions[0].takeProfit,
+            unrealizedPnL: positions[0].unrealizedPnL,
+            regime: positions[0].regime,
+            reason: positions[0].reason,
+          } : null,
+          lastTrade: this.engine.trades.length > 0 ? {
+            pnl: this.engine.trades[this.engine.trades.length - 1].pnl,
+            closeReason: this.engine.trades[this.engine.trades.length - 1].closeReason,
+          } : null,
+        };
+
+        await fetch(`${this.dashboardUrl}/api/bots/${this.coin.toLowerCase()}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        // Dashboard unreachable — silent fail
+      }
+    };
+
+    // Report immediately, then every 3 seconds
+    reportStatus();
+    setInterval(reportStatus, 3000);
   }
 
   _onTick(symbol, ticker) {
@@ -94,6 +154,24 @@ export default class BotRunner {
       const emoji = t.pnl >= 0 ? '✅' : '❌';
       console.log(`${emoji} [${this.name}] ${t.closeReason.toUpperCase()} | PnL: $${t.pnl.toFixed(2)} (${t.pnlPercent.toFixed(2)}%) | ${t.regime}`);
       this.telegram.sendExit(t);
+
+      // Report trade to dashboard
+      fetch(`${this.dashboardUrl}/api/bots/${this.coin.toLowerCase()}/trades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: t.symbol,
+          side: t.side,
+          entryPrice: t.entryPrice,
+          exitPrice: t.exitPrice,
+          pnl: t.pnl,
+          pnlPercent: t.pnlPercent,
+          closeReason: t.closeReason,
+          regime: t.regime,
+          reason: t.reason,
+          durationMin: t.durationMin,
+        }),
+      }).catch(() => {});
     }
   }
 

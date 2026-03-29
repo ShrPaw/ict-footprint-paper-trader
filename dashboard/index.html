@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ICT Paper Trader — Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      background: #0a0e17;
+      color: #e0e6ed;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #0f1724 0%, #1a2332 100%);
+      border-bottom: 1px solid #1e2d3d;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #4fc3f7;
+    }
+    .header .status {
+      font-size: 12px;
+      color: #607d8b;
+    }
+    .header .live-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      padding: 24px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .bot-card {
+      background: #111827;
+      border: 1px solid #1e2d3d;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .bot-card:hover { border-color: #4fc3f7; }
+    .bot-card.offline { opacity: 0.5; border-color: #374151; }
+    .card-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e2d3d;
+    }
+    .card-header .name {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .card-header .name .coin { color: #4fc3f7; }
+    .badge {
+      font-size: 10px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge.online { background: #064e3b; color: #34d399; }
+    .badge.offline { background: #4a1d1d; color: #f87171; }
+    .badge.position { background: #1e3a5f; color: #60a5fa; }
+    .card-body { padding: 16px 20px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat .label {
+      font-size: 10px;
+      color: #607d8b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .stat .value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .stat .value.positive { color: #34d399; }
+    .stat .value.negative { color: #f87171; }
+    .stat .value.neutral { color: #e0e6ed; }
+    .regime-bar {
+      margin-top: 16px;
+      padding: 12px;
+      background: #0d1117;
+      border-radius: 8px;
+    }
+    .regime-bar .label {
+      font-size: 10px;
+      color: #607d8b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .regime-bar .regime {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .regime-bar .regime.RANGING { color: #fbbf24; }
+    .regime-bar .regime.VOL_EXPANSION { color: #f472b6; }
+    .regime-bar .regime.TRENDING { color: #34d399; }
+    .regime-bar .regime.TRENDING_UP { color: #34d399; }
+    .regime-bar .regime.TRENDING_DOWN { color: #f87171; }
+    .regime-bar .regime.LOW_VOL { color: #607d8b; }
+    .regime-bar .regime.ABSORPTION { color: #a78bfa; }
+    .position-box {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0d1117;
+      border-radius: 8px;
+      border-left: 3px solid #4fc3f7;
+    }
+    .position-box .side { font-weight: 700; }
+    .position-box .side.long { color: #34d399; }
+    .position-box .side.short { color: #f87171; }
+    .position-box .details {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+    .position-box .upnl {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .position-box .upnl.positive { color: #34d399; }
+    .position-box .upnl.negative { color: #f87171; }
+    .trade-log {
+      margin-top: 16px;
+    }
+    .trade-log .label {
+      font-size: 10px;
+      color: #607d8b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .trade-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #1a2332;
+    }
+    .trade-item:last-child { border-bottom: none; }
+    .trade-item .pnl.positive { color: #34d399; }
+    .trade-item .pnl.negative { color: #f87171; }
+    .trade-item .reason { color: #607d8b; }
+    .totals-bar {
+      background: linear-gradient(135deg, #0f1724 0%, #1a2332 100%);
+      border: 1px solid #1e2d3d;
+      border-radius: 12px;
+      margin: 0 24px 24px;
+      padding: 20px 28px;
+      display: flex;
+      gap: 40px;
+      max-width: 1500px;
+      margin-left: auto;
+      margin-right: auto;
+      flex-wrap: wrap;
+    }
+    .totals-bar .total-stat {
+      display: flex;
+      flex-direction: column;
+    }
+    .totals-bar .total-stat .label {
+      font-size: 10px;
+      color: #607d8b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .totals-bar .total-stat .value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; padding: 12px; }
+      .totals-bar { margin: 0 12px 12px; gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>📊 ICT Paper Trader</h1>
+      <div class="status"><span class="live-dot"></span>Live Dashboard — Auto-refresh 3s</div>
+    </div>
+    <div id="clock" style="color:#607d8b;font-size:12px;"></div>
+  </div>
+
+  <div class="totals-bar" id="totals"></div>
+  <div class="grid" id="bots"></div>
+
+  <script>
+    const API = window.location.origin;
+    const COINS = ['ETH', 'SOL', 'BTC', 'XRP'];
+    const COIN_COLORS = { ETH: '#627eea', SOL: '#9945ff', BTC: '#f7931a', XRP: '#23292f' };
+
+    function pnlClass(v) { return v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral'; }
+    function fmt$(v) { return (v >= 0 ? '+' : '') + '$' + Number(v).toFixed(2); }
+    function fmtPct(v) { return (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%'; }
+    function ago(ts) {
+      if (!ts) return 'never';
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 10) return 'just now';
+      if (s < 60) return s + 's ago';
+      return Math.floor(s / 60) + 'm ago';
+    }
+
+    async function fetchBots() {
+      try {
+        const res = await fetch(API + '/api/bots');
+        return await res.json();
+      } catch { return {}; }
+    }
+
+    function renderBot(coin, state) {
+      if (!state) state = {};
+      const isOnline = state.status === 'online';
+      const hasPosition = state.position;
+      const trades = (state.trades || []).slice(-5).reverse();
+
+      return `
+        <div class="bot-card ${isOnline ? '' : 'offline'}">
+          <div class="card-header">
+            <div class="name"><span class="coin" style="color:${COIN_COLORS[coin]}">${coin}</span> / USDT</div>
+            <span class="badge ${isOnline ? 'online' : 'offline'}">${isOnline ? '● Online' : '○ Offline'}</span>
+          </div>
+          <div class="card-body">
+            <div class="stats-grid">
+              <div class="stat">
+                <span class="label">Balance</span>
+                <span class="value neutral">$${Number(state.balance || 0).toFixed(2)}</span>
+              </div>
+              <div class="stat">
+                <span class="label">Total PnL</span>
+                <span class="value ${pnlClass(state.totalPnL)}">${fmt$(state.totalPnL || 0)}</span>
+              </div>
+              <div class="stat">
+                <span class="label">Win Rate</span>
+                <span class="value neutral">${state.winRate || 0}%</span>
+              </div>
+              <div class="stat">
+                <span class="label">Trades</span>
+                <span class="value neutral">${state.totalTrades || 0}</span>
+              </div>
+              <div class="stat">
+                <span class="label">Daily PnL</span>
+                <span class="value ${pnlClass(state.dailyPnL)}">${fmt$(state.dailyPnL || 0)}</span>
+              </div>
+              <div class="stat">
+                <span class="label">PF</span>
+                <span class="value neutral">${state.profitFactor || '—'}</span>
+              </div>
+            </div>
+
+            <div class="regime-bar">
+              <div class="label">Market Regime</div>
+              <div class="regime ${state.regime || ''}">${state.regime || '—'}</div>
+            </div>
+
+            ${hasPosition ? `
+              <div class="position-box">
+                <span class="side ${state.position.side}">${state.position.side.toUpperCase()}</span>
+                @ ${Number(state.position.entryPrice).toFixed(4)}
+                <div class="details">
+                  SL: ${Number(state.position.stopLoss).toFixed(4)} | TP: ${Number(state.position.takeProfit).toFixed(4)}<br>
+                  ${state.position.reason || ''}
+                </div>
+                <div class="upnl ${pnlClass(state.position.unrealizedPnL)}">
+                  uPnL: ${fmt$(state.position.unrealizedPnL || 0)}
+                </div>
+              </div>
+            ` : ''}
+
+            <div class="trade-log">
+              <div class="label">Recent Trades</div>
+              ${trades.length === 0 ? '<div style="color:#374151;font-size:12px">No trades yet</div>' :
+                trades.map(t => `
+                  <div class="trade-item">
+                    <span class="pnl ${pnlClass(t.pnl)}">${fmt$(t.pnl)}</span>
+                    <span class="reason">${t.closeReason || ''}</span>
+                  </div>
+                `).join('')
+              }
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTotals(states) {
+      let totalBalance = 0, totalPnL = 0, totalTrades = 0, wins = 0, totalDaily = 0, online = 0;
+      for (const coin of COINS) {
+        const s = states[coin.toLowerCase()] || {};
+        totalBalance += s.balance || 10000;
+        totalPnL += s.totalPnL || 0;
+        totalTrades += s.totalTrades || 0;
+        wins += s.wins || 0;
+        totalDaily += s.dailyPnL || 0;
+        if (s.status === 'online') online++;
+      }
+      const wr = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0';
+
+      return `
+        <div class="total-stat"><span class="label">Online</span><span class="value neutral">${online}/4</span></div>
+        <div class="total-stat"><span class="label">Total Balance</span><span class="value neutral">$${totalBalance.toFixed(2)}</span></div>
+        <div class="total-stat"><span class="label">Total PnL</span><span class="value ${pnlClass(totalPnL)}">${fmt$(totalPnL)}</span></div>
+        <div class="total-stat"><span class="label">Daily PnL</span><span class="value ${pnlClass(totalDaily)}">${fmt$(totalDaily)}</span></div>
+        <div class="total-stat"><span class="label">Win Rate</span><span class="value neutral">${wr}%</span></div>
+        <div class="total-stat"><span class="label">Trades</span><span class="value neutral">${totalTrades}</span></div>
+      `;
+    }
+
+    async function refresh() {
+      const states = await fetchBots();
+      document.getElementById('totals').innerHTML = renderTotals(states);
+      document.getElementById('bots').innerHTML = COINS.map(c =>
+        renderBot(c, states[c.toLowerCase()])
+      ).join('');
+    }
+
+    // Clock
+    setInterval(() => {
+      document.getElementById('clock').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    }, 1000);
+
+    // Auto-refresh
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
