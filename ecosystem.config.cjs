@@ -8,22 +8,22 @@ module.exports = {
     {
       name: 'eth-bot',
       script: 'bots/eth/bot.js',
-      env_file: '.env',
+      node_args: '--env-file=.env',
     },
     {
       name: 'sol-bot',
       script: 'bots/sol/bot.js',
-      env_file: '.env',
+      node_args: '--env-file=.env',
     },
     {
       name: 'btc-bot',
       script: 'bots/btc/bot.js',
-      env_file: '.env',
+      node_args: '--env-file=.env',
     },
     {
       name: 'xrp-bot',
       script: 'bots/xrp/bot.js',
-      env_file: '.env',
+      node_args: '--env-file=.env',
     },
   ],
 };
