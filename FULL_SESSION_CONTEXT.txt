@@ -264,6 +264,7 @@ c77f69c v1.2.2: PM2 config + one-click deploy script
 # SESSION LOG: 2026-03-30 (CURRENT)
 # ═══════════════════════════════════════════════════════════════════
 
+## Session 1 (01:59-02:49 GMT+8, same night)
 01:59 — User back. Shared repo + GitHub token. Full context read.
 02:01 — VM was stopped. Guided user to start it.
 02:03 — GCP IAP error (4003). Needed firewall rule for IAP (35.235.240.0/20).
@@ -272,12 +273,33 @@ c77f69c v1.2.2: PM2 config + one-click deploy script
 02:26 — Error persists. External IP changed from 35.225.81.118 to 35.202.132.115.
 02:37 — Generated SSH key pair (ed25519) for AI assistant access.
 02:41 — User tried to add SSH key but firewall still blocking.
-02:49 — Still can't SSH in. Firewall rule may need more time to propagate,
-       or there may be another issue (SSH daemon? network tags?).
+02:49 — Still can't SSH in. Session ended.
 
-NEXT: Wait for firewall to propagate, then retry. User should click
-"Reintentar" in GCP browser SSH. If that works, add AI SSH key.
-Then start fixing code issues.
+## Session 2 (04:01-04:48 GMT+8, current)
+04:01 — User back. Shared repo + GitHub token again. Same new AI assistant.
+04:05 — Cloned repo. Read FULL_SESSION_CONTEXT.txt, PROJECT_CONTEXT.txt, README.md.
+       Identified issue: need to fix SSH access to GCP VM first.
+04:10 — Tested port 22 on 35.202.132.115 — UNREACHABLE.
+04:15 — User changed GCP console language to English.
+04:20 — Confirmed VM is Running, external IP 35.202.132.115.
+04:24 — Found VM has NO network tags ("Network tags: None").
+       This explains why allow-ssh-all (if targeting a tag) doesn't apply.
+04:28 — User opened GCP Tags (new tag system) — not the right one. Closed.
+04:31 — Navigated to VPC Network → Firewall rules page.
+       Found default-allow-ssh targets "All instances in network" (0.0.0.0/0, tcp:22).
+       Also found allow-ssh-all exists.
+       Firewall rules look correct — issue is likely INSIDE the VM (SSH daemon).
+04:34 — Directed user to VM instances → SSH dropdown → "Open in browser window".
+04:40 — User found SSH button on VM instances page.
+04:43 — Browser SSH attempting connection. Same IAP error 4003 persists.
+04:48 — User frustrated. Suggested VM stop/start restart.
+
+NEXT STEPS:
+  - User should STOP the VM, wait for full stop, then START it fresh.
+  - Try browser SSH again after restart.
+  - If that still fails, may need to delete and recreate the VM with deploy.sh.
+  - Alternatively: create a new VM from scratch, clone repo, run deploy.sh.
+  - Push updated context to GitHub.
 
 # ═══════════════════════════════════════════════════════════════════
 # END OF CONTEXT FILE
