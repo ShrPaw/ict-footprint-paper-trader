@@ -4,7 +4,7 @@ export default {
   // XRP: PF 0.85, -\$849. Only works in VOL_EXPANSION, destroyed in TRENDING_DOWN.
   // ETH: PF 1.16, +\$675. Best performer, cleanest edge.
   // SOL: PF 1.06, +\$356. Profitable but more volatile.
-  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT'],
+  symbols: ['SOL/USDT:USDT', 'XRP/USDT:USDT'],
 
   // Multi-timeframe: 1H for daytrade, 15m for scalping, 5m for weekend
   timeframes: {
@@ -87,7 +87,7 @@ export default {
     footprintWeight: 0.7,
     confluenceBonus: 0.15,
     requireConfluence: true,
-    minSoloScore: 0.75,
+    minSoloScore: 0.70,       // slightly relaxed — winning signals are boosted now
     signalCooldown: 2700000,  // 45 min
     skipLowVol: true,
     skipRanging: true,

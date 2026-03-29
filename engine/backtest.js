@@ -339,14 +339,7 @@ class Backtester {
       return;
     }
 
-    // Time exit (4h for non-profitable)
-    const elapsed = timestamp - pos.entryTime;
-    if (elapsed > 4 * 60 * 60 * 1000) {
-      const unrealized = side === 'long' ? (price - pos.entryPrice) : (pos.entryPrice - price);
-      if (unrealized < 0) {
-        this._closePosition(price, timestamp, 'time_exit');
-      }
-    }
+    // Time exit: REMOVED — 0% WR, -$287 in testing. Let trailing stops and SL/TP do the work.
   }
 
   _closePosition(price, timestamp, reason) {
@@ -394,7 +387,8 @@ class Backtester {
     const trades = this.trades;
     const wins = trades.filter(t => t.pnl > 0);
     const losses = trades.filter(t => t.pnl <= 0);
-    const totalPnL = trades.reduce((s, t) => s + t.pnl, 0);
+    // Use balance change as the true PnL (trade.sum can be misleading with partial TPs)
+    const totalPnL = this.balance - this.startingBalance;
     const totalFees = trades.reduce((s, t) => s + t.totalFees, 0);
     const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
     const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));

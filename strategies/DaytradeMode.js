@@ -34,12 +34,14 @@ export default class DaytradeMode {
     const regimeResult = this.regime.detect(symbol, candles1h);
     const regime = regimeResult.regime;
 
-    // 4. Skip unfavorable regimes
+    // 4. Per-asset regime filtering — each asset only trades in its winning regimes
+    if (profile.allowedRegimes.length === 0) return null; // asset excluded entirely
+    if (!profile.allowedRegimes.includes(regime)) return null;
+
+    // 5. Also skip universally bad regimes
     if (regime === 'LOW_VOL') return null;
-    // TRENDING_DOWN: -$167 ETH (42% WR), -$830 SOL (41% WR). No edge.
     if (regime === 'TRENDING_DOWN') return null;
-    // TRENDING_UP: re-enable — was profitable for ETH (+$475) in Jan-May 2025
-    // if (regime === 'TRENDING_UP') return null;
+    if (regime === 'TRENDING_UP') return null;
 
     const price = candles1h[candles1h.length - 1].close;
 
@@ -74,11 +76,6 @@ export default class DaytradeMode {
     // 10. Strict trend alignment in TRENDING regimes
     if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
     if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
-
-    // 10b. TRENDING_UP longs are consistently the worst (-$667 in testing)
-    // The regime detector picks up late-stage uptrends where buying is too late
-    // Only allow TRENDING_DOWN and non-trending regimes for now
-    if (regime === 'TRENDING_UP') return null;
 
     // 11. Entry confirmation — DISABLED for 1H (pin bars/engulfing too rare on hourly)
     // ICT zones on 1H are already high-quality; candle patterns add noise not signal
@@ -146,7 +143,12 @@ export default class DaytradeMode {
     }
     for (const sig of fpSignals) {
       let score = sig.confidence * fpWeight;
-      if (sig.type === 'DELTA_DIVERGENCE') score *= 1.5;
+      // DELTA_DIVERGENCE: 49% WR globally, -$430. Penalized — only confluence can save it.
+      if (sig.type === 'DELTA_DIVERGENCE') score *= 0.5;
+      // DELTA_FLIP: 67% WR, +$737. Boosted.
+      if (sig.type === 'DELTA_FLIP') score *= 1.5;
+      // POC_REACTION: 100% WR. Boosted.
+      if (sig.type === 'POC_REACTION') score *= 1.4;
       if (sig.realData) score *= 1.15;
       allScored.push({ ...sig, combinedScore: score, source: 'footprint' });
     }
@@ -155,7 +157,11 @@ export default class DaytradeMode {
     allScored.sort((a, b) => b.combinedScore - a.combinedScore);
     const best = allScored[0];
 
-    // Regime boosts
+    // Per-asset regime boosts (e.g., XRP gets 1.4x in VOL_EXPANSION)
+    const regimeBoost = profile.regimeBoosts?.[regime] || 1.0;
+    best.combinedScore *= regimeBoost;
+
+    // Signal-specific regime boosts
     if (best.source === 'ict' && (regime === 'TRENDING_UP' || regime === 'TRENDING_DOWN')) {
       best.combinedScore *= 1.3;
     }

@@ -134,24 +134,29 @@ export default class RealFootprintAnalyzer {
 
     if (priceRising && !deltaRising) {
       const strength = this._divergenceStrength(recentDeltas);
-      signals.push({
-        type: 'DELTA_DIVERGENCE',
-        direction: 'bearish',
-        action: 'sell',
-        confidence: Math.min(0.5 + strength * 0.3, 0.9),
-        reason: 'Bearish delta divergence — price rising but buying pressure fading',
-      });
+      // DELTA_DIVERGENCE: 49% WR globally, -$430. Downweighted — only fire on strong divergences.
+      if (strength > 1.2) {
+        signals.push({
+          type: 'DELTA_DIVERGENCE',
+          direction: 'bearish',
+          action: 'sell',
+          confidence: Math.min(0.35 + strength * 0.15, 0.6),
+          reason: 'Bearish delta divergence — price rising but buying pressure fading',
+        });
+      }
     }
 
     if (!priceRising && deltaRising) {
       const strength = this._divergenceStrength(recentDeltas);
-      signals.push({
-        type: 'DELTA_DIVERGENCE',
-        direction: 'bullish',
-        action: 'buy',
-        confidence: Math.min(0.5 + strength * 0.3, 0.9),
-        reason: 'Bullish delta divergence — price falling but buying pressure building',
-      });
+      if (strength > 1.2) {
+        signals.push({
+          type: 'DELTA_DIVERGENCE',
+          direction: 'bullish',
+          action: 'buy',
+          confidence: Math.min(0.35 + strength * 0.15, 0.6),
+          reason: 'Bullish delta divergence — price falling but buying pressure building',
+        });
+      }
     }
 
     return signals;
@@ -270,23 +275,26 @@ export default class RealFootprintAnalyzer {
     const first5 = recent.slice(0, 5).reduce((a, b) => a + b, 0);
     const last5 = recent.slice(5).reduce((a, b) => a + b, 0);
 
+    // DELTA_FLIP: 67% WR, +$737 — strongest signal. Boosted.
     // Flip: signs are different and magnitude is significant
     if (first5 > 0 && last5 < 0 && Math.abs(last5) > Math.abs(first5) * 0.5) {
+      const flipStrength = Math.abs(last5) / Math.abs(first5);
       signals.push({
         type: 'DELTA_FLIP',
         direction: 'bearish',
         action: 'sell',
-        confidence: 0.55,
+        confidence: Math.min(0.65 + flipStrength * 0.1, 0.9),
         reason: `Delta flipped bullish → bearish (was +${first5.toFixed(0)}, now ${last5.toFixed(0)})`,
       });
     }
 
     if (first5 < 0 && last5 > 0 && Math.abs(last5) > Math.abs(first5) * 0.5) {
+      const flipStrength = Math.abs(last5) / Math.abs(first5);
       signals.push({
         type: 'DELTA_FLIP',
         direction: 'bullish',
         action: 'buy',
-        confidence: 0.55,
+        confidence: Math.min(0.65 + flipStrength * 0.1, 0.9),
         reason: `Delta flipped bearish → bullish (was ${first5.toFixed(0)}, now +${last5.toFixed(0)})`,
       });
     }
