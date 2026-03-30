@@ -1,10 +1,10 @@
 export default {
-  // ── Validated Assets — only ETH and SOL have edge ────────────────
-  // BTC: PF 0.61, -\$1,623 over 5 months. No edge in any regime.
-  // XRP: PF 0.85, -\$849. Only works in VOL_EXPANSION, destroyed in TRENDING_DOWN.
-  // ETH: PF 1.16, +\$675. Best performer, cleanest edge.
-  // SOL: PF 1.06, +\$356. Profitable but more volatile.
-  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT'],
+  // ── Validated Assets — per-asset regime blocking applied ─────────
+  // BTC: PF 1.53, +$317. Only works in VOL_EXPANSION, blocked in RANGING (-$728).
+  // XRP: PF 2.27, +$1,242. Only works in VOL_EXPANSION, blocked in RANGING (-$282).
+  // ETH: PF 1.52, +$684. Works in RANGING + VOL_EXPANSION.
+  // SOL: PF 1.72, +$1,426. Works in RANGING, breakeven in VOL_EXPANSION.
+  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT', 'BTC/USDT:USDT', 'XRP/USDT:USDT'],
 
   // Multi-timeframe: 1H for daytrade, 15m for scalping, 5m for weekend
   timeframes: {
