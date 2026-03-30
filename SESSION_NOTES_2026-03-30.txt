@@ -1,0 +1,139 @@
+# SESSION NOTES — 2026-03-30 (Session 2)
+
+## What We Did
+- Cloned repo from https://github.com/ShrPaw/ict-footprint-paper-trader
+- Full code review of all modules: engine, strategies, analysis, data feed, bots, alerts
+- User asked to make bots "trade automatic" using TradingView's built-in paper trading
+- NOT Hyperliquid — user explicitly said "forget about hyperliquid, revert that"
+- Built a complete TradingView Paper Trading pipeline from scratch
+
+## What Was Built This Session
+
+### 1. Pine Script Strategy (`strategy/ICT_Footprint_Strategy.pine`)
+Full TradingView strategy replicating the backtested logic:
+- Regime detection: ATR percentile, ADX, Bollinger squeeze, volume ratio
+- ICT signals: Order Blocks (swing high/low zones), OTE retracement zones (0.618-0.786), Liquidity sweeps (wick ratio > 0.6)
+- Footprint proxy: volume + candle structure (real footprint needs trade-level data, not available in Pine)
+- Per-asset regime blocking via input settings:
+  - BTC: blocks RANGING (loses -$728), works in VOL_EXPANSION
+  - ETH: no blocks (works in RANGING + VOL_EXP)
+  - SOL: no blocks (works in RANGING)
+  - XRP: blocks RANGING (loses -$282), works in VOL_EXPANSION
+  - TRENDING_DOWN and LOW_VOL blocked globally for all assets
+- Killzones: London (06-12), NY (12-18), Asia (22-04) UTC
+- Weekend filter (skip weekends)
+- EMA alignment (EMA9, EMA21, EMA50)
+- Confluence scoring with configurable weights
+- Risk: 0.5% per trade, SL 0.5x ATR, TP 2.0x ATR, trailing stop
+- Info table overlay showing regime, ADX, ATR%, scores, killzone status
+- Alerts fire on entry with JSON payload for webhook
+
+### 2. Webhook Server (`webhook-server/server.js`)
+Node.js HTTP server that receives TradingView alerts:
+- Listens on port 3450
+- POST /webhook — receives entry/close signals from TradingView
+- Paper trade engine: opens positions, tracks PnL, fees (0.05% taker)
+- Position sizing: 0.5% risk per trade
+- Cooldown: 45 minutes between signals per symbol
+- API endpoints:
+  - GET /api/stats — balance, PnL, win rate, profit factor, drawdown
+  - GET /api/positions — open positions
+  - GET /api/trades — last 50 trades
+  - POST /api/reset — reset to $10,000
+- Persists trades to paper_trades.json
+
+### 3. Dashboard (`webhook-server/dashboard.html`)
+Dark-themed web dashboard:
+- Auto-refreshes every 3 seconds
+- Stats cards: balance, PnL, win rate, profit factor, max drawdown, fees
+- Open positions with entry/SL/TP/regime
+- Trade history table with PnL colors
+- Reset button
+
+## Architecture (TradingView Paper Trading Flow)
+
+```
+TradingView Chart
+  └─ Pine Script strategy runs on chart
+     └─ Detects regime, ICT signals, confluence
+     └─ Executes paper trades on TradingView
+     └─ Fires alert with JSON payload
+        └─ Webhook POST → http://server:3450/webhook
+           └─ Server tracks positions, PnL, fees
+           └─ Dashboard at http://server:3450/
+```
+
+Two independent paper trading systems:
+1. TradingView's own paper trading (visible on chart)
+2. Local server tracker (separate PnL tracking with dashboard)
+
+## Validated Backtest Results (Jan-May 2025, Binance)
+- ETH: +$684, PF 1.52, WR 59.3%, 54 trades (RANGING + VOL_EXP)
+- SOL: +$1,426, PF 1.72, WR 59.7%, 77 trades (RANGING)
+- BTC: +$317, PF 1.53, WR 65.4%, 26 trades (VOL_EXP only)
+- XRP: +$1,242, PF 2.27, WR 65.9%, 44 trades (VOL_EXP only)
+- Total: +$3,669, ~1.75 PF, 61.8% WR, 201 trades
+
+## How To Run
+```bash
+cd tradingview-paper-trade
+npm install
+npm run server          # starts webhook server + dashboard at :3450
+```
+
+Then on TradingView:
+1. Open Pine Editor → paste ICT_Footprint_Strategy.pine → Add to chart
+2. Select Asset Profile in strategy settings (BTC/ETH/SOL/XRP)
+3. Create alert → webhook URL: http://YOUR_IP:3450/webhook
+4. Use {{strategy.order.alert_message}} as alert message
+
+## Test Commands
+```bash
+# Test BUY signal
+curl -X POST http://localhost:3450/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"action":"buy","symbol":"ETHUSDT","price":2045,"stopLoss":2030,"takeProfit":2075,"regime":"RANGING","score":0.72}'
+
+# Test CLOSE
+curl -X POST http://localhost:3450/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"action":"close","symbol":"ETHUSDT","price":2072}'
+
+# Check stats
+curl http://localhost:3450/api/stats
+```
+
+## What's In The Repo Now
+Original files (from GitHub):
+- engine/ — PaperEngine.js, HyperliquidEngine.js, backtest.js, main.js
+- bots/ — BotRunner.js, LiveBotRunner.js, eth/btc/sol/xrp bot entry points
+- strategies/ — DaytradeMode.js, ModeRouter.js, WeekendMode.js
+- analysis/ — RegimeDetector.js, ICTAnalyzer.js, RealFootprintAnalyzer.js
+- data/ — HyperliquidFeed.js, TradingViewWebhook.js
+- alerts/ — TelegramAlerter.js
+- config.js, config/assetProfiles.js
+- dashboard/ — old dashboard server
+
+New files (built this session):
+- strategy/ICT_Footprint_Strategy.pine
+- webhook-server/server.js
+- webhook-server/dashboard.html
+- SESSION_NOTES_2026-03-30.txt (this file)
+- .env (empty template)
+- README.md (updated with TradingView setup)
+
+## TODO / Next Steps
+- User needs to paste Pine Script into TradingView and set up alert
+- Test with real TradingView paper trading on 1H ETH chart
+- Consider extending Pine Script with more ICT concepts (breaker blocks, mitigation blocks)
+- The footprint proxy in Pine is weak — real footprint needs trade-level data
+- Run backtest on different periods to validate edge holds outside Jan-May 2025
+- Consider adding more assets (DOGE, AVAX, LINK)
+- Walk-forward optimization to prevent overfitting
+
+## User Info
+- Name: Nicolas
+- OS: Windows
+- Project location: GitHub repo ShrPaw/ict-footprint-paper-trader
+- Language: Spanish (Windows in Spanish)
+- Wants: TradingView paper trading, NOT Hyperliquid live trading

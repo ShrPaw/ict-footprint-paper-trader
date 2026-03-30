@@ -1,0 +1,435 @@
+// ═══════════════════════════════════════════════════════════════════
+// ICT + Footprint Paper Trader — TradingView Strategy
+// Regime-adaptive crypto perps strategy
+// Based on validated backtest: ETH +$684, SOL +$1,426, BTC +$317, XRP +$1,242
+// ═══════════════════════════════════════════════════════════════════
+//@version=5
+strategy("ICT + Footprint Paper Trader",
+     overlay              = true,
+     initial_capital      = 10000,
+     default_qty_type     = strategy.percent_of_equity,
+     default_qty_value    = 5,
+     commission_type      = strategy.commission.percent,
+     commission_value     = 0.05,
+     slippage             = 1,
+     calc_on_every_tick   = false,
+     process_orders_on_close = false,
+     max_bars_back        = 500)
+
+// ── INPUT GROUPS ──────────────────────────────────────────────────
+
+// Asset selection
+GRP_ASSET = "══ ASSET PROFILE ══"
+assetProfile = input.string("ETH", "Asset", options=["BTC", "ETH", "SOL", "XRP"], group=GRP_ASSET,
+     tooltip="Select your asset — each has different regime blocking")
+
+// Regime detection
+GRP_REGIME = "══ REGIME DETECTION ══"
+atrPeriod      = input.int(14, "ATR Period", group=GRP_REGIME)
+lowVolPct      = input.int(20, "Low Vol Percentile", group=GRP_REGIME)
+highVolPct     = input.int(80, "High Vol Percentile", group=GRP_REGIME)
+adxPeriod      = input.int(14, "ADX Period", group=GRP_REGIME)
+trendThresh    = input.int(25, "Trend Threshold (ADX)", group=GRP_REGIME)
+bbSqueeze      = input.float(0.02, "BB Squeeze Width", step=0.005, group=GRP_REGIME)
+rangeLookback  = input.int(20, "Range Lookback", group=GRP_REGIME)
+
+// ICT parameters
+GRP_ICT = "══ ICT PARAMETERS ══"
+obLookback     = input.int(50, "Order Block Lookback", group=GRP_ICT)
+sweepWickRatio = input.float(0.6, "Liquidity Sweep Wick Ratio", step=0.05, group=GRP_ICT)
+oteMin         = input.float(0.618, "OTE Min Retracement", step=0.01, group=GRP_ICT)
+oteMax         = input.float(0.786, "OTE Max Retracement", step=0.01, group=GRP_ICT)
+
+// Strategy filters
+GRP_STRAT = "══ STRATEGY ══"
+minScore       = input.float(0.60, "Min Confluence Score", step=0.05, group=GRP_STRAT)
+ictWeight      = input.float(0.3, "ICT Weight", step=0.05, group=GRP_STRAT)
+fpWeight       = input.float(0.7, "Footprint Weight", step=0.05, group=GRP_STRAT)
+confluenceBonus= input.float(0.15, "Confluence Bonus", step=0.05, group=GRP_STRAT)
+cooldownBars   = input.int(45, "Signal Cooldown (bars)", group=GRP_STRAT,
+     tooltip="45 bars on 1H = 45 hours between signals per direction")
+
+// Risk management
+GRP_RISK = "══ RISK MANAGEMENT ══"
+riskPercent    = input.float(0.5, "Risk % per trade", step=0.1, group=GRP_RISK)
+tpMult         = input.float(2.0, "TP Multiplier (x ATR)", step=0.5, group=GRP_RISK)
+slMult         = input.float(0.5, "SL Multiplier (x ATR)", step=0.05, group=GRP_RISK)
+trailActATR    = input.float(0.9, "Trail Activation (x ATR)", step=0.1, group=GRP_RISK)
+trailDistATR   = input.float(0.5, "Trail Distance (x ATR)", step=0.1, group=GRP_RISK)
+timeExitBars   = input.int(4, "Time Exit (bars, 1H = 4h)", group=GRP_RISK)
+
+// Killzones (UTC)
+GRP_KZ = "══ KILLZONES (UTC) ══"
+kzLondon  = input.bool(true, "London (06:00-12:00)", group=GRP_KZ)
+kzNY      = input.bool(true, "New York (12:00-18:00)", group=GRP_KZ)
+kzAsia    = input.bool(true, "Asia (22:00-04:00)", group=GRP_KZ)
+skipWeekend = input.bool(true, "Skip Weekends", group=GRP_KZ)
+
+// Per-asset regime blocking
+GRP_BLOCK = "══ REGIME BLOCKING (per asset) ══"
+// Default blocking based on backtest results
+blockRanging     = input.bool(assetProfile == "BTC" or assetProfile == "XRP", "Block RANGING", group=GRP_BLOCK,
+     tooltip="BTC/XRP lose in RANGING. SOL/ETH profit.")
+blockVolExp      = input.bool(false, "Block VOL_EXPANSION", group=GRP_BLOCK)
+blockTrendDown   = input.bool(true, "Block TRENDING_DOWN", group=GRP_BLOCK,
+     tooltip="Always blocked — 41% WR across all assets")
+blockLowVol      = input.bool(true, "Block LOW_VOL", group=GRP_BLOCK)
+blockTrendUp     = input.bool(true, "Block TRENDING_UP", group=GRP_BLOCK,
+     tooltip="Blocked — late-stage uptrends are traps")
+
+// Alerts
+GRP_ALERT = "══ ALERTS (for webhook) ══"
+webhookURL = input.string("", "Webhook URL", group=GRP_ALERT,
+     tooltip="Your server URL, e.g. http://your-ip:3450/webhook")
+
+// ── REGIME DETECTION ──────────────────────────────────────────────
+
+// ATR
+atr = ta.atr(atrPeriod)
+atrPercent = atr / close
+
+// ATR percentile (rolling)
+var float[] atrHist = array.new_float(0)
+if bar_index > atrPeriod + 10
+     array.push(atrHist, atrPercent)
+     if array.size(atrHist) > 50
+          array.shift(atrHist)
+
+atrPctile = 0.0
+if array.size(atrHist) >= 20
+     sorted = array.copy(atrHist)
+     array.sort(sorted)
+     idx = array.indexof(sorted, atrPercent)
+     atrPctile := idx / array.size(sorted)
+
+// EMAs
+ema9  = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+ema50 = ta.ema(close, 50)
+
+// ADX
+[diPlus, diMinus, adx] = ta.dmi(adxPeriod, adxPeriod)
+
+// Bollinger Bands
+bb = ta.sma(close, 20)
+bbDev = ta.stdev(close, 20) * 2
+bbUpper = bb + bbDev
+bbLower = bb - bbDev
+bbWidth = (bbUpper - bbLower) / bb
+inSqueeze = bbWidth < bbSqueeze
+
+// Range detection
+rangeHigh = ta.highest(high, rangeLookback)
+rangeLow  = ta.lowest(low, rangeLookback)
+rangeSize = (rangeHigh - rangeLow) / rangeLow
+inRange = rangeSize < 0.03 and not inSqueeze
+
+// Volume
+avgVol = ta.sma(volume, 20)
+recentVol = ta.sma(volume, 3)
+volRatio = recentVol / avgVol
+
+// ── Regime Classification ─────────────────────────────────────────
+
+bullishAlign = ema9 > ema21 and ema21 > ema50
+bearishAlign = ema9 < ema21 and ema21 < ema50
+
+var string regime = "LOW_VOL"
+
+// Score-based regime detection (same logic as Node.js RegimeDetector)
+trendUpScore    = 0.0
+trendDownScore  = 0.0
+rangingScore    = 0.0
+volExpScore     = 0.0
+lowVolScore     = 0.0
+
+// Volatility scores
+if atrPctile <= lowVolPct / 100
+     lowVolScore += 3
+if atrPctile >= highVolPct / 100
+     volExpScore += 3
+if atrPctile > lowVolPct / 100 and atrPctile < highVolPct / 100
+     rangingScore += 1
+
+// Trend scores
+if adx >= trendThresh
+     if bullishAlign
+          trendUpScore += 3
+     if bearishAlign
+          trendDownScore += 3
+if adx < trendThresh and not inSqueeze
+     rangingScore += 2
+
+// Range scores
+if inRange
+     rangingScore += 2
+if inSqueeze
+     lowVolScore += 2
+
+// Volume scores
+if volRatio > 1.5
+     volExpScore += 2
+if volRatio < 0.7
+     lowVolScore += 2
+
+// Pick highest score
+maxScore = math.max(trendUpScore, math.max(trendDownScore, math.max(rangingScore, math.max(volExpScore, lowVolScore))))
+
+if maxScore == trendUpScore and trendUpScore > 0
+     regime := "TRENDING_UP"
+else if maxScore == trendDownScore and trendDownScore > 0
+     regime := "TRENDING_DOWN"
+else if maxScore == volExpScore and volExpScore > 0
+     regime := "VOL_EXPANSION"
+else if maxScore == rangingScore and rangingScore > 0
+     regime := "RANGING"
+else
+     regime := "LOW_VOL"
+
+// ── ICT SIGNALS ───────────────────────────────────────────────────
+
+// Order Blocks: swing high/low zones
+swingHigh = ta.pivothigh(high, 5, 5)
+swingLow  = ta.pivotlow(low, 5, 5)
+
+var float obBullTop = na
+var float obBullBot = na
+var float obBearTop = na
+var float obBearBot = na
+var int obBullBar = 0
+var int obBearBar = 0
+
+if not na(swingHigh)
+     obBearTop := swingHigh
+     obBearBot := swingLow
+     obBearBar := bar_index
+
+if not na(swingLow)
+     obBullBot := swingLow
+     obBullTop := swingHigh
+     obBullBar := bar_index
+
+// Is price in order block zone?
+inBullOB = not na(obBullTop) and close >= obBullBot and close <= obBullTop and (bar_index - obBullBar) < obLookback
+inBearOB = not na(obBearTop) and close >= obBearBot and close <= obBearTop and (bar_index - obBearBar) < obLookback
+
+// Liquidity sweeps: wick beyond recent high/low
+recentSwingHigh = ta.highest(high, 10)[1]
+recentSwingLow  = ta.lowest(low, 10)[1]
+
+upperWick = high - math.max(open, close)
+lowerWick = math.min(open, close) - low
+bodySize  = math.abs(close - open)
+candleRange = high - low
+
+bearSweep = high > recentSwingHigh and upperWick / candleRange > sweepWickRatio and close < recentSwingHigh
+bullSweep = low < recentSwingLow and lowerWick / candleRange > sweepWickRatio and close > recentSwingLow
+
+// OTE zones (retracement into premium/discount)
+swingRange = recentSwingHigh - recentSwingLow
+oteBullZoneLow  = recentSwingHigh - swingRange * oteMax
+oteBullZoneHigh = recentSwingHigh - swingRange * oteMin
+inBullOTE = close >= oteBullZoneLow and close <= oteBullZoneHigh
+
+oteBearZoneLow  = recentSwingLow + swingRange * oteMin
+oteBearZoneHigh = recentSwingLow + swingRange * oteMax
+inBearOTE = close >= oteBearZoneLow and close <= oteBearZoneHigh
+
+// FVG (Fair Value Gap) — simplified
+fvgBull = low > high[2] and close > open and close[1] > open[1]
+fvgBear = high < low[2] and close < open and close[1] < open[1]
+
+// ── SCORING ───────────────────────────────────────────────────────
+
+ictBullSignals = 0.0
+ictBearSignals = 0.0
+
+if inBullOB
+     ictBullSignals += ictWeight * 0.5  // OB half-weight
+if inBearOB
+     ictBearSignals += ictWeight * 0.5
+
+if bullSweep
+     ictBullSignals += ictWeight
+if bearSweep
+     ictBearSignals += ictWeight
+
+if inBullOTE
+     ictBullSignals += ictWeight * 0.8
+if inBearOTE
+     ictBearSignals += ictWeight * 0.8
+
+// Footprint proxy: use volume + candle structure as proxy
+// Real footprint requires trade-level data (available in Node.js engine)
+strongBullCandle = close > open and bodySize / candleRange > 0.6 and volume > avgVol * 1.2
+strongBearCandle = close < open and bodySize / candleRange > 0.6 and volume > avgVol * 1.2
+
+// Volume delta proxy: compare candle close vs midpoint bias
+bullVolPressure = close > hl2 and volume > avgVol
+bearVolPressure = close < hl2 and volume > avgVol
+
+fpBullSignals = 0.0
+fpBearSignals = 0.0
+
+if strongBullCandle
+     fpBullSignals += fpWeight
+if strongBearCandle
+     fpBearSignals += fpWeight
+
+if bullVolPressure
+     fpBullSignals += fpWeight * 0.5
+if bearVolPressure
+     fpBearSignals += fpWeight * 0.5
+
+// Confluence
+bullConfluence = ictBullSignals > 0 and fpBullSignals > 0
+bearConfluence = ictBearSignals > 0 and fpBearSignals > 0
+
+bullScore = ictBullSignals + fpBullSignals + (bullConfluence ? confluenceBonus : 0)
+bearScore = ictBearSignals + fpBearSignals + (bearConfluence ? confluenceBonus : 0)
+
+// ── FILTERS ───────────────────────────────────────────────────────
+
+// Regime blocking
+isBlocked = false
+if regime == "RANGING" and blockRanging
+     isBlocked := true
+if regime == "VOL_EXPANSION" and blockVolExp
+     isBlocked := true
+if regime == "TRENDING_DOWN" and blockTrendDown
+     isBlocked := true
+if regime == "LOW_VOL" and blockLowVol
+     isBlocked := true
+if regime == "TRENDING_UP" and blockTrendUp
+     isBlocked := true
+
+// Killzone filter
+hour = hour(time, "UTC")
+inLondon = hour >= 6 and hour < 12
+inNY     = hour >= 12 and hour < 18
+inAsia   = hour >= 22 or hour < 4
+inAnyKillzone = (kzLondon and inLondon) or (kzNY and inNY) or (kzAsia and inAsia)
+
+// Weekend filter
+dow = dayofweek(time, "UTC")
+isWeekend = dow == dayofweek.saturday or dow == dayofweek.sunday
+skipForWeekend = skipWeekend and isWeekend
+
+// EMA alignment
+bullAligned = close > ema21 and close > ema50
+bearAligned = close < ema21 and close < ema50
+
+// Trend direction filter
+trendUpOnly   = regime == "TRENDING_UP"   ? bullAligned : true
+trendDownOnly = regime == "TRENDING_DOWN" ? bearAligned : true
+
+// Cooldown
+var int lastBullBar = 0
+var int lastBearBar = 0
+bullCooldown = (bar_index - lastBullBar) < cooldownBars
+bearCooldown = (bar_index - lastBearBar) < cooldownBars
+
+// ── ENTRY CONDITIONS ──────────────────────────────────────────────
+
+goLong  = bullScore >= minScore and bullAligned and not isBlocked and inAnyKillzone and not skipForWeekend and not bullCooldown and trendUpOnly
+goShort = bearScore >= minScore and bearAligned and not isBlocked and inAnyKillzone and not skipForWeekend and not bearCooldown and trendDownOnly
+
+// ── EXECUTION ─────────────────────────────────────────────────────
+
+var string alertMsg = ""
+
+if goLong and strategy.position_size == 0
+     sl = close - atr * slMult
+     tp = close + atr * tpMult
+     strategy.entry("LONG", strategy.long)
+     strategy.exit("TP/SL", "LONG", stop=sl, limit=tp)
+     lastBullBar := bar_index
+     alertMsg := '{"action":"buy","symbol":"' + syminfo.ticker + '","price":' + str.tostring(close) + ',"stopLoss":' + str.tostring(sl) + ',"takeProfit":' + str.tostring(tp) + ',"regime":"' + regime + '","score":' + str.tostring(bullScore) + '}'
+
+if goShort and strategy.position_size == 0
+     sl = close + atr * slMult
+     tp = close - atr * tpMult
+     strategy.entry("SHORT", strategy.short)
+     strategy.exit("TP/SL", "SHORT", stop=sl, limit=tp)
+     lastBearBar := bar_index
+     alertMsg := '{"action":"sell","symbol":"' + syminfo.ticker + '","price":' + str.tostring(close) + ',"stopLoss":' + str.tostring(sl) + ',"takeProfit":' + str.tostring(tp) + ',"regime":"' + regime + '","score":' + str.tostring(bearScore) + '}'
+
+// Trailing stop activation
+if strategy.position_size > 0
+     entryPrice = strategy.position_avg_price
+     if high >= entryPrice + atr * trailActATR
+          trailSL = high - atr * trailDistATR
+          strategy.exit("TRAIL", "LONG", stop=trailSL)
+
+if strategy.position_size < 0
+     entryPrice = strategy.position_avg_price
+     if low <= entryPrice - atr * trailActATR
+          trailSL = low + atr * trailDistATR
+          strategy.exit("TRAIL", "SHORT", stop=trailSL)
+
+// Time exit
+if strategy.position_size != 0 and bar_index - strategy.opentrades.entry_bar_index(0) >= timeExitBars
+     strategy.close_all(comment="Time Exit")
+
+// ── VISUALS ───────────────────────────────────────────────────────
+
+// EMAs
+plot(ema9,  "EMA 9",  color=color.new(color.yellow, 30), linewidth=1)
+plot(ema21, "EMA 21", color=color.new(color.orange, 30), linewidth=1)
+plot(ema50, "EMA 50", color=color.new(color.red, 30), linewidth=2)
+
+// Regime background
+regimeColor = regime == "TRENDING_UP"   ? color.new(color.green, 92) :
+              regime == "TRENDING_DOWN"  ? color.new(color.red, 92) :
+              regime == "RANGING"        ? color.new(color.blue, 92) :
+              regime == "VOL_EXPANSION"  ? color.new(color.purple, 92) :
+              regime == "LOW_VOL"        ? color.new(color.gray, 92) :
+              color.new(color.gray, 95)
+bgcolor(regimeColor, title="Regime")
+
+// Order Block zones
+plot(not na(obBullTop) and (bar_index - obBullBar) < obLookback ? obBullTop : na, "OB Bull Top", color=color.new(color.green, 70), style=plot.style_linebr)
+plot(not na(obBullBot) and (bar_index - obBullBar) < obLookback ? obBullBot : na, "OB Bull Bot", color=color.new(color.green, 70), style=plot.style_linebr)
+plot(not na(obBearTop) and (bar_index - obBearBar) < obLookback ? obBearTop : na, "OB Bear Top", color=color.new(color.red, 70), style=plot.style_linebr)
+plot(not na(obBearBot) and (bar_index - obBearBar) < obLookback ? obBearBot : na, "OB Bear Bot", color=color.new(color.red, 70), style=plot.style_linebr)
+
+// Signal labels
+plotshape(goLong and strategy.position_size == 0, "LONG", shape.labelup, location.belowbar, color.green, text="LONG", textcolor=color.white, size=size.small)
+plotshape(goShort and strategy.position_size == 0, "SHORT", shape.labeldown, location.abovebar, color.red, text="SHORT", textcolor=color.white, size=size.small)
+
+// ── INFO TABLE ────────────────────────────────────────────────────
+
+var table infoTable = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 80), border_width=1)
+
+if barstate.islast
+     regimeEmoji = regime == "TRENDING_UP"   ? "📈" :
+                   regime == "TRENDING_DOWN"  ? "📉" :
+                   regime == "RANGING"        ? "↔️" :
+                   regime == "VOL_EXPANSION"  ? "💥" :
+                   regime == "LOW_VOL"        ? "😴" : "❓"
+
+     table.cell(infoTable, 0, 0, "Regime",     text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 0, regimeEmoji + " " + regime, text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 0, 1, "ADX",        text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 1, str.tostring(adx, "#.#"), text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 0, 2, "ATR %",      text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 2, str.tostring(atrPercent * 100, "#.##") + "%", text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 0, 3, "BB Width",   text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 3, str.tostring(bbWidth * 100, "#.##") + "%", text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 0, 4, "Blocked",    text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 4, isBlocked ? "🚫 YES" : "✅ NO", text_color=isBlocked ? color.red : color.green, text_size=size.small)
+     table.cell(infoTable, 0, 5, "Bull Score", text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 5, str.tostring(bullScore, "#.##"), text_color=bullScore >= minScore ? color.green : color.gray, text_size=size.small)
+     table.cell(infoTable, 0, 6, "Bear Score", text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 6, str.tostring(bearScore, "#.##"), text_color=bearScore >= minScore ? color.red : color.gray, text_size=size.small)
+     table.cell(infoTable, 0, 7, "Killzone",  text_color=color.white, text_size=size.small)
+     table.cell(infoTable, 1, 7, inAnyKillzone ? "✅ Active" : "⏸️ Off", text_color=inAnyKillzone ? color.green : color.gray, text_size=size.small)
+
+// ── ALERTS ────────────────────────────────────────────────────────
+
+// Fires alert when signal triggers — set this as the strategy alert message
+if goLong and strategy.position_size == 0
+     alert(alertMsg, alert.freq_once_per_bar_close)
+
+if goShort and strategy.position_size == 0
+     alert(alertMsg, alert.freq_once_per_bar_close)

@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ICT Paper Trader — Command Center</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-deep: #050810;
+      --bg-card: rgba(10, 15, 30, 0.7);
+      --bg-glass: rgba(15, 20, 40, 0.5);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-bright: rgba(255, 255, 255, 0.12);
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --text-muted: #334155;
+      --green: #22c55e;
+      --green-glow: rgba(34, 197, 94, 0.3);
+      --red: #ef4444;
+      --red-glow: rgba(239, 68, 68, 0.3);
+      --eth: #627eea;
+      --sol: #9945ff;
+      --btc: #f7931a;
+      --xrp: #00aae4;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated Background ────────────────────────── */
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridMove 20s linear infinite;
+    }
+    @keyframes gridMove {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(60px, 60px); }
+    }
+
+    .bg-orb {
+      position: fixed; border-radius: 50%; filter: blur(120px); opacity: 0.15; pointer-events: none; z-index: 0;
+    }
+    .bg-orb.eth { width: 400px; height: 400px; background: var(--eth); top: -100px; left: -100px; animation: orbFloat 15s ease-in-out infinite; }
+    .bg-orb.sol { width: 350px; height: 350px; background: var(--sol); top: 50%; right: -80px; animation: orbFloat 18s ease-in-out infinite reverse; }
+    .bg-orb.btc { width: 300px; height: 300px; background: var(--btc); bottom: -50px; left: 40%; animation: orbFloat 20s ease-in-out infinite; }
+    @keyframes orbFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -40px) scale(1.1); }
+      66% { transform: translate(-20px, 20px) scale(0.9); }
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .header {
+      position: relative; z-index: 10;
+      padding: 20px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(5, 8, 16, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo-mark {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--eth), var(--sol));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 900;
+      box-shadow: 0 0 20px rgba(98, 126, 234, 0.3);
+    }
+    .header h1 {
+      font-size: 20px; font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle { font-size: 11px; color: var(--text-dim); margin-top: 2px; letter-spacing: 2px; text-transform: uppercase; }
+    .header-right { display: flex; align-items: center; gap: 20px; }
+    .live-indicator {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--green); font-weight: 500;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 8px var(--green-glow);
+      animation: livePulse 2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.5; }
+    }
+    .clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; color: var(--text-dim); font-weight: 500;
+    }
+
+    /* ── Totals Bar ─────────────────────────────────── */
+    .totals-bar {
+      position: relative; z-index: 10;
+      display: flex; gap: 2px; padding: 16px 32px;
+      max-width: 1600px; margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    .total-gauge {
+      flex: 1; min-width: 140px;
+      background: var(--bg-card);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .total-gauge:first-child { border-radius: 12px 0 0 12px; }
+    .total-gauge:last-child { border-radius: 0 12px 12px 0; }
+    .total-gauge:hover { background: var(--bg-glass); border-color: var(--border-bright); }
+    .total-gauge .gauge-label {
+      font-size: 10px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 1.5px; font-weight: 600; margin-bottom: 6px;
+    }
+    .total-gauge .gauge-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px; font-weight: 700;
+    }
+
+    /* ── Main Grid ──────────────────────────────────── */
+    .main-grid {
+      position: relative; z-index: 10;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px; padding: 20px 32px 40px;
+      max-width: 1600px; margin: 0 auto;
+    }
+
+    /* ── Bot Card (3D) ──────────────────────────────── */
+    .bot-card {
+      perspective: 1000px;
+    }
+    .bot-card-inner {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+      transform-style: preserve-3d;
+    }
+    .bot-card:hover .bot-card-inner {
+      border-color: var(--border-bright);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    /* ── Avatar Section ─────────────────────────────── */
+    .avatar-section {
+      position: relative;
+      height: 200px;
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .avatar-bg {
+      position: absolute; inset: 0;
+      opacity: 0.15;
+    }
+    .avatar-container {
+      position: relative; z-index: 2;
+      width: 120px; height: 120px;
+      animation: avatarHover 4s ease-in-out infinite;
+    }
+    @keyframes avatarHover {
+      0%, 100% { transform: translateY(0) rotateY(0deg); }
+      25% { transform: translateY(-8px) rotateY(5deg); }
+      75% { transform: translateY(-4px) rotateY(-5deg); }
+    }
+
+    /* 3D Avatar via CSS */
+    .avatar-3d {
+      width: 120px; height: 120px;
+      position: relative;
+      transform-style: preserve-3d;
+      animation: avatarSpin 8s linear infinite;
+    }
+    @keyframes avatarSpin {
+      0% { transform: rotateY(0deg); }
+      100% { transform: rotateY(360deg); }
+    }
+    .bot-card:hover .avatar-3d { animation-duration: 3s; }
+
+    .avatar-face {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px; font-weight: 900;
+      backface-visibility: hidden;
+    }
+    .avatar-face.front {
+      transform: translateZ(20px);
+    }
+    .avatar-face.back {
+      transform: translateZ(-20px) rotateY(180deg);
+    }
+    .avatar-ring {
+      position: absolute; inset: -8px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      animation: ringRotate 3s linear infinite;
+    }
+    @keyframes ringRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Coin-specific avatars */
+    .avatar-eth .avatar-face { background: linear-gradient(135deg, #627eea 0%, #3c5cdd 100%); box-shadow: 0 0 40px rgba(98, 126, 234, 0.4); }
+    .avatar-eth .avatar-ring { border-top-color: var(--eth); border-right-color: var(--eth); }
+    .avatar-sol .avatar-face { background: linear-gradient(135deg, #9945ff 0%, #6b21a8 100%); box-shadow: 0 0 40px rgba(153, 69, 255, 0.4); }
+    .avatar-sol .avatar-ring { border-top-color: var(--sol); border-right-color: var(--sol); }
+    .avatar-btc .avatar-face { background: linear-gradient(135deg, #f7931a 0%, #d97706 100%); box-shadow: 0 0 40px rgba(247, 147, 26, 0.4); }
+    .avatar-btc .avatar-ring { border-top-color: var(--btc); border-right-color: var(--btc); }
+    .avatar-xrp .avatar-face { background: linear-gradient(135deg, #00aae4 0%, #0284c7 100%); box-shadow: 0 0 40px rgba(0, 170, 228, 0.4); }
+    .avatar-xrp .avatar-ring { border-top-color: var(--xrp); border-right-color: var(--xrp); }
+
+    .avatar-name {
+      position: absolute; bottom: 12px; left: 0; right: 0;
+      text-align: center; z-index: 3;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 3px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Status ribbon on avatar */
+    .status-ribbon {
+      position: absolute; top: 16px; right: 16px; z-index: 5;
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    }
+    .status-ribbon.online { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); }
+    .status-ribbon.offline { background: rgba(100, 116, 139, 0.15); color: var(--text-dim); border: 1px solid rgba(100, 116, 139, 0.3); }
+
+    /* ── Stats Section ──────────────────────────────── */
+    .stats-section {
+      padding: 20px 24px;
+    }
+    .stats-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px; margin-bottom: 16px;
+    }
+    .stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: all 0.3s;
+    }
+    .stat-box:hover { border-color: var(--border-bright); background: rgba(255, 255, 255, 0.03); }
+    .stat-box .stat-label {
+      font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 1.5px; font-weight: 600; margin-bottom: 4px;
+    }
+    .stat-box .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px; font-weight: 700;
+    }
+    .stat-box .stat-sub {
+      font-size: 10px; color: var(--text-dim); margin-top: 2px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Regime Gadget ──────────────────────────────── */
+    .regime-gadget {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .regime-gadget::before {
+      content: ''; position: absolute; inset: 0;
+      opacity: 0.05;
+      background: conic-gradient(from 0deg, transparent, var(--regime-color, #627eea), transparent);
+      animation: regimeGlow 4s linear infinite;
+    }
+    @keyframes regimeGlow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .regime-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px; position: relative; z-index: 1;
+    }
+    .regime-header .label {
+      font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 1.5px; font-weight: 600;
+    }
+    .regime-value {
+      position: relative; z-index: 1;
+      font-size: 18px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 2px;
+    }
+    .regime-bar-visual {
+      position: relative; z-index: 1;
+      height: 4px; background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px; overflow: hidden; margin-top: 10px;
+    }
+    .regime-bar-fill {
+      height: 100%; border-radius: 2px;
+      transition: width 1s ease;
+    }
+
+    .regime-RANGING { --regime-color: #fbbf24; color: #fbbf24; }
+    .regime-VOL_EXPANSION { --regime-color: #f472b6; color: #f472b6; }
+    .regime-TRENDING_UP { --regime-color: #22c55e; color: #22c55e; }
+    .regime-TRENDING_DOWN { --regime-color: #ef4444; color: #ef4444; }
+    .regime-LOW_VOL { --regime-color: #64748b; color: #64748b; }
+    .regime-ABSORPTION { --regime-color: #a78bfa; color: #a78bfa; }
+    .regime-TRENDING { --regime-color: #22c55e; color: #22c55e; }
+
+    /* ── Position Card ──────────────────────────────── */
+    .position-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .position-card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; bottom: 0; width: 3px;
+    }
+    .position-card.long::before { background: var(--green); box-shadow: 0 0 10px var(--green-glow); }
+    .position-card.short::before { background: var(--red); box-shadow: 0 0 10px var(--red-glow); }
+    .position-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    }
+    .position-side {
+      font-size: 14px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    }
+    .position-side.long { color: var(--green); }
+    .position-side.short { color: var(--red); }
+    .position-upnl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px; font-weight: 700;
+    }
+    .position-details {
+      font-size: 12px; color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1.8;
+    }
+
+    /* ── Mini Sparkline ─────────────────────────────── */
+    .sparkline-container {
+      margin-bottom: 16px;
+    }
+    .sparkline-label {
+      font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 1.5px; font-weight: 600; margin-bottom: 8px;
+    }
+    .sparkline-svg {
+      width: 100%; height: 50px;
+    }
+
+    /* ── Trade Ticker ───────────────────────────────── */
+    .trade-ticker {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .trade-ticker::-webkit-scrollbar { width: 4px; }
+    .trade-ticker::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .ticker-label {
+      font-size: 9px; color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px;
+    }
+    .trade-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      font-size: 12px;
+      animation: tradeSlide 0.3s ease;
+    }
+    @keyframes tradeSlide {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .trade-row:last-child { border-bottom: none; }
+    .trade-row .trade-pnl {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+    .trade-row .trade-reason { color: var(--text-dim); font-size: 11px; }
+    .trade-row .trade-time { color: var(--text-muted); font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Win/Loss Gauge ─────────────────────────────── */
+    .winloss-gauge {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .gauge-ring {
+      width: 56px; height: 56px; position: relative;
+    }
+    .gauge-ring svg { transform: rotate(-90deg); }
+    .gauge-ring .gauge-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 700;
+    }
+    .gauge-breakdown {
+      font-size: 11px; color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1.6;
+    }
+    .gauge-breakdown .wins { color: var(--green); }
+    .gauge-breakdown .losses { color: var(--red); }
+
+    /* ── Particle Canvas ────────────────────────────── */
+    .particles {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    }
+
+    /* ── Global PnL Ticker ──────────────────────────── */
+    .pnl-ticker {
+      position: relative; z-index: 10;
+      overflow: hidden; padding: 8px 0;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid var(--border);
+    }
+    .ticker-track {
+      display: flex; gap: 40px;
+      animation: tickerScroll 30s linear infinite;
+      white-space: nowrap;
+    }
+    @keyframes tickerScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; font-family: 'JetBrains Mono', monospace;
+    }
+    .ticker-coin { font-weight: 700; }
+    .ticker-price { color: var(--text-dim); }
+    .ticker-change { font-weight: 600; }
+
+    /* ── Empty state ────────────────────────────────── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; color: var(--text-muted);
+      font-size: 13px; gap: 8px;
+    }
+    .empty-state .empty-icon { font-size: 32px; opacity: 0.3; }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 768px) {
+      .main-grid { grid-template-columns: 1fr; padding: 12px; }
+      .totals-bar { padding: 12px; }
+      .header { padding: 16px; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Utility ────────────────────────────────────── */
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .neutral { color: var(--text); }
+
+    /* Trade flash animation */
+    .flash-green { animation: flashGreen 0.6s ease; }
+    @keyframes flashGreen {
+      0% { background: rgba(34, 197, 94, 0.2); }
+      100% { background: transparent; }
+    }
+    .flash-red { animation: flashRed 0.6s ease; }
+    @keyframes flashRed {
+      0% { background: rgba(239, 68, 68, 0.2); }
+      100% { background: transparent; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-orb eth"></div>
+  <div class="bg-orb sol"></div>
+  <div class="bg-orb btc"></div>
+  <canvas class="particles" id="particles"></canvas>
+
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-mark">Δ</div>
+      <div>
+        <h1>Paper Trader</h1>
+        <div class="subtitle">Command Center</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-indicator">
+        <div class="live-dot"></div>
+        Live
+      </div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </header>
+
+  <div class="pnl-ticker" id="pnlTicker"></div>
+
+  <div class="totals-bar" id="totals"></div>
+
+  <div class="main-grid" id="bots"></div>
+
+  <script>
+    const API = window.location.origin;
+    const COINS = ['ETH', 'SOL', 'BTC', 'XRP'];
+    const COIN_ICONS = { ETH: 'Ξ', SOL: '◎', BTC: '₿', XRP: '✕' };
+    const COIN_PRICES = { ETH: 3500, SOL: 180, BTC: 95000, XRP: 2.5 };
+
+    let prevPnL = {};
+    let sparklineData = {};
+
+    // ── Helpers ────────────────────────────────────────
+    function pnlClass(v) { return v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral'; }
+    function fmt$(v) { return (v >= 0 ? '+' : '') + '$' + Number(v).toFixed(2); }
+    function fmtPct(v) { return (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%'; }
+
+    // ── Clock ──────────────────────────────────────────
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent =
+        now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Particle System ────────────────────────────────
+    const particleCanvas = document.getElementById('particles');
+    const pctx = particleCanvas.getContext('2d');
+    let particles = [];
+
+    function resizeParticles() {
+      particleCanvas.width = window.innerWidth;
+      particleCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeParticles);
+    resizeParticles();
+
+    function spawnParticle(x, y, color) {
+      for (let i = 0; i < 12; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6 - 2,
+          life: 1,
+          color,
+          size: Math.random() * 4 + 2,
+        });
+      }
+    }
+
+    function animateParticles() {
+      pctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+      particles = particles.filter(p => p.life > 0);
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.1;
+        p.life -= 0.02;
+        pctx.globalAlpha = p.life;
+        pctx.fillStyle = p.color;
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pctx.fill();
+      }
+      pctx.globalAlpha = 1;
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // ── SVG Sparkline ──────────────────────────────────
+    function renderSparkline(data, color, positive) {
+      if (!data || data.length < 2) return '';
+      const w = 300, h = 40;
+      const min = Math.min(...data);
+      const max = Math.max(...data);
+      const range = max - min || 1;
+      const points = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / range) * h;
+        return `${x},${y}`;
+      }).join(' ');
+
+      const gradientId = 'grad-' + Math.random().toString(36).slice(2, 8);
+      const strokeColor = positive ? '#22c55e' : '#ef4444';
+      const fillColor = positive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
+
+      return `
+        <svg viewBox="0 0 ${w} ${h}" class="sparkline-svg" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon points="0,${h} ${points} ${w},${h}" fill="url(#${gradientId})"/>
+          <polyline points="${points}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+    }
+
+    // ── Win/Loss Ring ──────────────────────────────────
+    function renderWinLossRing(wins, total) {
+      const pct = total > 0 ? wins / total : 0;
+      const r = 22, c = 2 * Math.PI * r;
+      const dash = pct * c;
+      const color = pct >= 0.5 ? '#22c55e' : '#ef4444';
+      return `
+        <div class="gauge-ring">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
+            <circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="4"
+              stroke-dasharray="${dash} ${c}" stroke-linecap="round"/>
+          </svg>
+          <div class="gauge-text" style="color:${color}">${total > 0 ? Math.round(pct * 100) : 0}%</div>
+        </div>
+      `;
+    }
+
+    // ── Render Bot Card ────────────────────────────────
+    function renderBot(coin, state) {
+      if (!state) state = {};
+      const isOnline = state.status === 'online';
+      const hasPosition = state.position;
+      const trades = (state.trades || []).slice(-8).reverse();
+      const wins = state.wins || 0;
+      const totalTrades = state.totalTrades || 0;
+      const losses = totalTrades - wins;
+      const coinLower = coin.toLowerCase();
+
+      // Sparkline data
+      if (!sparklineData[coin]) sparklineData[coin] = [];
+      const pnl = state.totalPnL || 0;
+      if (pnl !== prevPnL[coin]) {
+        sparklineData[coin].push(pnl);
+        if (sparklineData[coin].length > 30) sparklineData[coin].shift();
+        prevPnL[coin] = pnl;
+      }
+
+      return `
+        <div class="bot-card" id="card-${coinLower}">
+          <div class="bot-card-inner">
+            <!-- Avatar -->
+            <div class="avatar-section">
+              <div class="avatar-bg" style="background: radial-gradient(circle at center, var(--${coinLower}) 0%, transparent 70%)"></div>
+              <div class="status-ribbon ${isOnline ? 'online' : 'offline'}">
+                ${isOnline ? '● Online' : '○ Offline'}
+              </div>
+              <div class="avatar-container">
+                <div class="avatar-3d avatar-${coinLower}">
+                  <div class="avatar-face front">${COIN_ICONS[coin]}</div>
+                  <div class="avatar-face back">${COIN_ICONS[coin]}</div>
+                  <div class="avatar-ring"></div>
+                </div>
+              </div>
+              <div class="avatar-name">${coin} / USDT</div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-section">
+              <div class="stats-row">
+                <div class="stat-box">
+                  <div class="stat-label">Balance</div>
+                  <div class="stat-value neutral">$${Number(state.balance || 0).toFixed(0)}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Total PnL</div>
+                  <div class="stat-value ${pnlClass(state.totalPnL)}">${fmt$(state.totalPnL || 0)}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Daily PnL</div>
+                  <div class="stat-value ${pnlClass(state.dailyPnL)}">${fmt$(state.dailyPnL || 0)}</div>
+                </div>
+              </div>
+
+              <div class="stats-row">
+                <div class="stat-box">
+                  <div class="stat-label">PF</div>
+                  <div class="stat-value neutral">${state.profitFactor || '—'}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Expectancy</div>
+                  <div class="stat-value neutral">$${state.expectancy || '—'}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Sharpe</div>
+                  <div class="stat-value neutral">${state.sharpe || '—'}</div>
+                </div>
+              </div>
+
+              <!-- Win/Loss Gauge -->
+              <div class="winloss-gauge">
+                ${renderWinLossRing(wins, totalTrades)}
+                <div class="gauge-breakdown">
+                  <div class="wins">▲ ${wins}W</div>
+                  <div class="losses">▼ ${losses}L</div>
+                  <div>${totalTrades} total</div>
+                </div>
+              </div>
+
+              <!-- Sparkline -->
+              <div class="sparkline-container">
+                <div class="sparkline-label">Equity Curve</div>
+                ${renderSparkline(sparklineData[coin], null, (state.totalPnL || 0) >= 0)}
+              </div>
+
+              <!-- Regime Gadget -->
+              <div class="regime-gadget regime-${state.regime || 'LOW_VOL'}">
+                <div class="regime-header">
+                  <span class="label">Market Regime</span>
+                  <span class="label">Confidence</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1">
+                  <div class="regime-value">${state.regime || '—'}</div>
+                  <div class="regime-value" style="font-size:14px">${state.regimeConfidence || '—'}</div>
+                </div>
+                <div class="regime-bar-visual">
+                  <div class="regime-bar-fill" style="width:${state.regimeConfidence || 0}%;background:var(--regime-color)"></div>
+                </div>
+              </div>
+
+              <!-- Position -->
+              ${hasPosition ? `
+                <div class="position-card ${state.position.side}">
+                  <div class="position-header">
+                    <span class="position-side ${state.position.side}">${state.position.side.toUpperCase()} ${coin}</span>
+                    <span class="position-upnl ${pnlClass(state.position.unrealizedPnL)}">${fmt$(state.position.unrealizedPnL || 0)}</span>
+                  </div>
+                  <div class="position-details">
+                    Entry: ${Number(state.position.entryPrice).toFixed(4)}<br>
+                    SL: ${Number(state.position.stopLoss).toFixed(4)} | TP: ${Number(state.position.takeProfit).toFixed(4)}<br>
+                    ${state.position.reason || ''}
+                  </div>
+                </div>
+              ` : `
+                <div class="position-card" style="border-left:3px solid var(--text-muted);opacity:0.5">
+                  <div class="position-header">
+                    <span style="color:var(--text-muted);font-size:12px">No open position</span>
+                  </div>
+                </div>
+              `}
+
+              <!-- Trade Ticker -->
+              <div class="trade-ticker">
+                <div class="ticker-label">Recent Trades</div>
+                ${trades.length === 0 ? '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px">Awaiting signals...</div>' :
+                  trades.map(t => `
+                    <div class="trade-row">
+                      <span class="trade-pnl ${pnlClass(t.pnl)}">${fmt$(t.pnl)}</span>
+                      <span class="trade-reason">${t.closeReason || ''}</span>
+                      <span class="trade-time">${t.side || ''}</span>
+                    </div>
+                  `).join('')
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Render Totals ──────────────────────────────────
+    function renderTotals(states) {
+      let totalBalance = 0, totalPnL = 0, totalTrades = 0, wins = 0, totalDaily = 0, online = 0;
+      for (const coin of COINS) {
+        const s = states[coin.toLowerCase()] || {};
+        totalBalance += s.balance || 10000;
+        totalPnL += s.totalPnL || 0;
+        totalTrades += s.totalTrades || 0;
+        wins += s.wins || 0;
+        totalDaily += s.dailyPnL || 0;
+        if (s.status === 'online') online++;
+      }
+      const wr = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0';
+
+      return `
+        <div class="total-gauge">
+          <div class="gauge-label">Bots Online</div>
+          <div class="gauge-value neutral">${online}/4</div>
+        </div>
+        <div class="total-gauge">
+          <div class="gauge-label">Portfolio</div>
+          <div class="gauge-value neutral">$${totalBalance.toFixed(0)}</div>
+        </div>
+        <div class="total-gauge">
+          <div class="gauge-label">Total PnL</div>
+          <div class="gauge-value ${pnlClass(totalPnL)}">${fmt$(totalPnL)}</div>
+        </div>
+        <div class="total-gauge">
+          <div class="gauge-label">Daily PnL</div>
+          <div class="gauge-value ${pnlClass(totalDaily)}">${fmt$(totalDaily)}</div>
+        </div>
+        <div class="total-gauge">
+          <div class="gauge-label">Win Rate</div>
+          <div class="gauge-value neutral">${wr}%</div>
+        </div>
+        <div class="total-gauge">
+          <div class="gauge-label">Total Trades</div>
+          <div class="gauge-value neutral">${totalTrades}</div>
+        </div>
+      `;
+    }
+
+    // ── Ticker ─────────────────────────────────────────
+    function renderTicker() {
+      const items = COINS.map(c => `
+        <div class="ticker-item">
+          <span class="ticker-coin">${COIN_ICONS[c]}</span>
+          <span>${c}</span>
+          <span class="ticker-price">$${COIN_PRICES[c].toLocaleString()}</span>
+        </div>
+      `).join('');
+      // Duplicate for seamless scroll
+      document.getElementById('pnlTicker').innerHTML =
+        `<div class="ticker-track">${items}${items}${items}${items}</div>`;
+    }
+    renderTicker();
+
+    // ── Refresh Loop ───────────────────────────────────
+    async function refresh() {
+      try {
+        const res = await fetch(API + '/api/bots');
+        const states = await res.json();
+        document.getElementById('totals').innerHTML = renderTotals(states);
+        document.getElementById('bots').innerHTML = COINS.map(c =>
+          renderBot(c, states[c.toLowerCase()])
+        ).join('');
+      } catch (e) {
+        // silent fail
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+
+    // ── 3D Card Tilt on Mouse ──────────────────────────
+    document.addEventListener('mousemove', (e) => {
+      const cards = document.querySelectorAll('.bot-card-inner');
+      cards.forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+          const rotateX = ((y / rect.height) - 0.5) * -8;
+          const rotateY = ((x / rect.width) - 0.5) * 8;
+          card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+        } else {
+          card.style.transform = '';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
