@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-03-31 04:10 GMT+8
-**Session:** #3 (2026-03-31)
+**Last updated:** 2026-03-31 05:15 GMT+8
+**Session:** #4 (2026-03-31)
 
 ---
 
@@ -142,54 +142,78 @@ WEBHOOK_SECRET=paper-trader-local
 
 ## TODO / Next Session
 
-### CRITICAL — Backtests Not Yet Run
-- [ ] **Fix backtest performance** — 148K 15m candles is too slow (30-60+ min per asset)
-  - Key optimization: only generate signals at 1H candle boundaries, not every 15m
-  - Currently runs full ICT + footprint analysis on every 15m tick
-  - Solution: check if candle15m.timestamp aligns with 1H boundary before calling generateSignal()
-- [ ] Run all 4 backtests on Binance FUTURES (2022-01-01 → 2026-03-31)
-- [ ] Run funding rate backtests (--funding 0.0001)
-- [ ] Analyze results per statistical rigor requirements:
-  - Year-by-year (2022 bear, 2023 grind, 2024 bull, 2025-26 chop?)
-  - Regime distribution (% of time each regime is active)
-  - Monthly return distribution (median > mean)
-  - Consecutive loss streaks
-  - With/without funding rates
-  - Single trade dependency
-  - Stability across assets
+### STEP 1 — Fix & Run Baseline Backtests (IMMEDIATE)
+- [x] **Fix backtest performance** — changed `.filter()` to incremental index tracking in backtest.js
+  - Was: `candles5m.filter(c => c.timestamp <= timestamp)` on 446K items × 148K iterations = impossible
+  - Now: track `hIdx` and `m5Idx`, advance with `while` loops, `slice(0, idx+1)` instead of `filter`
+  - Regime distribution pre-computed from 1H candles separately (was redundant inside 15m loop)
+  - **Logic unchanged** — every 15m candle still checked, same exit/signal logic
+  - **NOT YET TESTED** — needs to be run and verified
+- [ ] Run `npm run backtest:eth` — verify fix works and backtest completes
+- [ ] Run all 4 backtests on Binance FUTURES (2022-01-01 → 2026-03-31):
+  - `npm run backtest:eth`
+  - `npm run backtest:sol`
+  - `npm run backtest:btc`
+  - `npm run backtest:xrp`
+- [ ] Run funding rate variants for all 4:
+  - `npm run backtest:eth:funding` (etc.)
+
+### STEP 2 — Analyze Against Statistical Rigor Criteria
+10 criteria defined by Nicolas (see SESSION_NOTES_2026-03-31.txt for full detail):
+- [ ] Year-by-year PnL (2022 bear, 2023 grind, 2024 bull, 2025-26 chop)
+- [ ] Regime distribution (% time each regime active per asset)
+- [ ] Monthly return distribution (median, best/worst, profitable %)
+- [ ] Consecutive loss streaks
+- [ ] With/without funding rates comparison
+- [ ] Single trade dependency (pnlWithoutLargest — already coded)
+- [ ] DD/Return ratio (max DD < 50% of total return)
+- [ ] Stability across assets (any single asset carrying the system?)
+- [ ] Consistent WR across time periods
+- [ ] Expectancy > $0 after all realistic costs
+
+### STEP 3 — Walk-Forward Analysis (after baseline results)
+Rolling 12-month train / 3-month OOS test:
+```
+Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
+Window 2: Train Apr 2022 - Mar 2023 | OOS: Apr-Jun 2023
+...continues until today
+```
+Parameters to optimize per window:
+- `blockedRegimes` per asset (THE edge)
+- `slTightness` / `riskMultiplier` per asset
+- `minConfluenceScore` / `ictWeight` / `footprintWeight`
+- `trailingStop.activationATR` / `trailATR`
 
 ### Setup
 - [ ] User needs Binance testnet API keys for live trading
-- [ ] Consider if funding rates need real historical data (not just 0.01% average)
-
-### Future Ideas
-- [ ] Live mid-candle footprint display
-- [ ] Extend backtest to more recent data if needed
-- [ ] Consider regime-specific trailing stop configs (already scaffolded in config.engine.trailingStopRegime)
 
 ---
 
 ## Session History
 
 ### Session #1 — 2026-03-30
-- Cloned repo, ran npm install, got backtests working
-- Analyzed ETH backtest results (Jan-May 2025)
-- Built Hyperliquid testnet integration
-- Security warning: GitHub PAT exposed
+- Cloned repo, ran npm install, got backtests working (Jan-May 2025 SPOT)
+- Analyzed ETH results, built Hyperliquid testnet integration
+- Created LiveBotRunner, HyperliquidEngine, live/ entry points
 
 ### Session #2 — 2026-03-31 (early AM)
-- Read full codebase
-- CRITICAL: Found backtests were on Binance SPOT not FUTURES
+- Found backtests were on Binance SPOT not FUTURES
 - Changed backtest symbols to futures format
 - Created PROJECT_CONTEXT.md
 
-### Session #3 — 2026-03-31 (current)
-- Full deep read of entire codebase again
+### Session #3 — 2026-03-31
 - Created BinanceFeed.js, BinanceEngine.js, BinanceLiveBotRunner.js
 - Created live/binance/ entry points for all 4 assets
 - Major backtest upgrades (year-by-year, monthly, funding, regime dist, robustness checks)
-- Updated package.json (backtests from 2022, Binance live scripts, funding variants)
-- Updated config.js (default exchange: binance)
+- Updated package.json, config.js
 - Pushed everything to GitHub
-- Started ETH backtest — TOO SLOW (148K candles), killed it
-- **KEY BLOCKER:** Backtest performance needs optimization before running 4-year tests
+- Started ETH backtest — too slow, killed it
+
+### Session #4 — 2026-03-31
+- Deep-read entire codebase (32 files)
+- Attempted ETH futures backtest — failed: O(n²) filtering bottleneck
+- **Fixed backtest.js**: incremental index tracking instead of .filter() (NOT YET TESTED)
+- Defined 10 statistical rigor criteria for backtest validation
+- Established walk-forward analysis plan (12-month train / 3-month OOS)
+- Execution order: baseline backtests → analyze → build WFA → run WFA
+- See SESSION_NOTES_2026-03-31.txt for full details

@@ -75,30 +75,40 @@ class Backtester {
           continue;
         }
 
-        // Walk forward on 15m candles (primary timeframe for signal generation)
+        // ── Pre-compute regime distribution from 1H candles ──
+        for (let hi = 50; hi < candles1h.length; hi++) {
+          const window1h = candles1h.slice(0, hi + 1);
+          const regimeResult = this.regime.detect(symbol, window1h);
+          const r = regimeResult.regime;
+          this.regimeTimeTracker[r] = (this.regimeTimeTracker[r] || 0) + 1;
+          this.totalCandlesAnalyzed++;
+        }
+
+        // ── Incremental window tracking ──
+        // Same logic as before: every 15m candle checked for exits,
+        // signals generated on every candle with sufficient 1H data.
+        // Difference: track indices instead of rebuilding arrays every iteration.
+        let hIdx = 0;  // current position in candles1h
+        let m5Idx = 0; // current position in candles5m
+
         for (let i = 50; i < candles15m.length; i++) {
-          const window15m = candles15m.slice(0, i + 1);
           const candle15m = candles15m[i];
           const timestamp = candle15m.timestamp;
 
-          // Build 5m window up to current timestamp
-          const window5m = candles5m.filter(c => c.timestamp <= timestamp);
-          // Build 1h window up to current timestamp
-          const window1h = candles1h.filter(c => c.timestamp <= timestamp);
+          // Advance 1h index to include all candles up to current timestamp
+          while (hIdx < candles1h.length - 1 && candles1h[hIdx + 1].timestamp <= timestamp) hIdx++;
+          // Advance 5m index
+          while (m5Idx < candles5m.length - 1 && candles5m[m5Idx + 1].timestamp <= timestamp) m5Idx++;
+
+          // Build windows (slice from start to current index — much faster than filter)
+          const window1h = candles1h.slice(0, hIdx + 1);
+          const window5m = candles5m.slice(0, m5Idx + 1);
 
           // Reset daily PnL
           const day = new Date(timestamp).toDateString();
           if (day !== this.lastResetDay) {
             this.dailyPnL = 0;
             this.lastResetDay = day;
-          }
-
-          // Track regime time distribution
-          if (window1h.length >= 50) {
-            const regimeResult = this.regime.detect(symbol, window1h);
-            const r = regimeResult.regime;
-            this.regimeTimeTracker[r] = (this.regimeTimeTracker[r] || 0) + 1;
-            this.totalCandlesAnalyzed++;
           }
 
           // Check exits on current candle
@@ -108,7 +118,7 @@ class Backtester {
 
           // Generate signal if no position — route to correct mode
           if (!this.position) {
-            const signal = this._routeSignal(symbol, window15m, window5m, window1h, timestamp);
+            const signal = this._routeSignal(symbol, null, window5m, window1h, timestamp);
             if (signal) {
               this._openPosition(symbol, signal, candle15m.close, timestamp);
             }
