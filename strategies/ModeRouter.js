@@ -1,15 +1,12 @@
 // ── ModeRouter: Routes to the correct strategy based on day + market ──
 // Detects weekday vs weekend, then delegates to:
-//   - DaytradeMode (weekday, 1H, ICT + trend)
+//   - DaytradeMode (weekday, 1H, ICT + trend) — THE strategy
 //   - WeekendMode (weekend, 5m-15m, footprint only)
-//   - ScalpingProMode (weekday, 15m, hybrid scalping)
 //
-// Each mode is fully independent with its own logic.
+// Scalping removed — 44% WR, no edge on 15m.
 
-import config from '../config.js';
 import DaytradeMode from './DaytradeMode.js';
 import WeekendMode from './WeekendMode.js';
-import ScalpingProMode from './ScalpingProMode.js';
 
 export default class ModeRouter {
   constructor(regimeDetector, ictAnalyzer, footprintAnalyzer) {
@@ -17,12 +14,9 @@ export default class ModeRouter {
     this.ict = ictAnalyzer;
     this.footprint = footprintAnalyzer;
 
-    // Initialize all three modes
     this.daytrade = new DaytradeMode(regimeDetector, ictAnalyzer, footprintAnalyzer);
     this.weekend = new WeekendMode(regimeDetector, footprintAnalyzer);
-    this.scalping = new ScalpingProMode(regimeDetector, footprintAnalyzer);
 
-    // Track which mode generated the last signal
     this.lastMode = {};
   }
 
@@ -87,7 +81,6 @@ export default class ModeRouter {
       activeMode: isWeekend ? 'WEEKEND' : 'WEEKDAY',
       daytradeSignals: this.daytrade.lastSignalTime,
       weekendSignals: this.weekend.lastSignalTime,
-      scalpingSignals: this.scalping.lastSignalTime,
     };
   }
 

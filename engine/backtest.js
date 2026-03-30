@@ -5,7 +5,6 @@ import ICTAnalyzer from '../analysis/ICTAnalyzer.js';
 import RealFootprintAnalyzer from '../analysis/RealFootprintAnalyzer.js';
 import DaytradeMode from '../strategies/DaytradeMode.js';
 import WeekendMode from '../strategies/WeekendMode.js';
-import ScalpingProMode from '../strategies/ScalpingProMode.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -26,10 +25,9 @@ class Backtester {
     this.lastResetDay = null;
     this.stats = null;
 
-    // Three independent modes
+    // Active modes
     this.daytradeMode = new DaytradeMode(this.regime, this.ict, this.footprint);
     this.weekendMode = new WeekendMode(this.regime, this.footprint);
-    this.scalpingMode = new ScalpingProMode(this.regime, this.footprint);
 
     // Config
     this.symbols = options.symbols || config.symbols;
@@ -41,8 +39,8 @@ class Backtester {
 
   async run() {
     console.log('\n╔══════════════════════════════════════════════════════╗');
-    console.log('║   📊 BACKTEST ENGINE v2.0 — 3-Mode System           ║');
-    console.log('║   Daytrade(1H) + Weekend(Footprint) + Scalping(15m) ║');
+    console.log('║   📊 BACKTEST ENGINE v2.0                            ║');
+    console.log('║   Daytrade(1H) + Weekend(Footprint)                  ║');
     console.log('╚══════════════════════════════════════════════════════╝\n');
     console.log(`  Exchange: ${this.exchangeId} | Symbols: ${this.symbols.join(', ')}`);
     console.log(`  Period: ${this.startDate || 'start'} → ${this.endDate || 'now'}\n`);
@@ -57,7 +55,6 @@ class Backtester {
       this.footprint = new RealFootprintAnalyzer();
       this.daytradeMode = new DaytradeMode(this.regime, this.ict, this.footprint);
       this.weekendMode = new WeekendMode(this.regime, this.footprint);
-      this.scalpingMode = new ScalpingProMode(this.regime, this.footprint);
 
       try {
         // Fetch candles for all timeframes
@@ -523,7 +520,7 @@ class Backtester {
     const s = this.stats;
 
     console.log('\n╔══════════════════════════════════════════════════════╗');
-    console.log('║   📊 BACKTEST REPORT v2.0 — 3-Mode System           ║');
+    console.log('║   📊 BACKTEST REPORT v2.0                            ║');
     console.log('╚══════════════════════════════════════════════════════╝\n');
 
     console.log('── Performance ───────────────────────────────────');
