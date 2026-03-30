@@ -133,7 +133,7 @@ export default {
   // Data
   data: {
     candleLimit: 500,
-    exchange: 'mexc',
+    exchange: 'binance',
     useTestnet: false,
   },
 };

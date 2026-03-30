@@ -35,6 +35,13 @@ class Backtester {
     this.endDate = options.endDate || null;
     this.verbose = options.verbose ?? false;
     this.exchangeId = options.exchange || config.data.exchange;
+    // Funding rate: average 8h rate to apply to open long positions (e.g., 0.0001 = 0.01% per 8h)
+    this.fundingRate = options.fundingRate ?? null; // null = skip funding calc
+    this.fundingIntervalMs = 8 * 60 * 60 * 1000; // 8 hours
+
+    // Regime time tracking: how many candles spent in each regime
+    this.regimeTimeTracker = {};
+    this.totalCandlesAnalyzed = 0;
   }
 
   async run() {
@@ -84,6 +91,14 @@ class Backtester {
           if (day !== this.lastResetDay) {
             this.dailyPnL = 0;
             this.lastResetDay = day;
+          }
+
+          // Track regime time distribution
+          if (window1h.length >= 50) {
+            const regimeResult = this.regime.detect(symbol, window1h);
+            const r = regimeResult.regime;
+            this.regimeTimeTracker[r] = (this.regimeTimeTracker[r] || 0) + 1;
+            this.totalCandlesAnalyzed++;
           }
 
           // Check exits on current candle
@@ -359,7 +374,20 @@ class Backtester {
     const fillPrice = price + slippage;
     const fee = pos.size * fillPrice * config.engine.takerFee;
     const priceDiff = pos.side === 'long' ? fillPrice - pos.entryPrice : pos.entryPrice - fillPrice;
-    const pnl = priceDiff * pos.size - pos.fee - fee;
+    let pnl = priceDiff * pos.size - pos.fee - fee;
+
+    // ── Funding rate cost/revenue ─────────────────────────────────
+    let fundingCost = 0;
+    if (this.fundingRate !== null) {
+      const duration = timestamp - pos.entryTime;
+      const fundingPeriods = Math.floor(duration / this.fundingIntervalMs);
+      // Longs pay funding when rate is positive (typical in crypto)
+      // Shorts receive funding when rate is positive
+      const notional = pos.size * pos.entryPrice;
+      fundingCost = notional * this.fundingRate * fundingPeriods * (pos.side === 'long' ? 1 : -1);
+      pnl -= fundingCost;
+    }
+
     const pnlPercent = pnl / (pos.size * pos.entryPrice) * 100;
 
     this.balance += pnl;
@@ -376,6 +404,7 @@ class Backtester {
       durationMin: Math.round((timestamp - pos.entryTime) / 60000),
       isWeekend: pos.isWeekend, entryPattern: pos.entryPattern,
       assetProfile: pos.assetProfile,
+      fundingCost: this.fundingRate !== null ? fundingCost : undefined,
     };
 
     this.trades.push(trade);
@@ -475,12 +504,59 @@ class Backtester {
     const weekendTrades = trades.filter(t => t.isWeekend);
     const weekdayTrades = trades.filter(t => !t.isWeekend);
 
+    // ── Year-by-year breakdown ─────────────────────────────────────
+    const byYear = {};
+    for (const t of trades) {
+      const year = new Date(t.entryTime).getFullYear();
+      if (!byYear[year]) byYear[year] = { trades: 0, wins: 0, pnl: 0, fees: 0, funding: 0 };
+      byYear[year].trades++;
+      if (t.pnl > 0) byYear[year].wins++;
+      byYear[year].pnl += t.pnl;
+      byYear[year].fees += t.totalFees;
+      if (t.fundingCost) byYear[year].funding += t.fundingCost;
+    }
+
+    // ── Monthly returns ────────────────────────────────────────────
+    const byMonth = {};
+    for (const t of trades) {
+      const key = new Date(t.entryTime).toISOString().slice(0, 7); // YYYY-MM
+      if (!byMonth[key]) byMonth[key] = { trades: 0, wins: 0, pnl: 0 };
+      byMonth[key].trades++;
+      if (t.pnl > 0) byMonth[key].wins++;
+      byMonth[key].pnl += t.pnl;
+    }
+
+    const monthlyPnls = Object.values(byMonth).map(m => m.pnl);
+    const sortedMonthly = [...monthlyPnls].sort((a, b) => a - b);
+    const medianMonthly = sortedMonthly.length > 0
+      ? sortedMonthly[Math.floor(sortedMonthly.length / 2)]
+      : 0;
+    const profitableMonths = monthlyPnls.filter(p => p > 0).length;
+    const totalMonths = monthlyPnls.length;
+
+    // ── Consecutive loss streaks (detailed) ────────────────────────
     let maxConsecWins = 0, maxConsecLosses = 0, curWins = 0, curLosses = 0;
     for (const t of trades) {
       if (t.pnl > 0) { curWins++; curLosses = 0; } else { curLosses++; curWins = 0; }
       maxConsecWins = Math.max(maxConsecWins, curWins);
       maxConsecLosses = Math.max(maxConsecLosses, curLosses);
     }
+
+    // ── Single trade dependency check ─────────────────────────────
+    const largestWin = wins.length ? Math.max(...wins.map(t => t.pnl)) : 0;
+    const pnlWithoutLargest = totalPnL - largestWin;
+
+    // ── Regime time distribution ───────────────────────────────────
+    const regimeDistribution = {};
+    for (const [regime, count] of Object.entries(this.regimeTimeTracker)) {
+      regimeDistribution[regime] = {
+        candles: count,
+        percent: this.totalCandlesAnalyzed > 0 ? ((count / this.totalCandlesAnalyzed) * 100).toFixed(1) : '0',
+      };
+    }
+
+    // ── Total funding cost ─────────────────────────────────────────
+    const totalFunding = trades.reduce((s, t) => s + (t.fundingCost || 0), 0);
 
     this.stats = {
       startingBalance: this.startingBalance,
@@ -492,15 +568,29 @@ class Backtester {
       profitFactor: profitFactor === Infinity ? '∞' : profitFactor.toFixed(2),
       expectancy: expectancy.toFixed(2),
       avgWin: avgWin.toFixed(2), avgLoss: avgLoss.toFixed(2),
-      largestWin: wins.length ? Math.max(...wins.map(t => t.pnl)).toFixed(2) : 0,
+      largestWin: largestWin.toFixed(2),
       largestLoss: losses.length ? Math.min(...losses.map(t => t.pnl)).toFixed(2) : 0,
+      pnlWithoutLargest: pnlWithoutLargest.toFixed(2),
       maxDrawdown: this.maxDrawdown.toFixed(2),
       maxDrawdownPercent: (this.maxDrawdownPercent * 100).toFixed(2),
       sharpeRatio: sharpe.toFixed(2),
       maxConsecutiveWins: maxConsecWins,
       maxConsecutiveLosses: maxConsecLosses,
       totalFees: totalFees.toFixed(2),
+      totalFunding: totalFunding.toFixed(4),
+      fundingRateUsed: this.fundingRate,
       byRegime, bySignal, byExit, byMode, byAsset, byPattern,
+      byYear,
+      byMonth,
+      monthlyStats: {
+        median: medianMonthly.toFixed(2),
+        profitableMonths,
+        totalMonths,
+        winRate: totalMonths > 0 ? ((profitableMonths / totalMonths) * 100).toFixed(0) : '0',
+        best: sortedMonthly.length > 0 ? sortedMonthly[sortedMonthly.length - 1].toFixed(2) : '0',
+        worst: sortedMonthly.length > 0 ? sortedMonthly[0].toFixed(2) : '0',
+      },
+      regimeDistribution,
       weekend: {
         trades: weekendTrades.length,
         wins: weekendTrades.filter(t => t.pnl > 0).length,
@@ -578,6 +668,43 @@ class Backtester {
       console.log(`  ${pat.padEnd(30)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
     }
 
+    console.log('\n── Year-by-Year PnL ─────────────────────────────');
+    for (const [year, data] of Object.entries(s.byYear).sort()) {
+      const wr = data.trades > 0 ? ((data.wins / data.trades) * 100).toFixed(0) : '0';
+      const fundInfo = s.fundingRateUsed !== null ? ` | Fund: $${data.funding.toFixed(2)}` : '';
+      console.log(`  ${year}  ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2).padStart(10)} | Fees: $${data.fees.toFixed(2)}${fundInfo}`);
+    }
+
+    console.log('\n── Monthly Returns ──────────────────────────────');
+    for (const [month, data] of Object.entries(s.byMonth).sort()) {
+      const emoji = data.pnl >= 0 ? '🟢' : '🔴';
+      console.log(`  ${emoji} ${month}  ${String(data.trades).padStart(3)} trades | ${data.wins}W | PnL: $${data.pnl.toFixed(2).padStart(8)}`);
+    }
+    console.log(`  Median: $${s.monthlyStats.median}/mo | ${s.monthlyStats.profitableMonths}/${s.monthlyStats.totalMonths} profitable (${s.monthlyStats.winRate}%)`);
+    console.log(`  Best: $${s.monthlyStats.best} | Worst: $${s.monthlyStats.worst}`);
+
+    console.log('\n── Regime Time Distribution ─────────────────────');
+    for (const [regime, data] of Object.entries(s.regimeDistribution).sort((a, b) => b[1].candles - a[1].candles)) {
+      const bar = '█'.repeat(Math.round(parseFloat(data.percent) / 2));
+      console.log(`  ${regime.padEnd(16)} ${data.percent.padStart(5)}% ${bar}`);
+    }
+
+    if (s.fundingRateUsed !== null) {
+      console.log(`\n── Funding Rate Impact ──────────────────────────`);
+      console.log(`  Rate used: ${(s.fundingRateUsed * 100).toFixed(4)}% per 8h (${(s.fundingRateUsed * 3 * 365 * 100).toFixed(1)}% annualized)`);
+      console.log(`  Total funding cost: $${s.totalFunding}`);
+    }
+
+    console.log(`\n── Robustness Checks ────────────────────────────`);
+    console.log(`  Largest win: $${s.largestWin} | PnL without it: $${s.pnlWithoutLargest}`);
+    if (parseFloat(s.pnlWithoutLargest) < 0) {
+      console.log(`  ⚠️  System is NEGATIVE without largest single trade!`);
+    } else {
+      console.log(`  ✅ System remains profitable without largest trade`);
+    }
+    console.log(`  Max consecutive losses: ${s.maxConsecutiveLosses} | Max consecutive wins: ${s.maxConsecutiveWins}`);
+    console.log(`  DD/Return ratio: ${s.maxDrawdownPercent}% DD vs ${s.totalPnLPercent}% return`);
+
     console.log('\n── Last 10 Trades ────────────────────────────────');
     for (const t of this.trades.slice(-10)) {
       const emoji = t.pnl >= 0 ? '✅' : '❌';
@@ -626,6 +753,7 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === '--balance' && args[i + 1]) options.startingBalance = parseFloat(args[++i]);
   if (args[i] === '--exchange' && args[i + 1]) options.exchange = args[++i];
   if (args[i] === '--verbose' || args[i] === '-v') options.verbose = true;
+if (args[i] === '--funding' && args[i + 1]) options.fundingRate = parseFloat(args[++i]);
 }
 
 const bt = new Backtester(options);
