@@ -1,0 +1,56 @@
+# SESSION NOTES — 2026-03-30
+
+## What We Did
+- Cloned repo from https://github.com/ShrPaw/ict-footprint-paper-trader (private repo)
+- Ran npm install, got all 4 backtests working
+- Analyzed ETH backtest results (Jan-May 2025): +$510.56, 59.3% WR, PF 1.52
+- All ETH regimes are positive (RANGING +$334, VOL_EXP +$350, TRENDING_DOWN +$75, LOW_VOL +$151)
+- Ran paper bots on server briefly — all 4 in LOW_VOL regime, no trades
+- Built Hyperliquid testnet integration for real paper order fills
+
+## New Files Added
+- `engine/HyperliquidEngine.js` — connects to Hyperliquid testnet via ccxt, executes real orders with fake money
+- `bots/LiveBotRunner.js` — bot runner using HyperliquidEngine instead of PaperEngine
+- `bots/live/eth.js` — ETH live entry point
+- `bots/live/sol.js` — SOL live entry point
+- `bots/live/btc.js` — BTC live entry point
+- `bots/live/xrp.js` — XRP live entry point
+
+## Updated Files
+- `package.json` — added live:eth, live:sol, live:btc, live:xrp, live:all scripts
+- `.env.example` — added HYPERLIQUID_PRIVATE_KEY field
+
+## How It Works (Architecture)
+- Data feed: Hyperliquid public API (api.hyperliquid.xyz) — free, no auth needed
+- Paper bots (bot:eth etc): PaperEngine — simulated orders locally
+- Live bots (live:eth etc): HyperliquidEngine — real orders on testnet via ccxt
+- Both use the same HyperliquidFeed for live candle data
+- Strategy: DaytradeMode (1H ICT + footprint confluence)
+- Polling interval: 3 seconds for live data
+
+## To Run Live on Hyperliquid Testnet
+1. Go to https://app.hyperliquid-testnet.xyz/
+2. Create/connect wallet (MetaMask works)
+3. Get testnet USDC from faucet
+4. Export private key
+5. Add to .env: HYPERLIQUID_PRIVATE_KEY=0x...
+6. Run: npm run live:eth (or live:all)
+
+## TODO / Next Session
+- User needs to set up Hyperliquid testnet wallet and get private key
+- Test live:eth first, then add more bots
+- Monitor if regime blocking holds on live data
+- Consider adding live mid-candle footprint display (cluster building in real-time)
+- The other 3 backtests (SOL, BTC, XRP) were not completed — user stopped them
+- Consider extending backtest period past May 2025
+
+## IMPORTANT SECURITY
+- GitHub PAT was exposed in chat (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)
+- User MUST revoke this token after session
+- Never commit .env files with real keys
+
+## User Info
+- Name: Nicolas
+- OS: Windows
+- Project location: C:\Users\Nicolas\Desktop\ict-footprint-paper-trader-main\ict-footprint-paper-trader-main
+- Language: Spanish (Windows in Spanish)

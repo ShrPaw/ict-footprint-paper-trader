@@ -17,6 +17,11 @@
     "bot:btc": "node --env-file=.env bots/btc/bot.js",
     "bot:xrp": "node --env-file=.env bots/xrp/bot.js",
     "bots:all": "node --env-file=.env bots/eth/bot.js & node --env-file=.env bots/sol/bot.js & node --env-file=.env bots/btc/bot.js & node --env-file=.env bots/xrp/bot.js & wait",
+    "live:eth": "node --env-file=.env bots/live/eth.js",
+    "live:sol": "node --env-file=.env bots/live/sol.js",
+    "live:btc": "node --env-file=.env bots/live/btc.js",
+    "live:xrp": "node --env-file=.env bots/live/xrp.js",
+    "live:all": "node --env-file=.env bots/live/eth.js & node --env-file=.env bots/live/sol.js & node --env-file=.env bots/live/btc.js & node --env-file=.env bots/live/xrp.js & wait",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop all",
     "pm2:logs": "pm2 logs"
