@@ -84,25 +84,25 @@ class Backtester {
           this.totalCandlesAnalyzed++;
         }
 
-        // ── Incremental window tracking ──
-        // Same logic as before: every 15m candle checked for exits,
-        // signals generated on every candle with sufficient 1H data.
-        // Difference: track indices instead of rebuilding arrays every iteration.
-        let hIdx = 0;  // current position in candles1h
-        let m5Idx = 0; // current position in candles5m
+        // ── Optimized main loop ──
+        // Key insight: regime + signal only change on 1h candle boundaries.
+        // Exit checks only need current candle OHLC, not windows.
+        // So we only slice arrays when a new 1h candle closes (signal check),
+        // not on every 15m candle.
+        let hIdx = 0;
+        let m5Idx = 0;
+        let cachedWindow1h = candles1h.slice(0, 51);
+        let cachedWindow5m = candles5m.slice(0, 1); // will grow
+        let lastHIdx = 50;
+        let lastM5Idx = 0;
 
         for (let i = 50; i < candles15m.length; i++) {
           const candle15m = candles15m[i];
           const timestamp = candle15m.timestamp;
 
-          // Advance 1h index to include all candles up to current timestamp
+          // Advance indices (just integer comparisons — instant)
           while (hIdx < candles1h.length - 1 && candles1h[hIdx + 1].timestamp <= timestamp) hIdx++;
-          // Advance 5m index
           while (m5Idx < candles5m.length - 1 && candles5m[m5Idx + 1].timestamp <= timestamp) m5Idx++;
-
-          // Build windows (slice from start to current index — much faster than filter)
-          const window1h = candles1h.slice(0, hIdx + 1);
-          const window5m = candles5m.slice(0, m5Idx + 1);
 
           // Reset daily PnL
           const day = new Date(timestamp).toDateString();
@@ -111,14 +111,21 @@ class Backtester {
             this.lastResetDay = day;
           }
 
-          // Check exits on current candle
+          // Check exits on current candle — no window needed, just OHLC
           if (this.position) {
             this._checkExit(candle15m, timestamp);
           }
 
-          // Generate signal if no position — route to correct mode
+          // Generate signal only if no position
+          // Only rebuild windows when the 1h index actually advanced (new 1h candle)
           if (!this.position) {
-            const signal = this._routeSignal(symbol, null, window5m, window1h, timestamp);
+            if (hIdx !== lastHIdx || m5Idx !== lastM5Idx) {
+              cachedWindow1h = candles1h.slice(0, hIdx + 1);
+              cachedWindow5m = candles5m.slice(0, m5Idx + 1);
+              lastHIdx = hIdx;
+              lastM5Idx = m5Idx;
+            }
+            const signal = this._routeSignal(symbol, null, cachedWindow5m, cachedWindow1h, timestamp);
             if (signal) {
               this._openPosition(symbol, signal, candle15m.close, timestamp);
             }
@@ -135,6 +142,12 @@ class Backtester {
           if (dd > this.maxDrawdownPercent) {
             this.maxDrawdownPercent = dd;
             this.maxDrawdown = this.peak - equity;
+          }
+
+          // Progress indicator every 10k candles
+          if (i % 10000 === 0) {
+            const pct = ((i / candles15m.length) * 100).toFixed(0);
+            console.log(`  ⏳ ${pct}% (${i}/${candles15m.length}) | trades: ${this.trades.length} | bal: $${this.balance.toFixed(0)}`);
           }
         }
 

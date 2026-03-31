@@ -1,132 +1,86 @@
-# SESSION NOTES — 2026-03-31 (Session #4)
+# SESSION NOTES — 2026-03-31 (Session #5)
 
-## What We Did
-- Cloned repo fresh, deep-read every single source file (32 files)
-- Attempted ETH backtest on Binance futures (2022-2026) — FAILED due to performance
-- Backtest fetched 148K 15m candles, 446K 5m candles, 37K 1h candles successfully
-- Main loop hung: `.filter()` over 446K candles × 148K iterations = ~66 billion comparisons
-- Killed after 30+ minutes with zero progress
+## What Happened
+- User asked to run backtests
+- Installed deps, attempted ETH backtest (2022-2026 futures)
+- First run: fetched 148K 15m, 446K 5m, 37K 1h candles successfully
+- Loop was SLOW — still bottlenecked by `slice()` copying 37K items × 148K iterations
+- Killed it, applied second optimization pass
+- Second optimization: only slice on 1h candle boundaries, no slicing during position holds
+- Added progress logging every 10K candles
+- Had issue with two processes running simultaneously (old one didn't die cleanly)
+- Killed everything, pushed to GitHub
 
-## Root Cause: O(n²) Window Building
-In `engine/backtest.js`, the main loop does this on EVERY 15m candle:
-```js
-const window5m = candles5m.filter(c => c.timestamp <= timestamp);  // 446K items
-const window1h = candles1h.filter(c => c.timestamp <= timestamp);  // 37K items
-```
-This is O(n) per iteration × 148K iterations = impractical.
+## What Was Fixed (Two Rounds)
 
-## Fix Applied (needs testing)
-Changed to incremental index tracking:
-```js
-let hIdx = 0;
-let m5Idx = 0;
-for (let i = 50; i < candles15m.length; i++) {
-  while (hIdx < candles1h.length - 1 && candles1h[hIdx + 1].timestamp <= timestamp) hIdx++;
-  while (m5Idx < candles5m.length - 1 && candles5m[m5Idx + 1].timestamp <= timestamp) m5Idx++;
-  const window1h = candles1h.slice(0, hIdx + 1);
-  const window5m = candles5m.slice(0, m5Idx + 1);
-  // ... rest unchanged
-}
-```
-Also pre-computes regime distribution from 1H candles separately (was being tracked inside the 15m loop via redundant regime.detect calls).
+### Round 1 (Session #4): `.filter()` → incremental index tracking
+- Was: `candles5m.filter(c => c.timestamp <= timestamp)` on 446K items × 148K iterations
+- Changed to: `while` loops advancing `hIdx`/`m5Idx` indices
 
-**Logic is identical** — every 15m candle still checked for exits, signals still generated at same points. Just removed the wasteful repeated filtering.
+### Round 2 (Session #5): `slice()` → cached windows on 1h boundaries only
+- Was: `candles1h.slice(0, hIdx + 1)` on every 15m candle (148K times)
+- Now: only slice when `hIdx` changes (new 1h candle closes, ~37K times)
+- When in a position: NO slicing at all — exit check just needs current candle OHLC
+- Added progress indicator every 10K candles
 
-## Statistical Rigor Requirements (from Nicolas)
+## Why It's Still Slow
+The fundamental issue: even with these optimizations, the backtest has to:
+1. Iterate 148K 15m candles
+2. On each: advance indices, check exits, track equity
+3. On ~37K of those: slice 1h window (up to 37K items) for regime + signal detection
+4. The regime detector, ICT analyzer, and footprint analyzer each run full computations on the sliced window
 
-### Non-Negotiable
-1. **Out-of-sample testing** — Train on 2022-2024, test on 2025+
-2. **Walk-forward, not curve-fit** — Already walk-forward candle-by-candle, regime blocking discovered from results (honest)
-3. **Include fees + slippage + funding rates** — Fees/slippage done, funding rate implemented (`--funding 0.0001`) but NOT yet tested on futures data
-4. **Enough trades** — Need 100+ trades per regime per asset. Going to 2022 on futures should give this
-5. **Survive different market regimes** — Must work in:
-   - 2022 bear crash (Luna, FTX)
-   - 2023 slow grind up
-   - 2024 bull run (BTC ETF euphoria)
-   - 2025-26 choppy
+The analyzers recompute from scratch every time:
+- `RegimeDetector.detect()` — recalculates EMA, ADX, ATR, Bollinger on full window
+- `ICTAnalyzer.analyze()` — scans for FVGs, OBs, liquidity sweeps
+- `RealFootprintAnalyzer.analyze()` — rebuilds delta, volume profile
 
-### What Separates Good from Great
-6. **Stability across assets** — XRP PF 2.27 vs BTC PF 1.53 is concerning. If one asset carries the system, red flag
-7. **Max DD vs return** — Rule: max DD < 50% of total return
-8. **No single trade dependency** — Check largest win. Code already computes `pnlWithoutLargest`
-9. **Consistent WR across time periods** — Monthly breakdowns matter (already implemented)
-10. **Expectancy > $0 after realistic costs** — ~$18/trade is thin. Funding rates could flip this
+These are O(n) per call on the window size, and they're called ~37K times.
 
-### Required Output Per Backtest
-- Year-by-year PnL breakdown (2022 bear, 2023 grind, 2024 bull, 2025-26 chop)
-- Regime distribution (% of time each regime active)
-- Monthly return distribution (median, best/worst, profitable months %)
-- Consecutive loss streaks
-- With and without funding rates
-- Single trade dependency check
-- DD/Return ratio
+## What Would Actually Fix It
+**Option A: Pass indices, not arrays**
+- Change analyzer signatures to accept `(allCandles, startIdx, endIdx)` instead of `(window)`
+- Maintain incremental state (EMA values, ADX state) and update incrementally
+- Major refactor of RegimeDetector, ICTAnalyzer, RealFootprintAnalyzer
 
-**All of this is already coded in backtest.js** — just needs to actually run.
+**Option B: Reduce signal check frequency**
+- Only check for signals when a new 1h candle closes (every 4th 15m candle)
+- Reduces analyzer calls from ~37K to ~9K
+- Simpler, no signature changes
 
-## Walk-Forward Analysis Plan (approved by Nicolas)
-
-### Approach
-Rolling 12-month train / 3-month OOS test windows:
-```
-Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
-Window 2: Train Apr 2022 - Mar 2023 | OOS: Apr-Jun 2023
-Window 3: Train Jul 2022 - Jun 2023 | OOS: Jul-Sep 2023
-...continues until today
-```
-
-### Parameters to Optimize Per Window
-- `blockedRegimes` per asset (THE real edge)
-- `slTightness` / `riskMultiplier` per asset
-- `minConfluenceScore` / `ictWeight` / `footprintWeight`
-- `trailingStop.activationATR` / `trailATR`
-
-### Execution Order (approved)
-1. Fix backtest speed (done — needs testing)
-2. Run all 4 futures backtests with funding rates → baseline results
-3. Analyze results → identify which parameters are unstable across years
-4. Build walk-forward framework targeting those specific parameters
-5. Run WFA across 2022-2026
+**Option C: Pre-compute indicators**
+- Pre-compute EMA9/21/50, ATR, ADX arrays for 1h candles upfront
+- Look up values by index instead of recalculating
+- Medium effort, big speedup
 
 ## TODO — Next Session
-
-### Immediate
-- [ ] Test the backtest fix — run `npm run backtest:eth` and verify it completes
-- [ ] If fix works, run all 4 assets: `npm run backtest:eth`, `backtest:sol`, `backtest:btc`, `backtest:xrp`
-- [ ] Run funding rate variants: `npm run backtest:eth:funding` etc.
-- [ ] Analyze results against the 10 statistical rigor criteria above
-
-### After Baseline Results
-- [ ] Identify which parameters are fragile across years
-- [ ] Build walk-forward optimization framework
-- [ ] Run WFA with rolling 12/3 windows
-- [ ] Compare WFA results vs static backtest — measure degradation
-
-### Setup
-- [ ] User needs Binance testnet API keys for live trading
+- [ ] Apply Option B or C (or both) for real speedup
+- [ ] Run all 4 backtests: ETH, SOL, BTC, XRP
+- [ ] Run funding rate variants
+- [ ] Analyze results against 10 statistical rigor criteria
+- [ ] Build walk-forward analysis framework
 
 ## Session History
 ### Session #1 — 2026-03-30
-- Cloned repo, ran npm install, got backtests working (ETH Jan-May 2025 SPOT)
-- Analyzed ETH results, built Hyperliquid testnet integration
-- Created LiveBotRunner, HyperliquidEngine, live/ entry points
+- Cloned repo, got backtests working (Jan-May 2025 SPOT)
+- Built Hyperliquid testnet integration
 
 ### Session #2 — 2026-03-31 (early AM)
-- Found backtests were on Binance SPOT not FUTURES
-- Changed backtest symbols to futures format
-- Created PROJECT_CONTEXT.md
+- Found backtests were on SPOT not FUTURES
+- Changed symbols to futures format
 
 ### Session #3 — 2026-03-31
-- Created BinanceFeed.js, BinanceEngine.js, BinanceLiveBotRunner.js
-- Created live/binance/ entry points for all 4 assets
-- Major backtest upgrades (year-by-year, monthly, funding, regime dist, robustness)
-- Updated package.json, config.js
-- Pushed everything to GitHub
+- Created BinanceFeed, BinanceEngine, BinanceLiveBotRunner
+- Major backtest upgrades (year-by-year, monthly, funding, robustness)
 - Started ETH backtest — too slow, killed it
 
-### Session #4 — 2026-03-31 (current)
-- Deep-read entire codebase (32 files)
-- Attempted ETH futures backtest — failed on performance (O(n²) filtering)
-- Fixed bottleneck: incremental index tracking instead of .filter()
-- Defined statistical rigor requirements (10 criteria)
+### Session #4 — 2026-03-31
+- Deep-read entire codebase
+- Fixed O(n²) `.filter()` bottleneck (Round 1)
+- Defined 10 statistical rigor criteria
 - Established walk-forward analysis plan
-- Execution order: baseline backtests → analyze → WFA
+
+### Session #5 — 2026-03-31 (current)
+- Applied Round 2 fix: cached windows on 1h boundaries only
+- Backtest still too slow — needs deeper refactor (Options A/B/C above)
+- Pushed all changes to GitHub
