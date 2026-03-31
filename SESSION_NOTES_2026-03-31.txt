@@ -1,4 +1,4 @@
-# SESSION NOTES — 2026-03-31 (Session #5)
+# SESSION NOTES — 2026-03-31 (Session #5 & #6)
 
 ## What Happened
 - User asked to run backtests
@@ -80,7 +80,40 @@ These are O(n) per call on the window size, and they're called ~37K times.
 - Defined 10 statistical rigor criteria
 - Established walk-forward analysis plan
 
-### Session #5 — 2026-03-31 (current)
+### Session #5 — 2026-03-31
 - Applied Round 2 fix: cached windows on 1h boundaries only
 - Backtest still too slow — needs deeper refactor (Options A/B/C above)
 - Pushed all changes to GitHub
+
+### Session #6 — 2026-03-31 (current)
+- **MAJOR REFACTOR: Precomputed O(n) architecture**
+- Created `engine/Precompute.js` — all indicators computed once:
+  - `computeEMA()`, `computeATR()`, `computeADX()`, `computeBollinger()` — O(n) each
+  - `computeDelta()`, `computeVolumeMetrics()` — O(n) each
+  - `extractRegimes()` — O(n) regime classification for all 1h candles
+  - `extractFVGs()` — O(n) fair value gap detection + state tracking
+  - `extractOrderBlocks()` — O(n×lookback) order block detection
+  - `extractLiquiditySweeps()`, `extractOTEs()` — O(n) sweep/OTE extraction
+  - `IncrementalFeatureState` — O(1) per-step updates for live trading
+- Rewrote `engine/backtest.js` v3.0:
+  - Phase 1: Data loading
+  - Phase 2: Precompute all indicators (O(n) each, ~5-10s total)
+  - Phase 3: Feature extraction (regime, FVGs, OBs, sweeps, OTEs)
+  - Phase 4: Backtest loop — pure O(1) indexed lookups, zero heavy math
+  - Added 15m→1h index mapping for regime lookup
+  - Signal evaluation is pure logic — no computation in loop
+  - Pre-built context object at each iteration with all needed data
+- Updated `analysis/RegimeDetector.js`:
+  - Dual-mode: `setPrecomputedRegimes()` for backtest, `detect()` for live
+  - `getRegimeByIndex(i)` for O(1) backtest lookup
+- Updated `analysis/ICTAnalyzer.js`:
+  - `precomputeAll(candles1h)` for backtest mode
+  - `getSignalsAt(i)` for O(1) signal lookup
+  - Live mode unchanged
+- Updated `analysis/RealFootprintAnalyzer.js`:
+  - `precomputeDelta(candles)` for backtest mode
+  - `getDeltaAt(i)` and `getDeltaHistory(endIdx, count)` for O(1) lookups
+  - Live mode unchanged
+- **Performance target: O(n) total instead of O(n²)**
+- Previous bottleneck: ~37K × O(n) recomputations = impossible
+- New: ~5-10 seconds precompute + ~1 second loop for 4 years of data

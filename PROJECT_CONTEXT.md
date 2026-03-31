@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-03-31 05:15 GMT+8
-**Session:** #4 (2026-03-31)
+**Last updated:** 2026-03-31 10:37 GMT+8
+**Session:** #6 (2026-03-31)
 
 ---
 
@@ -9,7 +9,7 @@
 
 A **regime-adaptive paper trading engine** for crypto perpetuals (ETH, SOL, BTC, XRP). Combines **ICT concepts** (Order Blocks, OTE, Liquidity Sweeps) on 1H timeframes with **real-time order flow (footprint) analysis**.
 
-**Version:** 1.3.0
+**Version:** 2.0.0 (Precomputed O(n) backtest engine)
 **Language:** JavaScript (ESM, Node.js 22)
 **Repo:** `https://github.com/ShrPaw/ict-footprint-paper-trader` (private)
 **Owner:** Nicolas (Windows user, Spanish)
@@ -142,14 +142,11 @@ WEBHOOK_SECRET=paper-trader-local
 
 ## TODO / Next Session
 
-### STEP 1 — Fix & Run Baseline Backtests (IMMEDIATE)
-- [x] **Fix backtest performance** — changed `.filter()` to incremental index tracking in backtest.js
-  - Was: `candles5m.filter(c => c.timestamp <= timestamp)` on 446K items × 148K iterations = impossible
-  - Now: track `hIdx` and `m5Idx`, advance with `while` loops, `slice(0, idx+1)` instead of `filter`
-  - Regime distribution pre-computed from 1H candles separately (was redundant inside 15m loop)
-  - **Logic unchanged** — every 15m candle still checked, same exit/signal logic
-  - **NOT YET TESTED** — needs to be run and verified
-- [ ] Run `npm run backtest:eth` — verify fix works and backtest completes
+### STEP 1 — Run Baseline Backtests (IMMEDIATE — NOW POSSIBLE)
+- [x] **Full precompute refactor** — engine/Precompute.js + rewritten backtest.js v3.0
+  - All indicators computed once in O(n), loop is pure O(1) lookups
+  - Should complete in seconds instead of hours
+- [ ] Run `npm run backtest:eth` — verify refactor works and results match v2
 - [ ] Run all 4 backtests on Binance FUTURES (2022-01-01 → 2026-03-31):
   - `npm run backtest:eth`
   - `npm run backtest:sol`
@@ -157,6 +154,7 @@ WEBHOOK_SECRET=paper-trader-local
   - `npm run backtest:xrp`
 - [ ] Run funding rate variants for all 4:
   - `npm run backtest:eth:funding` (etc.)
+- [ ] Compare results against old Jan-May 2025 SPOT results to validate correctness
 
 ### STEP 2 — Analyze Against Statistical Rigor Criteria
 10 criteria defined by Nicolas (see SESSION_NOTES_2026-03-31.txt for full detail):
@@ -217,3 +215,15 @@ Parameters to optimize per window:
 - Established walk-forward analysis plan (12-month train / 3-month OOS)
 - Execution order: baseline backtests → analyze → build WFA → run WFA
 - See SESSION_NOTES_2026-03-31.txt for full details
+
+### Session #5 — 2026-03-31
+- Applied Round 2 optimization: cached windows on 1h boundaries only
+- Still too slow — analyzers recomputed from scratch each iteration
+- Pushed changes to GitHub
+
+### Session #6 — 2026-03-31
+- **MAJOR: Full precomputed O(n) architecture refactor**
+- Created engine/Precompute.js with all indicators precomputed
+- Rewrote engine/backtest.js v3.0 — 3-layer architecture
+- Updated all 3 analyzers to support dual-mode (precomputed + live)
+- Performance target: O(n) total instead of O(n²)
