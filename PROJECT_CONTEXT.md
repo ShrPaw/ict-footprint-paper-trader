@@ -1,7 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-03-31 10:37 GMT+8
-**Session:** #6 (2026-03-31)
+**Last updated:** 2026-04-02 04:40 GMT+8
+**Session:** #7 (2026-04-02)
+**Version:** 2.1.0 (Per-asset thresholds + calibrated precompute)
 
 ---
 
@@ -27,6 +28,44 @@ A **regime-adaptive paper trading engine** for crypto perpetuals (ETH, SOL, BTC,
 | **Total** | **+$3,669** | **~1.75** | **61.8%** | **201** | | | ~40 trades/month |
 
 ⚠️ **These results were from Binance SPOT data, not FUTURES.** The futures backtest (2022-2026) has NOT been run yet.
+
+## Backtest Results v3.0 — Binance FUTURES (2022-01-01 → 2026-03-31)
+
+**⚠️ First full futures backtest with per-asset thresholds. Preliminary — needs analysis & tuning.**
+
+| Asset | PnL | PF | WR | Trades | Max DD | Sharpe | Fees | Final Bal |
+|-------|-----|-----|-----|--------|--------|--------|------|-----------|
+| ETH | -$188 | 1.00 | 48.6% | 2201 | 81.1% | -1.68 | $15,336 | $2,143 |
+| SOL | +$1,357 | 1.05 | 49.7% | 1134 | 47.8% | -0.44 | $7,746 | $7,485 |
+| BTC | -$2,983 | 0.88 | 49.2% | 1367 | 83.8% | -2.42 | $10,368 | $1,832 |
+| XRP | -$1,165 | 0.92 | 46.3% | 523 | 41.2% | -0.92 | $3,847 | $6,911 |
+| **Total** | **-$2,979** | | | **5225** | | | **$37,297** | |
+
+### Key Findings (Session #7)
+1. **Fees are the #1 killer** — $37K in fees vs ~$2.9K net loss. The system is basically trading for exchanges.
+2. **Overtrading** — 5225 trades over 4 years = ~108 trades/month per asset. Original SPOT was ~40/month. Thresholds may still be too loose.
+3. **Trailing stops work** — 100% WR on trailing_sl exits across all assets. The edge is real when trailing activates.
+4. **Stop losses are broken** — 7-14% WR on SL hits. Stops are being triggered by noise, not real reversals.
+5. **RANGING regime is toxic** — -$1,869 for ETH in RANGING (45% WR). Needs to be blocked for ETH like it is for BTC/XRP.
+6. **VOL_EXPANSION is the only edge** — Only regime showing profit (ETH +$1,838, SOL +$2,929).
+7. **Per-asset thresholds working** — Different trade counts per asset confirm thresholds are filtering differently.
+8. **BTC worst performer** — PF 0.88, -81% DD. RANGING was already blocked, but VOL_EXP alone (49% WR) isn't enough edge on futures data.
+
+### Year-by-Year (All Assets Combined)
+| Year | ETH | SOL | BTC | XRP | Total |
+|------|-----|-----|-----|-----|-------|
+| 2022 | +$2,018 | -$579 | -$30 | +$1,042 | +$2,451 |
+| 2023 | -$1,100 | -$1,160 | -$1,108 | -$890 | -$4,258 |
+| 2024 | -$1,091 | +$1,712 | -$1,147 | -$1,026 | -$1,552 |
+| 2025 | -$6 | +$1,287 | -$782 | -$141 | +$358 |
+| 2026 | -$9 | +$97 | +$84 | -$150 | +$22 |
+
+### Next Steps
+- [ ] Analyze why 2022 was profitable but 2023-2024 lost money
+- [ ] Reduce trade frequency — raise thresholds or add cooldown
+- [ ] Fix stop loss placement (too tight for futures volatility)
+- [ ] Consider blocking RANGING for ETH too
+- [ ] Run walk-forward analysis to validate parameter stability
 
 ---
 
@@ -142,34 +181,18 @@ WEBHOOK_SECRET=paper-trader-local
 
 ## TODO / Next Session
 
-### STEP 1 — Run Baseline Backtests (IMMEDIATE — NOW POSSIBLE)
+### STEP 1 — Optimize Based on Futures Results (IMMEDIATE)
 - [x] **Full precompute refactor** — engine/Precompute.js + rewritten backtest.js v3.0
-  - All indicators computed once in O(n), loop is pure O(1) lookups
-  - Should complete in seconds instead of hours
-- [ ] Run `npm run backtest:eth` — verify refactor works and results match v2
-- [ ] Run all 4 backtests on Binance FUTURES (2022-01-01 → 2026-03-31):
-  - `npm run backtest:eth`
-  - `npm run backtest:sol`
-  - `npm run backtest:btc`
-  - `npm run backtest:xrp`
-- [ ] Run funding rate variants for all 4:
-  - `npm run backtest:eth:funding` (etc.)
-- [ ] Compare results against old Jan-May 2025 SPOT results to validate correctness
+- [x] **Per-asset signal thresholds** — 1 TH per bot in assetProfiles.js
+- [x] **Calibrated precompute confidence** — OB/sweep/OTE confidence recalibrated
+- [x] **First full futures backtest** — 2022-2026 Binance futures, all 4 assets
+- [ ] **Analyze 2022 vs 2023-2026 divergence** — why did 2022 work but later years didn't?
+- [ ] **Reduce overtrading** — raise thresholds, add longer cooldown, or regime-specific cooldown
+- [ ] **Fix SL placement** — current 0.5x ATR stops get eaten by noise on futures
+- [ ] **Block RANGING for ETH** — -$1,869 in RANGING, should be blocked like BTC/XRP
+- [ ] **Fee optimization** — $37K in fees is unsustainable. Consider maker orders or fee-aware sizing
 
-### STEP 2 — Analyze Against Statistical Rigor Criteria
-10 criteria defined by Nicolas (see SESSION_NOTES_2026-03-31.txt for full detail):
-- [ ] Year-by-year PnL (2022 bear, 2023 grind, 2024 bull, 2025-26 chop)
-- [ ] Regime distribution (% time each regime active per asset)
-- [ ] Monthly return distribution (median, best/worst, profitable %)
-- [ ] Consecutive loss streaks
-- [ ] With/without funding rates comparison
-- [ ] Single trade dependency (pnlWithoutLargest — already coded)
-- [ ] DD/Return ratio (max DD < 50% of total return)
-- [ ] Stability across assets (any single asset carrying the system?)
-- [ ] Consistent WR across time periods
-- [ ] Expectancy > $0 after all realistic costs
-
-### STEP 3 — Walk-Forward Analysis (after baseline results)
+### STEP 2 — Walk-Forward Analysis (after parameter tuning)
 Rolling 12-month train / 3-month OOS test:
 ```
 Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
@@ -177,9 +200,9 @@ Window 2: Train Apr 2022 - Mar 2023 | OOS: Apr-Jun 2023
 ...continues until today
 ```
 Parameters to optimize per window:
-- `blockedRegimes` per asset (THE edge)
+- `blockedRegimes` per asset
 - `slTightness` / `riskMultiplier` per asset
-- `minConfluenceScore` / `ictWeight` / `footprintWeight`
+- `minConfluenceScore` / `minSoloScore` per asset (THE new lever)
 - `trailingStop.activationATR` / `trailATR`
 
 ### Setup
@@ -227,3 +250,14 @@ Parameters to optimize per window:
 - Rewrote engine/backtest.js v3.0 — 3-layer architecture
 - Updated all 3 analyzers to support dual-mode (precomputed + live)
 - Performance target: O(n) total instead of O(n²)
+
+### Session #7 — 2026-04-02
+- **Per-asset signal thresholds** — each of 4 bots gets own minConfluenceScore / minSoloScore in assetProfiles.js
+- BTC: 0.55/0.70, ETH: 0.60/0.75, SOL: 0.52/0.68, XRP: 0.62/0.78
+- Fixed precomputed confidence calibration (OB/sweep/OTE were producing 0.04-0.55 instead of 0.5-1.0)
+- Fixed backtest scoring: normalize combinedScore by source weight so precomputed and live use same scale
+- **First successful full futures backtest** — 4 years, all 4 assets, 5225 total trades
+- Results: -$2,979 total PnL, $37K in fees. System overtrades, SL too tight for futures.
+- Key insight: trailing stops (100% WR) are the real edge, regular SL (7-14% WR) are noise traps
+- Key insight: RANGING regime is toxic on futures (blocked for BTC/XRP but not ETH)
+- Pushed all changes to GitHub

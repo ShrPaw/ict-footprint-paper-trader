@@ -376,7 +376,8 @@ export function extractOrderBlocks(candles1h) {
           type: 'ORDER_BLOCK', direction: 'bullish',
           top: candle.high, bottom: candle.low,
           createdIndex: i, strength: move,
-          confidence: Math.min(move * 100, 1.0),
+          // Calibrate: map 0.3%-2% moves to 0.50-1.0 confidence range
+          confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
         });
       }
     }
@@ -389,7 +390,7 @@ export function extractOrderBlocks(candles1h) {
           type: 'ORDER_BLOCK', direction: 'bearish',
           top: candle.high, bottom: candle.low,
           createdIndex: i, strength: move,
-          confidence: Math.min(move * 100, 1.0),
+          confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
         });
       }
     }
@@ -460,7 +461,9 @@ export function extractLiquiditySweeps(candles1h) {
       if (c.low < eqLow && wickRatio >= minWickRatio && c.close > eqLow) {
         signals.push({
           type: 'LIQUIDITY_SWEEP', direction: 'bullish',
-          action: 'buy', confidence: Math.min(wickRatio, 1.0),
+          action: 'buy',
+          // Calibrate: map wickRatio 0.6-1.0 to confidence 0.65-1.0
+          confidence: Math.min(0.65 + (wickRatio - 0.6) / 0.4 * 0.35, 1.0),
           reason: `Bullish liquidity sweep below ${eqLow.toFixed(4)}`,
         });
       }
@@ -477,7 +480,8 @@ export function extractLiquiditySweeps(candles1h) {
       if (c.high > eqHigh && upperWickRatio >= minWickRatio && c.close < eqHigh) {
         signals.push({
           type: 'LIQUIDITY_SWEEP', direction: 'bearish',
-          action: 'sell', confidence: Math.min(upperWickRatio, 1.0),
+          action: 'sell',
+          confidence: Math.min(0.65 + (upperWickRatio - 0.6) / 0.4 * 0.35, 1.0),
           reason: `Bearish liquidity sweep above ${eqHigh.toFixed(4)}`,
         });
       }
@@ -519,7 +523,7 @@ export function extractOTEs(candles1h) {
         if (price >= ote786 && price <= ote618) {
           signals.push({
             type: 'OTE', direction: 'bullish', action: 'buy',
-            confidence: 0.7,
+            confidence: 0.8,
             reason: `Price in bullish OTE zone (${ote786.toFixed(4)} - ${ote618.toFixed(4)})`,
           });
         }
@@ -533,7 +537,7 @@ export function extractOTEs(candles1h) {
         if (price >= ote618 && price <= ote786) {
           signals.push({
             type: 'OTE', direction: 'bearish', action: 'sell',
-            confidence: 0.7,
+            confidence: 0.8,
             reason: `Price in bearish OTE zone (${ote618.toFixed(4)} - ${ote786.toFixed(4)})`,
           });
         }
@@ -633,7 +637,7 @@ export class IncrementalFeatureState {
         if (move > 0.003) {
           this.activeOBs.push({
             direction: 'bullish', top: candle.high, bottom: candle.low,
-            createdIndex: index, confidence: Math.min(move * 100, 1.0),
+            createdIndex: index, confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
             mitigated: false,
           });
         }
@@ -643,7 +647,7 @@ export class IncrementalFeatureState {
         if (move > 0.003) {
           this.activeOBs.push({
             direction: 'bearish', top: candle.high, bottom: candle.low,
-            createdIndex: index, confidence: Math.min(move * 100, 1.0),
+            createdIndex: index, confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
             mitigated: false,
           });
         }

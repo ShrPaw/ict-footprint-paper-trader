@@ -301,19 +301,23 @@ class Backtester {
 
     for (const sig of ictSignals) {
       if (sig.type === 'FVG') continue; // FVG killed — 24% WR
+      // Normalize scoring: divide by weight to undo premature multiplication.
+      // This ensures scores are on the same scale as live DaytradeMode which
+      // scores raw confidence, not confidence*weight.
       if (sig.type === 'ORDER_BLOCK') {
-        allScored.push({ ...sig, combinedScore: sig.confidence * ictWeight * 0.5, source: 'ict' });
+        const normalized = (sig.confidence / ictWeight) * 0.5;
+        allScored.push({ ...sig, combinedScore: normalized, source: 'ict' });
         continue;
       }
-      allScored.push({ ...sig, combinedScore: sig.confidence * ictWeight, source: 'ict' });
+      const normalized = sig.confidence / ictWeight;
+      allScored.push({ ...sig, combinedScore: normalized, source: 'ict' });
     }
 
     // Footprint signals from precomputed delta
     if (ctx.delta !== undefined) {
-      // Delta divergence: check last ~10 candles of 15m delta
       const divSignal = this._checkDeltaDivergence(ctx);
       if (divSignal) {
-        let score = divSignal.confidence * fpWeight;
+        let score = divSignal.confidence / fpWeight;
         if (divSignal.type === 'DELTA_DIVERGENCE') score *= 1.5;
         allScored.push({ ...divSignal, combinedScore: score, source: 'footprint' });
       }

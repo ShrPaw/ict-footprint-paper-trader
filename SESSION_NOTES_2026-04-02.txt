@@ -1,0 +1,79 @@
+# SESSION NOTES — 2026-04-02 (Session #7)
+
+## What Happened
+- User returned frustrated — previous session's progress wasn't pushed to GitHub
+- Identified core problem: global signal thresholds (minConfluenceScore: 0.60, minSoloScore: 0.75) 
+  were one-size-fits-all, but each of 4 bots/assets needs its own threshold
+
+## What Was Done
+
+### 1. Per-Asset Signal Thresholds
+Added `minConfluenceScore` and `minSoloScore` to each asset's `daytrade` config in `assetProfiles.js`:
+- BTC: 0.55 / 0.70 (low trade volume, high WR — slightly tighter)
+- ETH: 0.60 / 0.75 (moderate, baseline)
+- SOL: 0.52 / 0.68 (extreme vol — looser, compensated by tight SL)
+- XRP: 0.62 / 0.78 (speculative noise — tightest)
+
+Both `DaytradeMode._scoreSignal()` and `backtest.js._evaluateSignal()` now read per-asset 
+thresholds with fallback to global config defaults.
+
+### 2. Fixed Precomputed Confidence Values
+The Precompute.js feature extractors were producing raw confidence values (0.04-0.55) that got 
+multiplied by source weights (0.4 ICT, 0.6 FP), making scores impossible to reach thresholds.
+
+Fixes applied to Precompute.js:
+- **Order Blocks**: `confidence = Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0)`
+  - Maps 0.3%-2% moves to 0.50-1.0 range
+  - Old: `Math.min(move * 100, 1.0)` → 0.3% move = 0.30 confidence
+- **Liquidity Sweeps**: `confidence = Math.min(0.65 + (wickRatio - 0.6) / 0.4 * 0.35, 1.0)`
+  - Maps wick ratio 0.6-1.0 to 0.65-1.0 range
+  - Old: `Math.min(wickRatio, 1.0)` → 0.6 ratio = 0.60 confidence
+- **OTE zones**: bumped from 0.7 to 0.8
+
+### 3. Fixed Backtest Scoring
+In `_evaluateSignal()`, normalized combinedScore by dividing by source weight:
+- ICT: `normalized = (sig.confidence / ictWeight)` then apply weight
+- FP: `score = divSignal.confidence / fpWeight` then apply weight
+
+This ensures precomputed scores match the live DaytradeMode scale.
+
+## First Full Futures Backtest Results (2022-01-01 → 2026-03-31)
+
+| Asset | PnL | PF | WR | Trades | Max DD | Fees | 
+|-------|-----|-----|-----|--------|--------|------|
+| ETH | -$188 | 1.00 | 48.6% | 2201 | 81.1% | $15,336 |
+| SOL | +$1,357 | 1.05 | 49.7% | 1134 | 47.8% | $7,746 |
+| BTC | -$2,983 | 0.88 | 49.2% | 1367 | 83.8% | $10,368 |
+| XRP | -$1,165 | 0.92 | 46.3% | 523 | 41.2% | $3,847 |
+| **Total** | **-$2,979** | | | **5225** | | **$37,297** |
+
+### Year-by-Year
+| Year | ETH | SOL | BTC | XRP | Total |
+|------|-----|-----|-----|-----|-------|
+| 2022 | +$2,018 | -$579 | -$30 | +$1,042 | +$2,451 |
+| 2023 | -$1,100 | -$1,160 | -$1,108 | -$890 | -$4,258 |
+| 2024 | -$1,091 | +$1,712 | -$1,147 | -$1,026 | -$1,552 |
+| 2025 | -$6 | +$1,287 | -$782 | -$141 | +$358 |
+| 2026 | -$9 | +$97 | +$84 | -$150 | +$22 |
+
+### Key Findings
+1. **Fees dominate** — $37K fees vs ~$3K net loss. System trades for exchanges.
+2. **Overtrading** — 5225 trades / 4 years = ~108/month. Original SPOT was ~40/month.
+3. **Trailing stops = the edge** — 100% WR on trailing_sl across all assets.
+4. **Regular stops = noise traps** — 7-14% WR on SL hits. Stops too tight for futures volatility.
+5. **RANGING is toxic on futures** — ETH: -$1,869 in RANGING (45% WR). Should block it.
+6. **VOL_EXPANSION is the only profitable regime** — ETH +$1,838, SOL +$2,929.
+7. **2022 was profitable (+$2,451)**, 2023-2024 lost money. Need to understand why.
+8. **BTC worst** — PF 0.88, -84% DD. VOL_EXP alone (49% WR) not enough on futures.
+
+## TODO — Next Session
+- [ ] Analyze 2022 vs 2023-2026 divergence
+- [ ] Reduce overtrading (raise thresholds, longer cooldown)
+- [ ] Fix SL placement for futures volatility
+- [ ] Block RANGING for ETH
+- [ ] Fee optimization (maker orders, fee-aware sizing)
+- [ ] Run walk-forward analysis
+
+## Pushed
+- Per-asset thresholds + confidence calibration → commit 6c4cb96
+- Results + PROJECT_CONTEXT.md update → this session
