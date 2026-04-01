@@ -348,11 +348,15 @@ class Backtester {
     const confluenceSignals = allScored.filter(s => s.action === best.action && s.source !== best.source);
     const hasConfluence = confluenceSignals.length > 0;
 
+    // Per-asset thresholds (fallback to global config if not set)
+    const minConfluenceScore = ctx.profile.daytrade.minConfluenceScore ?? config.strategy.minConfluenceScore;
+    const minSoloScore = ctx.profile.daytrade.minSoloScore ?? config.strategy.minSoloScore;
+
     if (hasConfluence) {
       best.combinedScore += config.strategy.confluenceBonus;
       best.confluence = true;
       best.reason = `${best.reason} (+ ${confluenceSignals[0].type} confluence)`;
-      if (best.combinedScore >= config.strategy.minConfluenceScore) {
+      if (best.combinedScore >= minConfluenceScore) {
         return this._buildTradeSignal(ctx, best);
       }
     }
@@ -360,8 +364,8 @@ class Backtester {
     // OB requires confluence
     if (best.type === 'ORDER_BLOCK' && !hasConfluence) return null;
 
-    // Solo score threshold
-    if (best.combinedScore >= config.strategy.minSoloScore) {
+    // Solo score threshold — per-asset
+    if (best.combinedScore >= minSoloScore) {
       return this._buildTradeSignal(ctx, best);
     }
 

@@ -174,16 +174,20 @@ export default class DaytradeMode {
     const confluenceSignals = allScored.filter(s => s.action === best.action && s.source !== best.source);
     const hasConfluence = confluenceSignals.length > 0;
 
+    // Per-asset thresholds (fallback to global config if not set)
+    const minConfluenceScore = profile.daytrade.minConfluenceScore ?? config.strategy.minConfluenceScore;
+    const minSoloScore = profile.daytrade.minSoloScore ?? config.strategy.minSoloScore;
+
     if (hasConfluence) {
       best.combinedScore += config.strategy.confluenceBonus;
       best.confluence = true;
       best.confluenceSignals = [best.type, ...confluenceSignals.map(s => s.type)];
       best.reason = `${best.reason} (+ ${confluenceSignals[0].type} confluence)`;
-      if (best.combinedScore >= config.strategy.minConfluenceScore) return best;
+      if (best.combinedScore >= minConfluenceScore) return best;
     }
 
     if (best.type === 'ORDER_BLOCK' && !hasConfluence) return null;
-    if (best.combinedScore >= config.strategy.minSoloScore) return best;
+    if (best.combinedScore >= minSoloScore) return best;
     return null;
   }
 

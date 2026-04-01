@@ -17,7 +17,13 @@ const ASSET_PROFILES = {
     riskMultiplier: 1.0,
     slTightness: 1.0,
     blockedRegimes: ['RANGING'],
-    daytrade: { adxThreshold: 20, emaAlignment: true, ictWeight: 0.4, footprintWeight: 0.6 },
+    daytrade: {
+      adxThreshold: 20, emaAlignment: true,
+      ictWeight: 0.4, footprintWeight: 0.6,
+      // BTC: Low trade count, high WR. Tighter thresholds to capture fewer but higher-quality signals.
+      minConfluenceScore: 0.55,
+      minSoloScore: 0.70,
+    },
     weekend: { enabled: false, confluenceBoost: 0.15, riskMultiplier: 0.4 },
     scalping: { minVolumeMult: 1.2, deltaImbalanceRatio: 2.5 },
   },
@@ -36,7 +42,13 @@ const ASSET_PROFILES = {
     riskMultiplier: 0.9,
     slTightness: 1.1,
     blockedRegimes: [],
-    daytrade: { adxThreshold: 20, emaAlignment: true, ictWeight: 0.35, footprintWeight: 0.65 },
+    daytrade: {
+      adxThreshold: 20, emaAlignment: true,
+      ictWeight: 0.35, footprintWeight: 0.65,
+      // ETH: Works in RANGING + VOL_EXP, moderate trade volume. Standard thresholds.
+      minConfluenceScore: 0.60,
+      minSoloScore: 0.75,
+    },
     weekend: { enabled: false, confluenceBoost: 0.12, riskMultiplier: 0.5 },
     scalping: { minVolumeMult: 1.0, deltaImbalanceRatio: 2.0 },
   },
@@ -54,7 +66,14 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'medium',
     riskMultiplier: 0.8,
     slTightness: 1.3,
-    daytrade: { adxThreshold: 22, emaAlignment: true, ictWeight: 0.25, footprintWeight: 0.75 },
+    daytrade: {
+      adxThreshold: 22, emaAlignment: true,
+      ictWeight: 0.25, footprintWeight: 0.75,
+      // SOL: Extreme vol, high trade volume. Looser thresholds to let more signals through,
+      // compensated by tight SL (slTightness: 1.3) and low risk (0.8x).
+      minConfluenceScore: 0.52,
+      minSoloScore: 0.68,
+    },
     weekend: { enabled: false, confluenceBoost: 0.18, riskMultiplier: 0.35 },
     scalping: { minVolumeMult: 0.8, deltaImbalanceRatio: 1.8 },
   },
@@ -73,7 +92,14 @@ const ASSET_PROFILES = {
     riskMultiplier: 0.7,
     slTightness: 1.2,
     blockedRegimes: ['RANGING'],
-    daytrade: { adxThreshold: 25, emaAlignment: true, ictWeight: 0.3, footprintWeight: 0.7 },
+    daytrade: {
+      adxThreshold: 25, emaAlignment: true,
+      ictWeight: 0.3, footprintWeight: 0.7,
+      // XRP: Best PF (2.27), speculative flow, VOL_EXP only. Tighter thresholds —
+      // only the strongest signals should fire given the noise.
+      minConfluenceScore: 0.62,
+      minSoloScore: 0.78,
+    },
     weekend: { enabled: false, confluenceBoost: 0.20, riskMultiplier: 0.3 },
     scalping: { minVolumeMult: 1.5, deltaImbalanceRatio: 2.5 },
   },
