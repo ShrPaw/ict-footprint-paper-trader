@@ -167,7 +167,8 @@ export default class BinanceLiveBotRunner {
       signal.takeProfit,
       signal.regime,
       this._formatReason(signal),
-      signal.atr
+      signal.atr,
+      signal.profile || getProfile(symbol)
     ).then(result => {
       if (result.ok) {
         const p = result.position;

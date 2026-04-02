@@ -63,7 +63,7 @@ export default class BinanceEngine extends EventEmitter {
     }
   }
 
-  async openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason, atr = null) {
+  async openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason, atr = null, profile = null) {
     this._resetDailyIfNewDay();
 
     if (this.positions.has(symbol)) {
@@ -111,6 +111,7 @@ export default class BinanceEngine extends EventEmitter {
         partialTPDone: false,
         originalSize: filled,
         orderId: order.id,
+        profile,  // per-asset risk overrides
       };
 
       this.positions.set(symbol, position);
@@ -192,10 +193,12 @@ export default class BinanceEngine extends EventEmitter {
       : (pos.entryPrice - currentPrice) * pos.size;
 
     const atrDist = pos.atr;
+    const ro = pos.profile?.riskOverrides;
 
-    // Breakeven
+    // Breakeven — per-asset override
     if (config.engine.breakeven.enabled && !pos.breakevenTriggered) {
-      const beActivation = atrDist * config.engine.breakeven.activationATR;
+      const beActivationATR = ro?.breakeven?.activationATR ?? config.engine.breakeven.activationATR;
+      const beActivation = atrDist * beActivationATR;
       const offset = pos.entryPrice * config.engine.breakeven.offset;
       if (pos.side === 'long' && high >= pos.entryPrice + beActivation) {
         pos.stopLoss = pos.entryPrice + offset;
@@ -206,10 +209,12 @@ export default class BinanceEngine extends EventEmitter {
       }
     }
 
-    // Trailing stop
+    // Trailing stop — per-asset override
     if (config.engine.trailingStop.enabled) {
-      const activationDist = atrDist * config.engine.trailingStop.activationATR;
-      const trailDist = atrDist * config.engine.trailingStop.trailATR;
+      const activationATR = ro?.trailingStop?.activationATR ?? config.engine.trailingStop.activationATR;
+      const trailATR = ro?.trailingStop?.trailATR ?? config.engine.trailingStop.trailATR;
+      const activationDist = atrDist * activationATR;
+      const trailDist = atrDist * trailATR;
 
       if (!pos.trailingActive) {
         if (pos.side === 'long' && high >= pos.entryPrice + activationDist) pos.trailingActive = true;
@@ -241,15 +246,7 @@ export default class BinanceEngine extends EventEmitter {
     if (pos.side === 'long' && high >= pos.takeProfit) return await this.closePosition(symbol, pos.takeProfit, 'take_profit');
     if (pos.side === 'short' && low <= pos.takeProfit) return await this.closePosition(symbol, pos.takeProfit, 'take_profit');
 
-    // Time exit
-    const elapsed = Date.now() - pos.entryTime;
-    if (elapsed > 4 * 60 * 60 * 1000) {
-      const unrealized = pos.side === 'long' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      if (unrealized < 0 && Math.abs(unrealized) > pos.atr * 0.5) {
-        return await this.closePosition(symbol, currentPrice, 'time_exit');
-      }
-    }
-
+    // Time exits REMOVED — 0% WR, -$16,205 bleed. Let trailing stops handle recovery.
     return null;
   }
 

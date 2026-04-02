@@ -191,7 +191,7 @@ export default class ICTAnalyzer {
             type: ICTSignalType.ORDER_BLOCK, direction: 'bullish',
             top: candle.high, bottom: candle.low, index: i,
             timestamp: candle.timestamp, mitigated: false,
-            strength: move, confidence: Math.min(move * 100, 1.0),
+            strength: move, confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
           };
           const price = candles[candles.length - 1].close;
           if (price <= ob.top && price >= ob.bottom) {
@@ -209,7 +209,7 @@ export default class ICTAnalyzer {
             type: ICTSignalType.ORDER_BLOCK, direction: 'bearish',
             top: candle.high, bottom: candle.low, index: i,
             timestamp: candle.timestamp, mitigated: false,
-            strength: move, confidence: Math.min(move * 100, 1.0),
+            strength: move, confidence: Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0),
           };
           const price = candles[candles.length - 1].close;
           if (price >= ob.bottom && price <= ob.top) {
@@ -248,7 +248,7 @@ export default class ICTAnalyzer {
         signals.push({
           type: ICTSignalType.LIQUIDITY_SWEEP, direction: 'bullish', action: 'buy',
           price: c.close, wickRatio: lowerWick / range, index: i,
-          confidence: Math.min(lowerWick / range, 1.0),
+          confidence: Math.min(0.65 + (lowerWick / range - 0.6) / 0.4 * 0.35, 1.0),
           reason: `Bullish liquidity sweep below ${eqLow.toFixed(4)}`,
         });
       }
@@ -260,7 +260,7 @@ export default class ICTAnalyzer {
         signals.push({
           type: ICTSignalType.LIQUIDITY_SWEEP, direction: 'bearish', action: 'sell',
           price: c.close, wickRatio: upperWick / range, index: i,
-          confidence: Math.min(upperWick / range, 1.0),
+          confidence: Math.min(0.65 + (upperWick / range - 0.6) / 0.4 * 0.35, 1.0),
           reason: `Bearish liquidity sweep above ${eqHigh.toFixed(4)}`,
         });
       }

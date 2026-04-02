@@ -53,7 +53,7 @@ const ASSET_PROFILES = {
     riskOverrides: {
       slMultiplier: 1.5,       // wider: survive noise until trailing activates
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },  // later activation, wider trail
-      breakeven: { activationATR: 1.4 },  // above trailing activation
+      breakeven: { activationATR: 0.8 },  // BELOW trailing (1.2) — protects stalled trades first
     },
     daytrade: {
       adxThreshold: 20, emaAlignment: true,

@@ -175,7 +175,8 @@ export default class LiveBotRunner {
       signal.takeProfit,
       signal.regime,
       this._formatReason(signal),
-      signal.atr
+      signal.atr,
+      signal.profile || getProfile(symbol)
     );
 
     if (result.ok) {
