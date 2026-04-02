@@ -153,7 +153,10 @@ export default class BinanceLiveBotRunner {
     const signal = this.daytrade.generateSignal(symbol, candles1h, candles15m, this._latestFootprint);
     if (!signal) return;
 
-    const riskPercent = this.cfg.risk[signal.regime]?.riskPercent || 0.5;
+    // Per-asset risk sizing — use profile's riskMultiplier (not global flat rate)
+    const profile = signal.profile || getProfile(symbol);
+    const baseRiskPercent = this.cfg.risk[signal.regime]?.riskPercent || 0.5;
+    const riskPercent = baseRiskPercent * (profile.riskMultiplier || 1.0);
     const riskAmount = this.engine.balance * (riskPercent / 100);
     const slDist = Math.abs(signal.price - signal.stopLoss);
     const size = slDist > 0 ? riskAmount / slDist : 0;

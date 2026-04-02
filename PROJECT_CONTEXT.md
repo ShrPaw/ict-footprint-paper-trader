@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-02 08:36 GMT+8
-**Session:** #8 (2026-04-02)
-**Version:** 3.0.0 (Wider stops + regime blocking + calibrated thresholds)
+**Last updated:** 2026-04-03 04:47 GMT+8
+**Session:** #10 (2026-04-03)
+**Version:** 4.0.0 (Scoring fix + per-asset risk fix + XRP killed + wider stops)
 
 ---
 

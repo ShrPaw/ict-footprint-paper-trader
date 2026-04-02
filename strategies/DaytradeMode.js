@@ -140,17 +140,21 @@ export default class DaytradeMode {
     const ictWeight = profile.daytrade.ictWeight;
     const fpWeight = profile.daytrade.footprintWeight;
 
+    // Score signals using RAW confidence (no weight multiplication here).
+    // Weights are informational only — both backtest and live use the same
+    // threshold scale after this fix. Backtest normalizes by dividing by weight;
+    // live simply doesn't multiply by weight in the first place.
     const allScored = [];
     for (const sig of ictSignals) {
       if (sig.type === 'FVG') continue; // killed — 24% WR
       if (sig.type === 'ORDER_BLOCK') {
-        allScored.push({ ...sig, combinedScore: sig.confidence * ictWeight * 0.5, source: 'ict' });
+        allScored.push({ ...sig, combinedScore: sig.confidence * 0.5, source: 'ict' });
         continue;
       }
-      allScored.push({ ...sig, combinedScore: sig.confidence * ictWeight, source: 'ict' });
+      allScored.push({ ...sig, combinedScore: sig.confidence, source: 'ict' });
     }
     for (const sig of fpSignals) {
-      let score = sig.confidence * fpWeight;
+      let score = sig.confidence;
       if (sig.type === 'DELTA_DIVERGENCE') score *= 1.5;
       if (sig.realData) score *= 1.15;
       allScored.push({ ...sig, combinedScore: score, source: 'footprint' });

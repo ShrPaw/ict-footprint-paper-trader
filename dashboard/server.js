@@ -22,7 +22,18 @@ function handleAPI(req, res) {
 
   // GET /api/bots/:name — single bot state
   if (req.method === 'GET' && url.pathname.startsWith('/api/bots/')) {
-    const name = url.pathname.split('/').pop();
+    const parts = url.pathname.split('/');
+    const name = parts[3];
+
+    // GET /api/bots/:name/trades — trade history
+    if (parts[4] === 'trades') {
+      const state = botStates[name];
+      const trades = state?.trades || [];
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify(trades));
+      return true;
+    }
+
     const state = botStates[name];
     res.writeHead(state ? 200 : 404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(state || { error: 'not found' }));

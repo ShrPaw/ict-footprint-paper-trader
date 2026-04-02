@@ -34,7 +34,7 @@ const ASSET_PROFILES = {
     // ONLY VOL_EXPANSION. RANGING kills (-$728). TRENDING_DOWN globally blocked.
     blockedRegimes: ['RANGING'],
     riskOverrides: {
-      slMultiplier: 1.5,       // WIDE: BTC needs room before trailing activates
+      slMultiplier: 2.0,       // WIDE: BTC needs room before trailing activates
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },  // wider trail, let winners breathe
       breakeven: { activationATR: 0.8 },  // protect stalled trades early
     },
@@ -75,7 +75,7 @@ const ASSET_PROFILES = {
     // RANGING blocked: -$1,869 on futures (45% WR)
     blockedRegimes: ['RANGING'],
     riskOverrides: {
-      slMultiplier: 1.5,       // extra wide: stop_loss is a noise trap (7% WR)
+      slMultiplier: 2.0,       // wider: 1.5 was noise trap (3% WR on stop_loss)
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },
       breakeven: { activationATR: 0.8 },  // BELOW trailing (1.2)
     },
