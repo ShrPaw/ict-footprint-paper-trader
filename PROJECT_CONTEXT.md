@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-02 04:40 GMT+8
-**Session:** #7 (2026-04-02)
-**Version:** 2.1.0 (Per-asset thresholds + calibrated precompute)
+**Last updated:** 2026-04-02 08:36 GMT+8
+**Session:** #8 (2026-04-02)
+**Version:** 3.0.0 (Wider stops + regime blocking + calibrated thresholds)
 
 ---
 
@@ -29,43 +29,28 @@ A **regime-adaptive paper trading engine** for crypto perpetuals (ETH, SOL, BTC,
 
 ⚠️ **These results were from Binance SPOT data, not FUTURES.** The futures backtest (2022-2026) has NOT been run yet.
 
-## Backtest Results v3.0 — Binance FUTURES (2022-01-01 → 2026-03-31)
+## Backtest Results v4.0 — Binance FUTURES (2022-01-01 → 2026-03-31)
 
-**⚠️ First full futures backtest with per-asset thresholds. Preliminary — needs analysis & tuning.**
+**After: wider stops, ETH RANGING blocked, tighter thresholds, breakeven, 2h cooldown.**
 
-| Asset | PnL | PF | WR | Trades | Max DD | Sharpe | Fees | Final Bal |
-|-------|-----|-----|-----|--------|--------|--------|------|-----------|
-| ETH | -$188 | 1.00 | 48.6% | 2201 | 81.1% | -1.68 | $15,336 | $2,143 |
-| SOL | +$1,357 | 1.05 | 49.7% | 1134 | 47.8% | -0.44 | $7,746 | $7,485 |
-| BTC | -$2,983 | 0.88 | 49.2% | 1367 | 83.8% | -2.42 | $10,368 | $1,832 |
-| XRP | -$1,165 | 0.92 | 46.3% | 523 | 41.2% | -0.92 | $3,847 | $6,911 |
-| **Total** | **-$2,979** | | | **5225** | | | **$37,297** | |
+| Asset | PnL | PF | WR | Trades | Max DD | Fees | Final Bal |
+|-------|-----|-----|-----|--------|--------|------|-----------|
+| ETH | +$3,392 | 1.20 | 50.1% | 870 | 17.6% | $5,556 | $13,392 |
+| SOL | +$4,975 | 1.30 | 57.1% | 1,022 | 11.5% | $4,353 | $14,975 |
+| BTC | +$1,610 | 1.10 | 51.6% | 903 | 22.7% | $7,136 | $11,610 |
+| XRP | +$643 | 1.07 | 52.6% | 475 | 14.3% | $1,831 | $10,643 |
+| **Total** | **+$10,620** | | | **3,270** | | **$18,876** | **$40,620** |
 
-### Key Findings (Session #7)
-1. **Fees are the #1 killer** — $37K in fees vs ~$2.9K net loss. The system is basically trading for exchanges.
-2. **Overtrading** — 5225 trades over 4 years = ~108 trades/month per asset. Original SPOT was ~40/month. Thresholds may still be too loose.
-3. **Trailing stops work** — 100% WR on trailing_sl exits across all assets. The edge is real when trailing activates.
-4. **Stop losses are broken** — 7-14% WR on SL hits. Stops are being triggered by noise, not real reversals.
-5. **RANGING regime is toxic** — -$1,869 for ETH in RANGING (45% WR). Needs to be blocked for ETH like it is for BTC/XRP.
-6. **VOL_EXPANSION is the only edge** — Only regime showing profit (ETH +$1,838, SOL +$2,929).
-7. **Per-asset thresholds working** — Different trade counts per asset confirm thresholds are filtering differently.
-8. **BTC worst performer** — PF 0.88, -81% DD. RANGING was already blocked, but VOL_EXP alone (49% WR) isn't enough edge on futures data.
+### Exit Analysis (All Assets)
+| Exit | WR | PnL | Count |
+|------|-----|-----|-------|
+| trailing_sl | 81% | +$42,220 | 1,489 |
+| partial_tp | 100% | +$20,884 | 430 |
+| take_profit | 100% | +$2,100 | 57 |
+| stop_loss | 7% | -$38,577 | 785 |
+| time_exit | 0% | -$16,205 | 509 |
 
-### Year-by-Year (All Assets Combined)
-| Year | ETH | SOL | BTC | XRP | Total |
-|------|-----|-----|-----|-----|-------|
-| 2022 | +$2,018 | -$579 | -$30 | +$1,042 | +$2,451 |
-| 2023 | -$1,100 | -$1,160 | -$1,108 | -$890 | -$4,258 |
-| 2024 | -$1,091 | +$1,712 | -$1,147 | -$1,026 | -$1,552 |
-| 2025 | -$6 | +$1,287 | -$782 | -$141 | +$358 |
-| 2026 | -$9 | +$97 | +$84 | -$150 | +$22 |
-
-### Next Steps
-- [ ] Analyze why 2022 was profitable but 2023-2024 lost money
-- [ ] Reduce trade frequency — raise thresholds or add cooldown
-- [ ] Fix stop loss placement (too tight for futures volatility)
-- [ ] Consider blocking RANGING for ETH too
-- [ ] Run walk-forward analysis to validate parameter stability
+See `OPTIMIZATION_REPORT.md` for full analysis and next steps.
 
 ---
 
