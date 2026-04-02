@@ -126,7 +126,7 @@ export default {
     },
     breakeven: {
       enabled: true,
-      activationATR: 1.0,
+      activationATR: 0.6,
       offset: 0.0005,
     },
   },

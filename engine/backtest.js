@@ -614,14 +614,7 @@ class Backtester {
       return;
     }
 
-    // Time exit (4h, only if loss > 0.5x ATR)
-    const elapsed = timestamp - pos.entryTime;
-    if (elapsed > 4 * 60 * 60 * 1000) {
-      const unrealized = side === 'long' ? (price - pos.entryPrice) : (pos.entryPrice - price);
-      if (unrealized < 0 && Math.abs(unrealized) > pos.atr * 0.5) {
-        this._closePosition(price, timestamp, 'time_exit');
-      }
-    }
+    // Time exits REMOVED — 0% WR, -$16,205 bleed. Let trailing stops handle recovery.
   }
 
   _closePosition(price, timestamp, reason) {

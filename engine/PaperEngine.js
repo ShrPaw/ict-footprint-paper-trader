@@ -237,17 +237,7 @@ export default class PaperEngine {
       return this.closePosition(symbol, pos.takeProfit, 'take_profit');
     }
 
-    // Time exit (4h, only if loss > 0.5x ATR — trade clearly isn't working)
-    const elapsed = Date.now() - pos.entryTime;
-    if (elapsed > 4 * 60 * 60 * 1000) {
-      const unrealized = pos.side === 'long'
-        ? (currentPrice - pos.entryPrice)
-        : (pos.entryPrice - currentPrice);
-      if (unrealized < 0 && Math.abs(unrealized) > pos.atr * 0.5) {
-        return this.closePosition(symbol, currentPrice, 'time_exit');
-      }
-    }
-
+    // Time exits REMOVED — 0% WR, -$16,205 bleed. Let trailing stops handle recovery.
     return null;
   }
 
