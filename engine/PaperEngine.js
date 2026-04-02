@@ -13,7 +13,7 @@ export default class PaperEngine {
   }
 
   // ── Order Management ──────────────────────────────────────────────
-  openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason, atr = null) {
+  openPosition(symbol, side, size, price, stopLoss, takeProfit, regime, reason, atr = null, profile = null) {
     this._resetDailyIfNewDay();
 
     if (this.positions.size >= config.engine.maxOpenPositions) {
@@ -58,6 +58,7 @@ export default class PaperEngine {
       breakevenTriggered: false,
       partialTPDone: false,
       originalSize: size,
+      profile,  // per-asset risk overrides
     };
 
     this.positions.set(symbol, position);
@@ -172,9 +173,11 @@ export default class PaperEngine {
       }
     }
 
-    // ── Breakeven Logic (FIXED: uses actual ATR) ───────────────────
+    // ── Breakeven Logic — per-asset override ───────────────────────
+    const ro = pos.profile?.riskOverrides;
     if (config.engine.breakeven.enabled && !pos.breakevenTriggered) {
-      const beActivation = atrDist * config.engine.breakeven.activationATR;
+      const beActivationATR = ro?.breakeven?.activationATR ?? config.engine.breakeven.activationATR;
+      const beActivation = atrDist * beActivationATR;
       const offset = pos.entryPrice * config.engine.breakeven.offset;
 
       if (pos.side === 'long' && high >= pos.entryPrice + beActivation) {
@@ -186,12 +189,10 @@ export default class PaperEngine {
       }
     }
 
-    // ── Trailing Stop Logic (regime-adaptive, uses actual ATR) ─────
+    // ── Trailing Stop Logic — per-asset override ───────────────────
     if (config.engine.trailingStop.enabled) {
-      // Use regime-specific trailing if available, else default
-      const regimeTrail = config.engine.trailingStopRegime?.[pos.regime] || {};
-      const activationATR = regimeTrail.activationATR || config.engine.trailingStop.activationATR;
-      const trailATR = regimeTrail.trailATR || config.engine.trailingStop.trailATR;
+      const activationATR = ro?.trailingStop?.activationATR ?? config.engine.trailingStop.activationATR;
+      const trailATR = ro?.trailingStop?.trailATR ?? config.engine.trailingStop.trailATR;
 
       const activationDist = atrDist * activationATR;
       const trailDist = atrDist * trailATR;

@@ -17,13 +17,18 @@ const ASSET_PROFILES = {
     riskMultiplier: 1.0,
     slTightness: 1.0,
     blockedRegimes: ['RANGING'],
+    // Per-asset risk overrides — BTC has highest DD (22.7%), needs wider stops
+    riskOverrides: {
+      slMultiplier: 1.4,
+      trailingStop: { activationATR: 1.0, trailATR: 0.6 },
+      breakeven: { activationATR: 1.2 },
+    },
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
       ictWeight: 0.4, footprintWeight: 0.6,
-      // BTC: RANGING blocked, only VOL_EXP on futures. Much tighter —
-      // BTC has PF 0.88, needs far fewer trades to find real edge.
       minConfluenceScore: 0.62,
       minSoloScore: 0.78,
+      signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.15, riskMultiplier: 0.4 },
     scalping: { minVolumeMult: 1.2, deltaImbalanceRatio: 2.5 },
@@ -44,12 +49,18 @@ const ASSET_PROFILES = {
     slTightness: 1.1,
     // RANGING blocked: -$1,869 on futures (45% WR). Only VOL_EXP has edge.
     blockedRegimes: ['RANGING'],
+    // Per-asset risk overrides — ETH stop_loss has 7% WR at 1.0 ATR, needs wider
+    riskOverrides: {
+      slMultiplier: 1.5,       // wider: survive noise until trailing activates
+      trailingStop: { activationATR: 1.2, trailATR: 0.7 },  // later activation, wider trail
+      breakeven: { activationATR: 1.4 },  // above trailing activation
+    },
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
       ictWeight: 0.35, footprintWeight: 0.65,
-      // ETH: RANGING blocked, only VOL_EXP now. Tighter thresholds to reduce overtrading.
       minConfluenceScore: 0.65,
       minSoloScore: 0.78,
+      signalCooldown: 7200000,  // 2h
     },
     weekend: { enabled: false, confluenceBoost: 0.12, riskMultiplier: 0.5 },
     scalping: { minVolumeMult: 1.0, deltaImbalanceRatio: 2.0 },
@@ -68,13 +79,18 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'medium',
     riskMultiplier: 0.8,
     slTightness: 1.3,
+    // Per-asset risk overrides — SOL best performer, conservative tweaks only
+    riskOverrides: {
+      slMultiplier: 1.0,       // current works for SOL (tight SL + extreme vol = fine)
+      trailingStop: { activationATR: 0.9, trailATR: 0.5 },  // keep defaults
+      breakeven: { activationATR: 1.0 },  // keep default
+    },
     daytrade: {
       adxThreshold: 22, emaAlignment: true,
       ictWeight: 0.25, footprintWeight: 0.75,
-      // SOL: Extreme vol but still overtrades on futures. Raise thresholds —
-      // tight SL (1.3x) and low risk (0.8x) compensate for fewer signals.
       minConfluenceScore: 0.58,
       minSoloScore: 0.72,
+      signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.18, riskMultiplier: 0.35 },
     scalping: { minVolumeMult: 0.8, deltaImbalanceRatio: 1.8 },
@@ -94,13 +110,18 @@ const ASSET_PROFILES = {
     riskMultiplier: 0.7,
     slTightness: 1.2,
     blockedRegimes: ['RANGING'],
+    // Per-asset risk overrides — XRP speculative noise, wider stops
+    riskOverrides: {
+      slMultiplier: 1.3,
+      trailingStop: { activationATR: 1.0, trailATR: 0.6 },
+      breakeven: { activationATR: 1.2 },
+    },
     daytrade: {
       adxThreshold: 25, emaAlignment: true,
       ictWeight: 0.3, footprintWeight: 0.7,
-      // XRP: Best PF (2.27), speculative flow, VOL_EXP only. Tighter thresholds —
-      // only the strongest signals should fire given the noise.
       minConfluenceScore: 0.62,
       minSoloScore: 0.78,
+      signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.20, riskMultiplier: 0.3 },
     scalping: { minVolumeMult: 1.5, deltaImbalanceRatio: 2.5 },

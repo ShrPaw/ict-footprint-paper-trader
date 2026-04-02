@@ -378,7 +378,7 @@ class Backtester {
 
   _buildTradeSignal(ctx, best) {
     const atr = ctx.atr;
-    const slMult = (config.risk[ctx.regime]?.slMultiplier || 0.9) * ctx.profile.slTightness;
+    const slMult = (ctx.profile.riskOverrides?.slMultiplier ?? config.risk[ctx.regime]?.slMultiplier ?? 0.9) * ctx.profile.slTightness;
     const tpMult = config.risk[ctx.regime]?.tpMultiplier || 2.5;
 
     const sl = best.action === 'buy'
@@ -402,6 +402,7 @@ class Backtester {
       atr,
       isWeekend: false,
       assetProfile: ctx.profile.name,
+      profile: ctx.profile,
       session: ctx.killzone.session,
     };
   }
@@ -495,6 +496,7 @@ class Backtester {
       partialTPDone: false,
       originalSize: size,
       assetProfile: signal.assetProfile || 'unknown',
+      profile: signal.profile || null,  // per-asset risk overrides
     };
 
     this.balance -= fee;
@@ -557,10 +559,13 @@ class Backtester {
       }
     }
 
-    // Trailing stop
+    // Trailing stop — per-asset override
+    const ro = pos.profile?.riskOverrides;
     if (config.engine.trailingStop.enabled) {
-      const activationDist = pos.atr * config.engine.trailingStop.activationATR;
-      const trailDist = pos.atr * config.engine.trailingStop.trailATR;
+      const activationATR = ro?.trailingStop?.activationATR ?? config.engine.trailingStop.activationATR;
+      const trailATR = ro?.trailingStop?.trailATR ?? config.engine.trailingStop.trailATR;
+      const activationDist = pos.atr * activationATR;
+      const trailDist = pos.atr * trailATR;
 
       if (!pos.trailingActive) {
         if (side === 'long' && candle.high >= pos.entryPrice + activationDist) pos.trailingActive = true;
@@ -578,9 +583,10 @@ class Backtester {
       }
     }
 
-    // Breakeven — move SL to entry after 1.0x ATR move in our favor
+    // Breakeven — per-asset override
     if (config.engine.breakeven?.enabled && !pos.breakevenTriggered) {
-      const beDist = pos.atr * config.engine.breakeven.activationATR;
+      const beActivationATR = ro?.breakeven?.activationATR ?? config.engine.breakeven.activationATR;
+      const beDist = pos.atr * beActivationATR;
       const offset = pos.entryPrice * (config.engine.breakeven.offset || 0);
 
       if (side === 'long' && candle.high >= pos.entryPrice + beDist) {

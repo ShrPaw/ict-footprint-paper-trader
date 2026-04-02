@@ -92,9 +92,9 @@ export default class DaytradeMode {
     // 12. Rate limit (longer for 1H — fewer candles)
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
-    // 13. SL/TP — wider for daytrade (let trades develop)
+    // 13. SL/TP — per-asset overrides for SL multiplier
     const atr = this._currentATR(candles1h);
-    const slMult = (config.risk[regime]?.slMultiplier || 0.9) * profile.slTightness;
+    const slMult = (profile.riskOverrides?.slMultiplier ?? config.risk[regime]?.slMultiplier ?? 0.9) * profile.slTightness;
     const tpMult = config.risk[regime]?.tpMultiplier || 2.5;
 
     const sl = signal.action === 'buy'
@@ -124,6 +124,7 @@ export default class DaytradeMode {
       atr,
       isWeekend: false,
       assetProfile: profile.name,
+      profile,
       session: killzone.session,
     };
   }
