@@ -68,16 +68,17 @@ export default {
   volumeFilter: { enabled: true, lookback: 20, minMultiplier: 1.0 },
 
   // ── Risk per regime ──────────────────────────────────────────────
-  // Target: avg loss ≤ avg win → SL same size as TP distance
-  // Using symmetric R:R (1:2 or better) with tight stops
+  // Stop losses WIDENED for futures — 0.5x ATR was noise trap (7-14% WR).
+  // Trailing stops (100% WR) protect winners; wider SL lets trades breathe.
+  // Target: SL far enough to survive noise, trailing takes over at profit.
   risk: {
-    TRENDING_UP:   { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.5 },
-    TRENDING_DOWN: { riskPercent: 0.75, tpMultiplier: 2.5, slMultiplier: 0.5 },
-    TRENDING:      { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.5 },
-    RANGING:       { riskPercent: 0.5,  tpMultiplier: 1.5, slMultiplier: 0.45 },
-    VOL_EXPANSION: { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.55 },
-    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 1.5, slMultiplier: 0.4 },
-    ABSORPTION:    { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.5 },
+    TRENDING_UP:   { riskPercent: 0.5,  tpMultiplier: 2.5, slMultiplier: 1.0 },
+    TRENDING_DOWN: { riskPercent: 0.5,  tpMultiplier: 2.5, slMultiplier: 1.0 },
+    TRENDING:      { riskPercent: 0.5,  tpMultiplier: 2.5, slMultiplier: 1.0 },
+    RANGING:       { riskPercent: 0.4,  tpMultiplier: 1.5, slMultiplier: 0.8 },
+    VOL_EXPANSION: { riskPercent: 0.5,  tpMultiplier: 2.5, slMultiplier: 1.0 },
+    LOW_VOL:       { riskPercent: 0.25, tpMultiplier: 1.5, slMultiplier: 0.8 },
+    ABSORPTION:    { riskPercent: 0.5,  tpMultiplier: 2.0, slMultiplier: 0.9 },
   },
 
   // ── Strategy: confluence-based entries ────────────────────────────
@@ -88,7 +89,7 @@ export default {
     confluenceBonus: 0.15,
     requireConfluence: true,
     minSoloScore: 0.75,
-    signalCooldown: 2700000,  // 45 min
+    signalCooldown: 7200000,  // 2 hours — reduce overtrading on futures
     skipLowVol: true,
     skipRanging: true,
     strictTrendAlignment: true,
@@ -109,7 +110,7 @@ export default {
     startingBalance: 10000,
     makerFee: 0.0002,
     takerFee: 0.0005,
-    slippage: 0.0001,
+    slippage: 0.00005,
     maxOpenPositions: 4,    // one per asset in Big Four
     maxDailyLoss: 0.03,
     trailingStop: {
@@ -124,8 +125,8 @@ export default {
       tpMultiplier: 1.5,
     },
     breakeven: {
-      enabled: false,
-      activationATR: 1.15,
+      enabled: true,
+      activationATR: 1.0,
       offset: 0.0005,
     },
   },

@@ -578,13 +578,29 @@ class Backtester {
       }
     }
 
+    // Breakeven — move SL to entry after 1.0x ATR move in our favor
+    if (config.engine.breakeven?.enabled && !pos.breakevenTriggered) {
+      const beDist = pos.atr * config.engine.breakeven.activationATR;
+      const offset = pos.entryPrice * (config.engine.breakeven.offset || 0);
+
+      if (side === 'long' && candle.high >= pos.entryPrice + beDist) {
+        pos.stopLoss = pos.entryPrice + offset;
+        pos.breakevenTriggered = true;
+      } else if (side === 'short' && candle.low <= pos.entryPrice - beDist) {
+        pos.stopLoss = pos.entryPrice - offset;
+        pos.breakevenTriggered = true;
+      }
+    }
+
     // SL check
     if (side === 'long' && candle.low <= pos.stopLoss) {
-      this._closePosition(pos.stopLoss, timestamp, pos.trailingActive ? 'trailing_sl' : 'stop_loss');
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      this._closePosition(pos.stopLoss, timestamp, reason);
       return;
     }
     if (side === 'short' && candle.high >= pos.stopLoss) {
-      this._closePosition(pos.stopLoss, timestamp, pos.trailingActive ? 'trailing_sl' : 'stop_loss');
+      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
+      this._closePosition(pos.stopLoss, timestamp, reason);
       return;
     }
 
