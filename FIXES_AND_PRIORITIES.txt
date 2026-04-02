@@ -1,0 +1,197 @@
+═══════════════════════════════════════════════════════════════════
+  ICT FOOTPRINT PAPER TRADER — PRIORITIZED FIXES & IMPROVEMENTS
+  Generated: 2026-04-02 | Based on: code analysis + walk-forward results
+═══════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 P0 — CRITICAL (do before any live deployment)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. KILL XRP — IT'S CURVE-FITTED
+   Walk-forward proved it: only 33% of OOS windows profitable,
+   median PF 0.92, total OOS PnL -$709. The full-sample +$643
+   was in-sample luck.
+   
+   Action:
+   - Remove XRP from config.symbols (or comment it out)
+   - Remove XRP bot from ecosystem.config.cjs
+   - Remove XRP npm scripts from package.json
+   - Keep the code around in case future regime changes reactivate it
+
+2. BAKE-IN TIME EXIT REMOVAL (verify it's actually gone)
+   Session notes say time exits were removed, but BinanceEngine.js
+   (line ~160) STILL HAS time_exit logic:
+   
+   ```
+   if (elapsed > 4 * 60 * 60 * 1000) {
+     if (unrealized < 0 && Math.abs(unrealized) > pos.atr * 0.5) {
+       return await this.closePosition(symbol, currentPrice, 'time_exit');
+     }
+   }
+   ```
+   
+   This will bleed money on live Binance trades. 0% WR, -$16K.
+   PaperEngine.js and backtest.js have it removed — BinanceEngine needs the same fix.
+
+3. FIX BREAKEVEN DEAD CODE
+   Breakeven activates at 1.0x ATR, trailing activates at 0.9x ATR.
+   Trailing always fires first → breakeven never triggers in current config.
+   
+   Action: Move breakeven.activationATR from 1.0 to 0.6 in config.js.
+   This protects trades that move in your favor but stall before
+   trailing kicks in. Should convert ~20-30% of stop_loss exits
+   (4% WR, -$9.8K in OOS) into breakeven scratches.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 P1 — HIGH IMPACT (significant PnL improvement expected)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. FEE OPTIMIZATION — MAKER ORDERS
+   Current: $18,876 fees over 4 years ($393/mo).
+   Taker fee: 0.05% | Maker fee: 0.02%
+   
+   Action: In PaperEngine and BinanceEngine, switch from market
+   orders to limit orders at mid-price ± small offset (0.01%).
+   Model 70% fill rate for conservative estimate.
+   Expected: fees drop from $18.8K to ~$7.5K. Adds ~$11K to PnL.
+   
+   Implementation:
+   - Add fillProbability config (default 0.7)
+   - In PaperEngine._openPosition(), use makerFee when order fills
+   - In BinanceEngine, use createOrder('limit') instead of 'market'
+   - Track unfilled orders and cancel after timeout (e.g., 30s)
+
+5. SESSION HARD-GATING (replace soft weights)
+   Currently: session weights are multipliers (0.7-1.3) that boost
+   or reduce signal scores. This still allows bad-session trades
+   through if signal is strong enough.
+   
+   Action: Replace with hard gates per asset:
+   - ETH: Only NY (12-18 UTC) + overlap (12-15 UTC)
+   - SOL: All sessions (it works everywhere — confirmed in WFA)
+   - BTC: Only NY + overlap (session weights 1.2/1.3 are highest)
+   
+   Implementation:
+   - In assetProfiles.js, add `allowedSessions: ['ny', 'overlap']`
+   - In DaytradeMode._checkKillzone(), reject if session not in allowed list
+   - In backtest.js._buildContext(), same check
+
+6. CONSIDER DROPPING BTC FOR INITIAL LIVE
+   BTC walk-forward shows 100% OOS windows profitable (surprising),
+   BUT median PF is only 1.30 and avg WR 64.7%. Fees are highest
+   of all assets ($4,174 OOS fees vs $3,819 PnL). The edge exists
+   but is thin.
+   
+   Recommendation: Start live with ETH + SOL only (PF 1.46 + 1.45).
+   Add BTC after 1-2 months of live validation confirms the edge
+   survives real execution.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟢 P2 — MEDIUM IMPACT (quality of life + robustness)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. RUN OPTIMIZED WALK-FORWARD (regime blocking search)
+   Current WFA used fixed parameters. The --optimize mode tests
+   6 different regime blocking combos per window and picks the
+   best on training data. This could reveal better blocking rules.
+   
+   Action: `npm run walkforward:optimize` — run overnight, analyze
+   which blocking combos win most often per asset.
+
+8. STANDARDIZE CONFIDENCE CALIBRATION
+   ICTAnalyzer._detectOrderBlocks() uses `Math.min(move * 100, 1.0)`
+   for live mode confidence, but Precompute.js uses calibrated
+   `Math.min(0.5 + (move - 0.003) / 0.017 * 0.5, 1.0)`.
+   
+   These produce DIFFERENT confidence scales for live vs backtest.
+   Live OB signals will score differently than backtest OB signals.
+   
+   Action: Copy the calibrated confidence formula from Precompute.js
+   into ICTAnalyzer._detectOrderBlocks() and _detectLiquiditySweeps()
+   so live and backtest use identical scoring.
+
+9. ADD SLIPPAGE MODEL FOR VOLATILE REGIMES
+   Current slippage: flat 0.005% (5 bps). Reality: slippage spikes
+   during VOL_EXPANSION (when most trades happen).
+   
+   Action: Make slippage regime-dependent:
+   - RANGING: 0.003% (tight, liquid)
+   - VOL_EXPANSION: 0.015% (wide, fast moves)
+   - TRENDING: 0.008%
+   
+   This will make backtest more realistic and may reduce BTC's
+   edge further (already thin at 1.30 PF).
+
+10. ADD DAILY TRADE LIMIT
+    No cap on trades per day currently. During volatile days,
+    multiple signals can fire in quick succession (especially SOL).
+    
+    Action: Add maxDailyTrades: 2 per asset in config.js.
+    Prevents overtrading on wild days.
+
+11. FIX DASHBOARD PORT CONFLICT
+    Each bot reports to dashboard on port 3500, but if dashboard
+    isn't running, fetch() errors are silently swallowed. PM2 starts
+    dashboard + bots simultaneously — race condition possible.
+    
+    Action: Add retry logic or delay bot startup by 5s in ecosystem.config.cjs:
+    `node -e "setTimeout(() => require('./bots/eth/bot.js'), 5000)"`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 P3 — NICE TO HAVE (polish + monitoring)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+12. ADD PERFORMANCE ALERTING
+    No alerts for: consecutive losses, daily loss breach, 
+    balance dropping below threshold, bot going offline.
+    
+    Action: In BotRunner, add periodic health checks:
+    - Alert if 5 consecutive losses
+    - Alert if daily PnL < -2%
+    - Alert if no trades in 7 days (bot might be stuck)
+
+13. ADD EQUITY CURVE TO TELEGRAM
+    Daily summary is text-only. Add a simple equity sparkline
+    using the chart-image skill or a third-party chart API.
+
+14. METRICS EXPORT TO CSV (live trading)
+    Backtest exports trades/equity to CSV, but live bots don't.
+    
+    Action: In BotRunner, write trades to `data/live-trades-{coin}.csv`
+    on each close. Makes post-analysis easier.
+
+15. ADD CONFIG VALIDATION ON STARTUP
+    No validation that config values make sense. Typos in
+    assetProfiles.js could silently break things.
+    
+    Action: Add validate() method to config that checks:
+    - All symbols have profiles
+    - Risk multipliers are positive
+    - SL/TP multipliers are sane (>0, <10)
+    - Blocked regimes are valid regime names
+
+═══════════════════════════════════════════════════════════════════
+  SUMMARY — EXECUTION ORDER
+═══════════════════════════════════════════════════════════════════
+
+  Phase 1 (today):
+    1. Kill XRP
+    2. Fix BinanceEngine time_exit
+    3. Fix breakeven to 0.6 ATR
+    → Re-run backtests, verify improvement
+
+  Phase 2 (this week):
+    4. Maker order implementation
+    5. Session hard-gating
+    6. Decision: BTC in or out for live
+
+  Phase 3 (before live):
+    7. Optimized WFA
+    8. Confidence calibration fix
+    9. Regime-dependent slippage
+    10. Daily trade limit
+
+  Phase 4 (post-live):
+    11-15. Monitoring, alerts, polish
+
+═══════════════════════════════════════════════════════════════════
