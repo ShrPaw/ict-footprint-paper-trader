@@ -24,6 +24,8 @@ const ASSET_PROFILES = {
     trendTendency: 'strong',
     rangingTendency: 'moderate',
     sessionWeights: { asia: 0.7, london: 0.9, ny: 1.2, overlap: 1.3 },
+    // Hard gate: only trade during NY + overlap (institutional hours)
+    allowedSessions: ['ny', 'overlap'],
     psychologicalLevels: [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000],
     volumeProfile: 'institutional',
     orderFlowReliability: 'high',
@@ -151,6 +153,8 @@ const ASSET_PROFILES = {
     trendTendency: 'weak',
     rangingTendency: 'strong',
     sessionWeights: { asia: 1.0, london: 0.8, ny: 0.9, overlap: 1.0 },
+    // Hard gate: only trade during overlap + ny (highest liquidity for XRP futures)
+    allowedSessions: ['overlap', 'ny'],
     psychologicalLevels: [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0],
     volumeProfile: 'speculative',
     orderFlowReliability: 'low',

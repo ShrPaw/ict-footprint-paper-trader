@@ -112,6 +112,15 @@ export default {
     makerFee: 0.0002,
     takerFee: 0.0005,
     slippage: 0.00005,
+    // Regime-dependent slippage — VOL_EXP has wider spreads, RANGING is tight
+    slippageByRegime: {
+      RANGING: 0.00003,
+      VOL_EXPANSION: 0.00015,
+      TRENDING_UP: 0.00008,
+      TRENDING_DOWN: 0.00008,
+      LOW_VOL: 0.00003,
+      ABSORPTION: 0.00010,
+    },
     maxOpenPositions: 4,    // one per asset (ETH, SOL, BTC, XRP)
     maxDailyLoss: 0.03,
     maxDailyTrades: 2,      // per asset — prevent overtrading on wild days

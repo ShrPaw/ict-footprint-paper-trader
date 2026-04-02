@@ -33,6 +33,7 @@ class Backtester {
     this.maxDrawdownPercent = 0;
     this.position = null;
     this.dailyPnL = 0;
+    this.dailyTradeCount = 0;
     this.lastResetDay = null;
     this.stats = null;
 
@@ -150,10 +151,11 @@ class Backtester {
           const timestamp = candle15m.timestamp;
           const h1Idx = m15toH1[i]; // O(1) lookup
 
-          // Reset daily PnL
+          // Reset daily PnL and trade count
           const day = new Date(timestamp).toDateString();
           if (day !== this.lastResetDay) {
             this.dailyPnL = 0;
+            this.dailyTradeCount = 0;
             this.lastResetDay = day;
           }
 
@@ -225,11 +227,17 @@ class Backtester {
     const regimeData = regimes[h1Idx];
     if (!regimeData) return null;
 
+    const regime = regimeData.regime;
     const profile = getProfile(symbol);
 
     // Killzone check (lightweight — just hour math)
     const killzone = this._checkKillzone(timestamp);
     if (!killzone.allowed) return null;
+
+    // Session hard-gate — per-asset allowed sessions (if configured)
+    if (profile.allowedSessions && !profile.allowedSessions.includes(killzone.session)) {
+      return null;
+    }
 
     // Weekend filter
     const day = new Date(timestamp).getUTCDay();
@@ -468,10 +476,13 @@ class Backtester {
 
     if (margin + fee > this.balance) return;
     if (Math.abs(this.dailyPnL) / this.startingBalance >= config.engine.maxDailyLoss) return;
+    if (this.dailyTradeCount >= config.engine.maxDailyTrades) return;
 
-    const slippage = price * config.engine.slippage * (signal.action === 'buy' ? 1 : -1);
+    const entrySlippageRate = config.engine.slippageByRegime?.[signal.regime] ?? config.engine.slippage;
+    const slippage = price * entrySlippageRate * (signal.action === 'buy' ? 1 : -1);
     const fillPrice = price + slippage;
 
+    this.dailyTradeCount++;
     this.position = {
       symbol,
       side: signal.action === 'buy' ? 'long' : 'short',
@@ -529,7 +540,8 @@ class Backtester {
         const partialSize = pos.size * closePercent;
         const remainingSize = pos.size * (1 - closePercent);
         const tp1Price = side === 'long' ? pos.entryPrice + tp1Dist : pos.entryPrice - tp1Dist;
-        const slippage = tp1Price * config.engine.slippage * (side === 'long' ? -1 : 1);
+        const partialSlippageRate = config.engine.slippageByRegime?.[pos.regime] ?? config.engine.slippage;
+        const slippage = tp1Price * partialSlippageRate * (side === 'long' ? -1 : 1);
         const fillPrice = tp1Price + slippage;
         const fee = partialSize * fillPrice * config.engine.takerFee;
         const priceDiff = side === 'long' ? fillPrice - pos.entryPrice : pos.entryPrice - fillPrice;
@@ -624,7 +636,8 @@ class Backtester {
 
   _closePosition(price, timestamp, reason) {
     const pos = this.position;
-    const slippage = price * config.engine.slippage * (pos.side === 'long' ? -1 : 1);
+    const exitSlippageRate = config.engine.slippageByRegime?.[pos.regime] ?? config.engine.slippage;
+    const slippage = price * exitSlippageRate * (pos.side === 'long' ? -1 : 1);
     const fillPrice = price + slippage;
     const fee = pos.size * fillPrice * config.engine.takerFee;
     const priceDiff = pos.side === 'long' ? fillPrice - pos.entryPrice : pos.entryPrice - fillPrice;

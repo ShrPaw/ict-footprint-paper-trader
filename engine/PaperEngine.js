@@ -25,8 +25,12 @@ export default class PaperEngine {
     if (this.positions.has(symbol)) {
       return { ok: false, reason: 'already_in_position' };
     }
+    if (this.dailyTradeCount >= config.engine.maxDailyTrades) {
+      return { ok: false, reason: 'daily_trade_limit' };
+    }
 
-    const slippage = price * config.engine.slippage * (side === 'long' ? 1 : -1);
+    const slippageRate = config.engine.slippageByRegime?.[regime] ?? config.engine.slippage;
+    const slippage = price * slippageRate * (side === 'long' ? 1 : -1);
     const fillPrice = price + slippage;
     const fee = size * fillPrice * config.engine.takerFee;
     const margin = (size * fillPrice) / 10;
@@ -63,6 +67,7 @@ export default class PaperEngine {
 
     this.positions.set(symbol, position);
     this.balance -= fee;
+    this.dailyTradeCount++;
 
     return { ok: true, position };
   }
@@ -71,7 +76,8 @@ export default class PaperEngine {
     const pos = this.positions.get(symbol);
     if (!pos) return { ok: false, reason: 'no_position' };
 
-    const slippage = price * config.engine.slippage * (pos.side === 'long' ? -1 : 1);
+    const closeSlippageRate = config.engine.slippageByRegime?.[pos.regime] ?? config.engine.slippage;
+    const slippage = price * closeSlippageRate * (pos.side === 'long' ? -1 : 1);
     const fillPrice = price + slippage;
     const fee = pos.size * fillPrice * config.engine.takerFee;
 
@@ -138,7 +144,8 @@ export default class PaperEngine {
         const tp1Price = pos.side === 'long' ? pos.entryPrice + tp1Dist : pos.entryPrice - tp1Dist;
 
         // Close partial position
-        const slippage = tp1Price * config.engine.slippage * (pos.side === 'long' ? -1 : 1);
+        const partialSlippageRate = config.engine.slippageByRegime?.[pos.regime] ?? config.engine.slippage;
+        const slippage = tp1Price * partialSlippageRate * (pos.side === 'long' ? -1 : 1);
         const fillPrice = tp1Price + slippage;
         const fee = partialSize * fillPrice * config.engine.takerFee;
 

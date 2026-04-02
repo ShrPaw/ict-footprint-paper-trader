@@ -30,6 +30,11 @@ export default class DaytradeMode {
     const killzone = this._checkKillzone(lastCandle.timestamp);
     if (!killzone.allowed) return null;
 
+    // 2b. Session hard-gate — per-asset allowed sessions (if configured)
+    if (profile.allowedSessions && !profile.allowedSessions.includes(killzone.session)) {
+      return null;
+    }
+
     // 3. Regime detection on 1H
     const regimeResult = this.regime.detect(symbol, candles1h);
     const regime = regimeResult.regime;
