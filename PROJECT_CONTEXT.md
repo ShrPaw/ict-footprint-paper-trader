@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-03 04:47 GMT+8
-**Session:** #10 (2026-04-03)
-**Version:** 4.0.0 (Scoring fix + per-asset risk fix + XRP killed + wider stops)
+**Last updated:** 2026-04-03 07:15 GMT+8
+**Session:** #11 (2026-04-03)
+**Version:** 4.1.0 (OrderFlowEngine + ClusterAnalyzer + trailing-only exits)
 
 ---
 
@@ -60,30 +60,33 @@ See `OPTIMIZATION_REPORT.md` for full analysis and next steps.
 bots/
   BotRunner.js            — Paper bot runner (Hyperliquid data + PaperEngine)
   LiveBotRunner.js        — Live bot runner (Hyperliquid testnet)
-  BinanceLiveBotRunner.js — Live bot runner (Binance futures testnet) ← NEW
+  BinanceLiveBotRunner.js — Live bot runner (Binance futures testnet)
   eth/sol/btc/xrp/bot.js  — Paper bot entry points
   live/eth/sol/btc/xrp.js — Hyperliquid live entry points
-  live/binance/eth/sol/btc/xrp.js — Binance live entry points ← NEW
+  live/binance/eth/sol/btc/xrp.js — Binance live entry points
 strategies/
-  DaytradeMode.js         — THE strategy: 1H ICT + footprint confluence
+  DaytradeMode.js         — THE strategy: 1H ICT + footprint + OrderFlowEngine confluence
   ModeRouter.js           — Routes weekday→Daytrade, weekend→Weekend
   WeekendMode.js          — Footprint only (disabled for most assets)
 engine/
-  PaperEngine.js          — Simulated orders, PnL, trailing stops
+  PaperEngine.js          — Simulated orders, PnL, trailing stops (emergency-only SL)
   HyperliquidEngine.js    — Hyperliquid testnet execution
-  BinanceEngine.js        — Binance futures testnet execution ← NEW
-  backtest.js             — Walk-forward backtester (UPGRADED)
+  BinanceEngine.js        — Binance futures testnet execution
+  backtest.js             — Walk-forward backtester (dual-pipeline: ICT + OrderFlowEngine)
+  OrderFlowEngine.js      — NEW: 6-step institutional decision pipeline
+  Precompute.js           — O(n) indicator precomputation
   main.js                 — Legacy multi-asset trader (unused)
 analysis/
   RegimeDetector.js       — Market regime classification
   ICTAnalyzer.js          — Order Blocks, FVG, OTE, Liquidity Sweeps, BOS
   RealFootprintAnalyzer.js — Order flow delta, absorption, POC
+  ClusterAnalyzer.js      — NEW: 4 cluster type classification (Absorption/Continuation/Exhaustion/Trapped)
 config/
-  assetProfiles.js        — Per-asset intelligence + regime blocking
-  config.js               — Global config
+  assetProfiles.js        — Per-asset intelligence + regime blocking (thresholds raised)
+  config.js               — Global config (breakeven killed, OF engine config added)
 data/
   HyperliquidFeed.js      — Hyperliquid data (trade-level footprint)
-  BinanceFeed.js          — Binance futures data (OHLCV via ccxt) ← NEW
+  BinanceFeed.js          — Binance futures data (OHLCV via ccxt)
   TradingViewWebhook.js   — TradingView alert webhooks
 alerts/
   TelegramAlerter.js      — Telegram notifications
@@ -132,27 +135,31 @@ npm run dashboard   # port 3500
 
 | Parameter | ETH | SOL | BTC | XRP |
 |-----------|-----|-----|-----|-----|
-| slMultiplier | 1.5x | 1.0x | 1.5x | 1.3x |
+| slMultiplier | 2.0x | 1.0x | 2.0x | 1.3x |
 | trailActivation | 1.2 ATR | 0.9 ATR | 1.2 ATR | 1.0 ATR |
 | trailDistance | 0.7 ATR | 0.5 ATR | 0.7 ATR | 0.5 ATR |
-| breakevenActivation | 0.8 ATR | 0.6 ATR | 0.8 ATR | 0.7 ATR |
+| breakevenActivation | KILLED | KILLED | KILLED | KILLED |
 | riskMultiplier | 0.9x | 0.8x | 1.0x | 0.5x |
-| minConfluenceScore | 0.65 | 0.58 | 0.62 | 0.82 |
-| minSoloScore | 0.78 | 0.72 | 0.78 | 0.90 |
+| minConfluenceScore | 0.80 | 0.75 | 0.78 | 0.82 |
+| minSoloScore | 0.90 | 0.85 | 0.88 | 0.90 |
 | signalCooldown | 2h | 2h | 2h | 4h |
 | ictWeight / fpWeight | 0.35/0.65 | 0.25/0.75 | 0.4/0.6 | 0.3/0.7 |
+| emergencySL | 8 ATR | 8 ATR | 8 ATR | 8 ATR |
 
 ## Key Design Decisions
 
 1. **Per-asset regime blocking** — the real edge
 2. **ICT on 1H only** — 15m FVG had 24% WR
 3. **TRENDING_DOWN blocked globally** — 41% WR
-4. **Tight stops (0.5x ATR)** — brought avg loss closer to avg win
+4. **No regular stop loss** — 0% WR in all backtests, replaced with 8 ATR emergency circuit breaker
 5. **No weekends** — overtrading, no edge (for daytrade mode)
-6. **Smart time_exit** — only exits if loss > 0.5x ATR after 4h
+6. **Breakeven killed** — 0% WR, scratching recoverable trades
 7. **Independent bots** — no shared state between assets
 8. **Trailing stops** — 100% WR across all assets when activated
 9. **Partial TP** — 50% closed at 1.5x ATR, rest trails
+10. **6-Step OrderFlowEngine** — institutional decision pipeline (Context→Intent→Event→Cluster→Validation→Execution)
+11. **4 Cluster Types** — Absorption, Continuation, Exhaustion, Trapped Traders
+12. **Much higher signal thresholds** — 0.75-0.90 range (was 0.58-0.78)
 
 ## Backtest Upgrades (Session #3)
 

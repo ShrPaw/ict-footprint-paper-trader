@@ -136,10 +136,22 @@ export default {
       tpMultiplier: 1.5,
     },
     breakeven: {
-      enabled: true,
-      activationATR: 0.6,   // protect trades that stall before trailing kicks in (was 1.0 — dead code, trailing at 0.9 fires first)
+      enabled: false,           // KILLED: 0% WR, -$803 in backtest — scratches recoverable trades
+      activationATR: 1.5,      // if re-enabled, raise above trailing activation (0.9-1.2)
       offset: 0.0005,
     },
+  },
+
+  // ── Order Flow Engine (institutional-grade pipeline) ───────────
+  orderFlow: {
+    enabled: true,
+    // Minimum edge score to accept a signal (0-1 scale)
+    minEdgeScore: 0.55,
+    // Cluster types that require key level context
+    requireKeyLevel: ['ABSORPTION', 'TRAPPED_TRADERS'],
+    // False signal filters
+    minClusterConfidence: 0.5,
+    minEventConfidence: 0.6,
   },
 
   // Data

@@ -2,15 +2,20 @@
 // ICT on 1H where price action is cleaner.
 // Wider stops, higher R:R, trend-following only.
 // Active: Monday–Friday, key trading sessions
+//
+// v4.0: Integrated institutional OrderFlowEngine (6-step pipeline)
+// Adds: Context → Intent → Event → Cluster → Edge Validation → Execution
 
 import config from '../config.js';
 import { getProfile } from '../config/assetProfiles.js';
+import OrderFlowEngine from '../engine/OrderFlowEngine.js';
 
 export default class DaytradeMode {
   constructor(regimeDetector, ictAnalyzer, footprintAnalyzer) {
     this.regime = regimeDetector;
     this.ict = ictAnalyzer;
     this.footprint = footprintAnalyzer;
+    this.orderFlow = new OrderFlowEngine();
     this.lastSignalTime = {};
     this._atrCache = {};
     this._emaCache = {};
@@ -45,13 +50,10 @@ export default class DaytradeMode {
     if (regime === 'TRENDING_DOWN') return null;
     // Per-asset regime blocks (e.g., SOL VOL_EXPANSION: 51% WR, -$66 noise)
     if (profile.blockedRegimes?.includes(regime)) return null;
-    // TRENDING_UP: re-enable — was profitable for ETH (+$475) in Jan-May 2025
-    // if (regime === 'TRENDING_UP') return null;
 
     const price = candles1h[candles1h.length - 1].close;
 
     // 5. EMA alignment — require price above/below EMA21 (not full 9>21>50 stack)
-    // Relaxed from strict stack to just EMA21 directional filter
     const ema21 = this._cachedEMA(candles1h, 21);
     const ema50 = this._cachedEMA(candles1h, 50);
 
@@ -67,45 +69,81 @@ export default class DaytradeMode {
     const fpCandles = candles15m || candles1h;
     const footprintResult = this.footprint.analyze(symbol, fpCandles, realFootprint);
 
-    // 8. Score with asset-specific weights
-    const signal = this._scoreSignal(
+    // 8. Run OrderFlowEngine pipeline (6-step institutional analysis)
+    let ofSignal = null;
+    if (config.orderFlow?.enabled) {
+      const indicators1h = {
+        ema9: this._cachedEMA(candles1h, 9),
+        ema21, ema50,
+        atr: this._currentATR(candles1h),
+      };
+
+      const ofCtx = {
+        candles1h,
+        candles15m: fpCandles,
+        index15m: fpCandles.length - 1,
+        index1h: candles1h.length - 1,
+        indicators1h,
+        profile,
+        regime,
+        // ICT signals for key level detection
+        ictSignals: ictResult.signals,
+        oteSignals: ictResult.signals?.filter(s => s.type === 'OTE'),
+        sweepSignals: ictResult.signals?.filter(s => s.type === 'LIQUIDITY_SWEEP'),
+      };
+
+      const ofResult = this.orderFlow.evaluate(ofCtx);
+      if (ofResult.signal) {
+        ofSignal = {
+          ...ofResult.signal,
+          source: 'order_flow',
+          combinedScore: ofResult.signal.confidence,
+        };
+      }
+    }
+
+    // 9. Score with asset-specific weights (ICT + Footprint confluence)
+    const legacySignal = this._scoreSignal(
       regime, ictResult, footprintResult, regimeResult,
       profile, bullish, killzone
     );
+
+    // 10. Pick the best signal: prefer OrderFlowEngine if both present
+    // (OF pipeline is stricter — if it passes, it's higher quality)
+    let signal = null;
+    if (ofSignal && legacySignal) {
+      // Both passed — take the higher scored one
+      signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
+    } else if (ofSignal) {
+      signal = ofSignal;
+    } else if (legacySignal) {
+      signal = legacySignal;
+    }
+
     if (!signal) return null;
 
-    // 9. Direction filter
+    // 11. Direction filter
     if (signal.action === 'buy' && !bullish) return null;
     if (signal.action === 'sell' && !bearish) return null;
 
-    // 10. Strict trend alignment in TRENDING regimes
+    // 12. Strict trend alignment in TRENDING regimes
     if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
-    if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
-    // TRENDING_UP is allowed per asset (e.g., ETH). Global block removed —
-    // each asset's blockedRegimes controls this.
 
-    // 11. Entry confirmation — DISABLED for 1H (pin bars/engulfing too rare on hourly)
-    // ICT zones on 1H are already high-quality; candle patterns add noise not signal
-    // if (config.strategy.entryConfirmation.enabled) {
-    //   const confirmed = this._checkEntryConfirmation(candles1h, signal);
-    //   if (!confirmed) return null;
-    // }
-
-    // 12. Rate limit (longer for 1H — fewer candles)
+    // 13. Rate limit (longer for 1H — fewer candles)
     if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
 
-    // 13. SL/TP — per-asset overrides for SL multiplier
-    const atr = this._currentATR(candles1h);
+    // 14. SL/TP — per-asset overrides for SL multiplier
+    const atr = signal.atr || this._currentATR(candles1h);
     const slMult = (profile.riskOverrides?.slMultiplier ?? config.risk[regime]?.slMultiplier ?? 0.9) * profile.slTightness;
     const tpMult = config.risk[regime]?.tpMultiplier || 2.5;
 
-    const sl = signal.action === 'buy'
+    const sl = signal.stopLoss || (signal.action === 'buy'
       ? price - atr * slMult
-      : price + atr * slMult;
+      : price + atr * slMult);
 
-    const tp = signal.action === 'buy'
+    const tp = signal.takeProfit || (signal.action === 'buy'
       ? price + atr * tpMult
-      : price - atr * tpMult;
+      : price - atr * tpMult);
 
     const riskPercent = (config.risk[regime]?.riskPercent || 0.75) * profile.riskMultiplier;
     const riskAmount = config.engine.startingBalance * (riskPercent / 100);

@@ -41,8 +41,8 @@ const ASSET_PROFILES = {
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
       ictWeight: 0.4, footprintWeight: 0.6,
-      minConfluenceScore: 0.62,
-      minSoloScore: 0.78,
+      minConfluenceScore: 0.78,  // RAISED: was 0.62 — only strongest signals
+      minSoloScore: 0.88,        // RAISED: was 0.78 — sniper mode
       signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.15, riskMultiplier: 0.4 },
@@ -82,8 +82,8 @@ const ASSET_PROFILES = {
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
       ictWeight: 0.35, footprintWeight: 0.65,
-      minConfluenceScore: 0.65,
-      minSoloScore: 0.78,
+      minConfluenceScore: 0.80,  // RAISED: was 0.65 — institutional-grade quality
+      minSoloScore: 0.90,        // RAISED: was 0.78 — only the absolute best
       signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.12, riskMultiplier: 0.5 },
@@ -123,8 +123,8 @@ const ASSET_PROFILES = {
     daytrade: {
       adxThreshold: 22, emaAlignment: true,
       ictWeight: 0.25, footprintWeight: 0.75,
-      minConfluenceScore: 0.58,
-      minSoloScore: 0.72,
+      minConfluenceScore: 0.75,  // RAISED: was 0.58 — much higher bar
+      minSoloScore: 0.85,        // RAISED: was 0.72 — sniper quality
       signalCooldown: 7200000,
     },
     weekend: { enabled: false, confluenceBoost: 0.18, riskMultiplier: 0.35 },

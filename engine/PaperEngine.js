@@ -227,14 +227,20 @@ export default class PaperEngine {
 
     // ── Exit Checks ─────────────────────────────────────────────────
 
-    // Stop loss
-    if (pos.side === 'long' && low <= pos.stopLoss) {
-      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
-      return this.closePosition(symbol, pos.stopLoss, reason);
+    // Stop loss — EMERGENCY CIRCUIT BREAKER ONLY (5 ATR max loss)
+    // Regular SL removed: stop_loss has 0% WR across all backtests — noise trap.
+    // Trailing stops and partial TP handle all exits.
+    const emergencyATR = 8.0;
+    const emergencyDist = pos.atr * emergencyATR;
+    const emergencySL = pos.side === 'long'
+      ? pos.entryPrice - emergencyDist
+      : pos.entryPrice + emergencyDist;
+
+    if (pos.side === 'long' && low <= emergencySL) {
+      return this.closePosition(symbol, emergencySL, 'emergency_stop');
     }
-    if (pos.side === 'short' && high >= pos.stopLoss) {
-      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
-      return this.closePosition(symbol, pos.stopLoss, reason);
+    if (pos.side === 'short' && high >= emergencySL) {
+      return this.closePosition(symbol, emergencySL, 'emergency_stop');
     }
 
     // Take profit

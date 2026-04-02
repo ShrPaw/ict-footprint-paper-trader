@@ -21,6 +21,7 @@ import {
   extractRegimes, extractFVGs, extractOrderBlocks,
   extractLiquiditySweeps, extractOTEs,
 } from './Precompute.js';
+import OrderFlowEngine from './OrderFlowEngine.js';
 
 class Backtester {
   constructor(options = {}) {
@@ -52,6 +53,9 @@ class Backtester {
 
     // Signal cooldown (per-symbol)
     this.lastSignalTime = {};
+
+    // Institutional OrderFlowEngine (6-step pipeline)
+    this.orderFlowEngine = new OrderFlowEngine();
   }
 
   async run() {
@@ -104,6 +108,9 @@ class Backtester {
         };
 
         console.log(`  📐 Indicators: ${((Date.now() - t1) / 1000).toFixed(1)}s`);
+
+        // Set precomputed delta on OrderFlowEngine for cluster analysis
+        this.orderFlowEngine.setPrecomputed(indicators15m.delta.delta, indicators15m.delta.deltaPercent);
 
         // ═══════════════════════════════════════════════════════════
         // PHASE 3: FEATURE EXTRACTION — Precompute domain logic
@@ -170,7 +177,51 @@ class Backtester {
               regimes, fvgSignals, obSignals, sweepSignals, oteSignals, symbol, timestamp);
 
             if (context) {
-              const signal = this._evaluateSignal(context);
+              // Legacy ICT + Footprint signal
+              const legacySignal = this._evaluateSignal(context);
+
+              // OrderFlowEngine signal (6-step institutional pipeline)
+              let ofSignal = null;
+              if (config.orderFlow?.enabled !== false) {
+                const ofCtx = {
+                  candles1h, candles15m,
+                  index15m: i, index1h: h1Idx,
+                  indicators1h: {
+                    ema9: indicators1h.ema9[h1Idx],
+                    ema21: context.ema21,
+                    ema50: context.ema50,
+                    atr: context.atr,
+                  },
+                  profile: context.profile,
+                  regime: context.regime,
+                  ictSignals: [
+                    ...(context.fvgSignals || []),
+                    ...(context.obSignals || []),
+                    ...(context.sweepSignals || []),
+                    ...(context.oteSignals || []),
+                  ].filter(s => s.type !== 'FVG'), // FVG killed
+                  oteSignals: context.oteSignals,
+                  sweepSignals: context.sweepSignals,
+                };
+
+                const ofResult = this.orderFlowEngine.evaluate(ofCtx);
+                if (ofResult.signal) {
+                  ofSignal = {
+                    ...ofResult.signal,
+                    source: 'order_flow',
+                    combinedScore: ofResult.signal.confidence,
+                  };
+                }
+              }
+
+              // Pick best: prefer OrderFlowEngine if both present
+              let signal = null;
+              if (ofSignal && legacySignal) {
+                signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
+              } else {
+                signal = ofSignal || legacySignal;
+              }
+
               if (signal) {
                 this._openPosition(symbol, signal, candle15m.close, timestamp);
                 signalCount++;
@@ -287,6 +338,8 @@ class Backtester {
       obSignals: obSignals[h1Idx],
       sweepSignals: sweepSignals[h1Idx],
       oteSignals: oteSignals[h1Idx],
+      // For OrderFlowEngine — pass candle arrays + indices
+      candles1h, candles15m, indicators1h,
     };
   }
 
@@ -489,7 +542,7 @@ class Backtester {
     const slDistance = Math.abs(price - signal.stopLoss);
     if (slDistance === 0) return;
 
-    const riskPercent = riskParams.riskPercent;
+    const riskPercent = riskParams.riskPercent * (signal.profile?.riskMultiplier ?? 1.0);
     const riskAmount = this.balance * (riskPercent / 100);
     const size = riskAmount / slDistance;
     const fee = size * price * config.engine.takerFee;
@@ -630,15 +683,22 @@ class Backtester {
       }
     }
 
-    // SL check
-    if (side === 'long' && candle.low <= pos.stopLoss) {
-      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
-      this._closePosition(pos.stopLoss, timestamp, reason);
+    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (8 ATR max loss)
+    // Regular SL removed: stop_loss has 0% WR — pure noise trap.
+    // Trailing stops and partial TP handle all exits.
+    // This only fires on catastrophic moves against the position.
+    const emergencyATR = 8.0;
+    const emergencyDist = pos.atr * emergencyATR;
+    const emergencySL = side === 'long'
+      ? pos.entryPrice - emergencyDist
+      : pos.entryPrice + emergencyDist;
+
+    if (side === 'long' && candle.low <= emergencySL) {
+      this._closePosition(emergencySL, timestamp, 'emergency_stop');
       return;
     }
-    if (side === 'short' && candle.high >= pos.stopLoss) {
-      const reason = pos.trailingActive ? 'trailing_sl' : pos.breakevenTriggered ? 'breakeven_sl' : 'stop_loss';
-      this._closePosition(pos.stopLoss, timestamp, reason);
+    if (side === 'short' && candle.high >= emergencySL) {
+      this._closePosition(emergencySL, timestamp, 'emergency_stop');
       return;
     }
 
