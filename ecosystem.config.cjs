@@ -20,10 +20,6 @@ module.exports = {
       script: 'bots/btc/bot.js',
       node_args: '--env-file=.env',
     },
-    {
-      name: 'xrp-bot',
-      script: 'bots/xrp/bot.js',
-      node_args: '--env-file=.env',
-    },
+    // XRP REMOVED — curve-fitted (33% OOS, PF 0.92). Code kept for future retest.
   ],
 };

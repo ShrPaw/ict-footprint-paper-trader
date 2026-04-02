@@ -279,6 +279,9 @@ class Backtester {
       volumeRatio: indicators1h.volumeMetrics.volumeRatio[h1Idx],
       delta: indicators15m.delta.delta[m15Idx],
       deltaPercent: indicators15m.delta.deltaPercent[m15Idx],
+      // Array refs for divergence detection (zero-cost — just pointers)
+      _allDeltas: indicators15m.delta.delta,
+      _allPrices: candles15m,
       // Features (precomputed signal arrays, O(1) access)
       fvgSignals: fvgSignals[h1Idx],
       obSignals: obSignals[h1Idx],
@@ -415,37 +418,51 @@ class Backtester {
   }
 
   /**
-   * Delta divergence check — lightweight, uses precomputed delta array.
-   * Divergence is computed from last ~10 15m candles.
+   * Delta divergence check — uses precomputed delta history.
+   * Matches RealFootprintAnalyzer._detectDeltaDivergence() logic:
+   * compares 10-candle price trend vs 10-candle delta trend.
    */
   _checkDeltaDivergence(ctx) {
-    // We need last ~10 delta values. In precomputed mode, we only have current index.
-    // Use a simple heuristic: compare current delta to its sign.
-    // If price is bullish but delta is negative (or vice versa), it's a divergence.
-    const priceRising = ctx.bullish; // rough proxy
-    const deltaNegative = ctx.delta < 0;
+    const signals = [];
+    const lookback = 10;
 
-    if (priceRising && deltaNegative) {
+    // Get delta history from precomputed arrays
+    const deltaHistory = [];
+    const priceHistory = [];
+    for (let j = Math.max(0, ctx.m15Idx - lookback + 1); j <= ctx.m15Idx; j++) {
+      deltaHistory.push(ctx._allDeltas?.[j] ?? 0);
+      priceHistory.push(ctx._allPrices?.[j]?.close ?? ctx.price);
+    }
+
+    if (deltaHistory.length < 5) return null;
+
+    const priceRising = priceHistory[priceHistory.length - 1] > priceHistory[0];
+    const deltaRising = deltaHistory[deltaHistory.length - 1] > deltaHistory[0];
+
+    // Divergence: price and delta moving in opposite directions
+    if (priceRising && !deltaRising) {
+      const strength = this._divergenceStrength(deltaHistory);
       return {
         type: 'DELTA_DIVERGENCE',
         direction: 'bearish',
         action: 'sell',
-        confidence: 0.55,
+        confidence: Math.min(0.5 + strength * 0.3, 0.9),
         reason: 'Bearish delta divergence — price rising but buying pressure fading',
       };
     }
-    if (!priceRising && !deltaNegative && ctx.bearish) {
+
+    if (!priceRising && deltaRising && ctx.bearish) {
+      const strength = this._divergenceStrength(deltaHistory);
       return {
         type: 'DELTA_DIVERGENCE',
         direction: 'bullish',
         action: 'buy',
-        confidence: 0.55,
+        confidence: Math.min(0.5 + strength * 0.3, 0.9),
         reason: 'Bullish delta divergence — price falling but buying pressure building',
       };
     }
 
-    // Stacked imbalance: check if delta is extremely one-sided for last few candles
-    // We only have current delta, so use a simple threshold
+    // Stacked imbalance: extreme delta for current candle
     if (Math.abs(ctx.deltaPercent) > 60) {
       return {
         type: 'STACKED_IMBALANCE',
@@ -457,6 +474,14 @@ class Backtester {
     }
 
     return null;
+  }
+
+  _divergenceStrength(deltas) {
+    const max = Math.max(...deltas.map(Math.abs));
+    if (max === 0) return 0;
+    const last = Math.abs(deltas[deltas.length - 1]);
+    const avg = deltas.reduce((a, b) => a + Math.abs(b), 0) / deltas.length;
+    return Math.min(last / avg, 2.0);
   }
 
   // ═══════════════════════════════════════════════════════════════

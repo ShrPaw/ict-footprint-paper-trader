@@ -28,12 +28,28 @@ npm install -g pm2
 echo ""
 echo "📥 Cloning repo..."
 cd /opt
+
+# Support private repo: check for GITHUB_TOKEN env var
+if [ -n "$GITHUB_TOKEN" ]; then
+  REPO_URL="https://${GITHUB_TOKEN}@github.com/ShrPaw/ict-footprint-paper-trader.git"
+  echo "   (using GITHUB_TOKEN for private repo)"
+else
+  REPO_URL="https://github.com/ShrPaw/ict-footprint-paper-trader.git"
+  echo "   (no GITHUB_TOKEN set — will fail if repo is private)"
+  echo "   Set GITHUB_TOKEN before running: export GITHUB_TOKEN=ghp_xxx"
+fi
+
 if [ -d "ict-footprint-paper-trader" ]; then
   cd ict-footprint-paper-trader
   git pull
 else
-  git clone https://github.com/ShrPaw/ict-footprint-paper-trader.git
+  git clone "$REPO_URL"
   cd ict-footprint-paper-trader
+fi
+
+# Clean token from git remote URL (security)
+if [ -n "$GITHUB_TOKEN" ]; then
+  git remote set-url origin https://github.com/ShrPaw/ict-footprint-paper-trader.git
 fi
 
 # 4. Install dependencies

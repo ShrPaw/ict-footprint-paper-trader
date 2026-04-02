@@ -5,7 +5,7 @@ export default {
   // ETH: PF 1.52, +$684. Works in RANGING + VOL_EXPANSION.
   // SOL: PF 1.72, +$1,426. Works in RANGING, breakeven in VOL_EXPANSION.
   // All 4 assets — each with per-asset regime blocking and individual profiles
-  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT', 'BTC/USDT:USDT', 'XRP/USDT:USDT'],
+  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT', 'BTC/USDT:USDT'],
 
   // Multi-timeframe: 1H for daytrade, 15m for scalping, 5m for weekend
   timeframes: {
