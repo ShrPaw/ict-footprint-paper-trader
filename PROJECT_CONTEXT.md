@@ -119,14 +119,28 @@ npm run live:eth / live:sol / live:btc / live:xrp / live:all
 npm run dashboard   # port 3500
 ```
 
-## Per-Asset Regime Blocking (THE EDGE)
+## Per-Asset Regime Blocking (THE EDGE — Individual Per Asset)
 
-| Asset | Allowed Regimes | Blocked Regimes |
-|-------|----------------|-----------------|
-| ETH | RANGING, VOL_EXP, TRENDING_UP | TRENDING_DOWN, LOW_VOL |
-| SOL | RANGING, VOL_EXP | TRENDING_DOWN, LOW_VOL |
-| BTC | VOL_EXP only | RANGING, TRENDING_DOWN, LOW_VOL |
-| XRP | VOL_EXP only | RANGING, TRENDING_DOWN, LOW_VOL |
+| Asset | Allowed Regimes | Blocked Regimes | Personality |
+|-------|----------------|-----------------|-------------|
+| ETH | VOL_EXP, TRENDING_UP | RANGING, TRENDING_DOWN, LOW_VOL | 🐋 Institutional workhorse — wide stops, let trailing win |
+| SOL | RANGING, VOL_EXP | TRENDING_DOWN, LOW_VOL | 🚀 Volatile rocket — tight risk, ride momentum |
+| BTC | VOL_EXP only | RANGING, TRENDING_DOWN, LOW_VOL | 🐢 Slow giant — widest stops, fewest trades |
+| XRP | VOL_EXP only | RANGING, TRENDING_DOWN, LOW_VOL | 🎯 Sniper — hyper-selective, half position size |
+
+## Per-Asset Risk Profiles (Completely Individual)
+
+| Parameter | ETH | SOL | BTC | XRP |
+|-----------|-----|-----|-----|-----|
+| slMultiplier | 1.5x | 1.0x | 1.5x | 1.3x |
+| trailActivation | 1.2 ATR | 0.9 ATR | 1.2 ATR | 1.0 ATR |
+| trailDistance | 0.7 ATR | 0.5 ATR | 0.7 ATR | 0.5 ATR |
+| breakevenActivation | 0.8 ATR | 0.6 ATR | 0.8 ATR | 0.7 ATR |
+| riskMultiplier | 0.9x | 0.8x | 1.0x | 0.5x |
+| minConfluenceScore | 0.65 | 0.58 | 0.62 | 0.82 |
+| minSoloScore | 0.78 | 0.72 | 0.78 | 0.90 |
+| signalCooldown | 2h | 2h | 2h | 4h |
+| ictWeight / fpWeight | 0.35/0.65 | 0.25/0.75 | 0.4/0.6 | 0.3/0.7 |
 
 ## Key Design Decisions
 

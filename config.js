@@ -4,8 +4,8 @@ export default {
   // XRP: PF 2.27, +$1,242. Only works in VOL_EXPANSION, blocked in RANGING (-$282).
   // ETH: PF 1.52, +$684. Works in RANGING + VOL_EXPANSION.
   // SOL: PF 1.72, +$1,426. Works in RANGING, breakeven in VOL_EXPANSION.
-  // XRP REMOVED — walk-forward proved curve-fitted: 33% OOS profitable, PF 0.92, -$709 OOS PnL
-  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT', 'BTC/USDT:USDT'],
+  // All 4 assets — each with per-asset regime blocking and individual profiles
+  symbols: ['ETH/USDT:USDT', 'SOL/USDT:USDT', 'BTC/USDT:USDT', 'XRP/USDT:USDT'],
 
   // Multi-timeframe: 1H for daytrade, 15m for scalping, 5m for weekend
   timeframes: {
@@ -112,7 +112,7 @@ export default {
     makerFee: 0.0002,
     takerFee: 0.0005,
     slippage: 0.00005,
-    maxOpenPositions: 4,    // one per asset in Big Three
+    maxOpenPositions: 4,    // one per asset (ETH, SOL, BTC, XRP)
     maxDailyLoss: 0.03,
     maxDailyTrades: 2,      // per asset — prevent overtrading on wild days
     trailingStop: {

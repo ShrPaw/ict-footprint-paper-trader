@@ -76,11 +76,8 @@ export default class DaytradeMode {
     // 10. Strict trend alignment in TRENDING regimes
     if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
     if (regime === 'TRENDING_DOWN' && signal.action === 'buy') return null;
-
-    // 10b. TRENDING_UP longs are consistently the worst (-$667 in testing)
-    // The regime detector picks up late-stage uptrends where buying is too late
-    // Only allow TRENDING_DOWN and non-trending regimes for now
-    if (regime === 'TRENDING_UP') return null;
+    // TRENDING_UP is allowed per asset (e.g., ETH). Global block removed —
+    // each asset's blockedRegimes controls this.
 
     // 11. Entry confirmation — DISABLED for 1H (pin bars/engulfing too rare on hourly)
     // ICT zones on 1H are already high-quality; candle patterns add noise not signal

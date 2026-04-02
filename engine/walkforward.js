@@ -168,7 +168,6 @@ class WindowBacktester {
     const regime = regimeData.regime;
     if (regime === 'LOW_VOL') return null;
     if (regime === 'TRENDING_DOWN') return null;
-    if (regime === 'TRENDING_UP') return null;
     if (this.blockedRegimes.includes(regime)) return null;
 
     const price = candles1h[h1Idx].close;

@@ -235,11 +235,10 @@ class Backtester {
     const day = new Date(timestamp).getUTCDay();
     if (day === 0 || day === 6) return null;
 
-    // Regime filtering (exact same logic as DaytradeMode)
-    const regime = regimeData.regime;
+    // Regime filtering — per-asset only, no global blocks
+    // Each asset's blockedRegimes in assetProfiles.js controls what's filtered
     if (regime === 'LOW_VOL') return null;
-    if (regime === 'TRENDING_DOWN') return null;
-    if (regime === 'TRENDING_UP') return null;
+    if (regime === 'TRENDING_DOWN') return null;  // 41% WR globally — always negative
     if (profile.blockedRegimes?.includes(regime)) return null;
 
     // EMA alignment (direct array lookup)
