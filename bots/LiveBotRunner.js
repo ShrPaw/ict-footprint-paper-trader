@@ -1,7 +1,6 @@
 import config from '../config.js';
-import HyperliquidEngine from '../engine/HyperliquidEngine.js';
-import HyperliquidFeed from '../data/HyperliquidFeed.js';
-import TradingViewWebhook from '../data/TradingViewWebhook.js';
+import ExchangeEngine from '../engine/ExchangeEngine.js';
+import Feed from '../data/Feed.js';
 import TelegramAlerter from '../alerts/TelegramAlerter.js';
 import RegimeDetector from '../analysis/RegimeDetector.js';
 import ICTAnalyzer from '../analysis/ICTAnalyzer.js';
@@ -10,21 +9,19 @@ import DaytradeMode from '../strategies/DaytradeMode.js';
 import { getProfile } from '../config/assetProfiles.js';
 
 /**
- * Per-asset bot with real Hyperliquid testnet execution.
- * Replaces PaperEngine with HyperliquidEngine for real order fills.
+ * Per-asset live bot on Binance futures testnet.
+ * Uses ExchangeEngine (orders) + Feed (data via ccxt).
  */
 export default class LiveBotRunner {
   constructor(botConfig = {}) {
-    this.name = botConfig.name || 'LIVE-BOT';
+    this.name = botConfig.name || 'BINANCE-BOT';
     this.symbol = botConfig.symbol;
     this.coin = this.symbol?.split('/')[0] || '?';
 
     this.cfg = this._mergeConfig(config, botConfig.configOverrides || {});
 
-    // Real exchange engine instead of paper
-    this.engine = new HyperliquidEngine();
-    this.feed = new HyperliquidFeed();
-    this.webhook = new TradingViewWebhook(botConfig.webhookPort || 3456);
+    this.engine = new ExchangeEngine();
+    this.feed = new Feed();
     this.telegram = new TelegramAlerter();
     this.regime = new RegimeDetector();
     this.ict = new ICTAnalyzer();
@@ -40,33 +37,28 @@ export default class LiveBotRunner {
     console.log(`\n╔══════════════════════════════════════════════════════╗`);
     console.log(`║   🔴 LIVE ${this.name.padEnd(44)}║`);
     console.log(`║   ${this.symbol.padEnd(50)}║`);
-    console.log(`║   Hyperliquid Testnet                               ║`);
+    console.log(`║   Binance Futures Testnet                           ║`);
     console.log(`╚══════════════════════════════════════════════════════╝\n`);
 
-    // Initialize exchange connection
     await this.engine.init();
 
-    // Initialize data feed
     this.feed.symbolsOverride = [this.symbol];
     await this.feed.init();
     await this.feed.loadInitialCandles();
-
-    this.webhook.start();
 
     this.feed.on('tick', (symbol, ticker) => this._onTick(symbol, ticker));
     this.feed.on('newCandle', (symbol, tf, candle) => this._onNewCandle(symbol, tf, candle));
     this.feed.on('footprint', (symbol, tf, candle, fp) => this._onFootprint(symbol, tf, candle, fp));
 
-    this.feed.startPolling(3000);
+    this.feed.startPolling(5000);
     this.running = true;
 
     this._startDashboard();
 
     const profile = getProfile(this.symbol);
     await this.telegram.sendAlert(
-      `🔴 ${this.name} LIVE on Hyperliquid testnet\n` +
+      `🔴 ${this.name} LIVE on Binance testnet\n` +
       `Coin: ${this.coin}\n` +
-      `Real orders, fake money\n` +
       `Profile: ${profile.name}`
     );
 
@@ -120,10 +112,10 @@ export default class LiveBotRunner {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-      } catch (e) {}
+      } catch (e) { /* dashboard unreachable */ }
     };
     reportStatus();
-    setInterval(reportStatus, 3000);
+    setInterval(reportStatus, 5000);
   }
 
   async _onTick(symbol, ticker) {
@@ -143,13 +135,13 @@ export default class LiveBotRunner {
     }
   }
 
-  async _onNewCandle(symbol, timeframe) {
+  _onNewCandle(symbol, timeframe) {
     if (symbol !== this.symbol) return;
 
     const candles1h = this.feed.getCandles(symbol, '1h');
     const candles15m = this.feed.getCandles(symbol, '15m');
 
-    if (candles15m.length < 50) return;
+    if (candles1h.length < 50 || candles15m.length < 50) return;
 
     const regimeResult = this.regime.detect(symbol, candles1h);
     if (this.lastRegime && this.lastRegime !== regimeResult.regime) {
@@ -162,14 +154,14 @@ export default class LiveBotRunner {
     if (!signal) return;
 
     // Per-asset risk sizing — use profile's riskMultiplier (not global flat rate)
-    const profile = signal.profile || getProfile(this.symbol);
+    const profile = signal.profile || getProfile(symbol);
     const baseRiskPercent = this.cfg.risk[signal.regime]?.riskPercent || 0.5;
     const riskPercent = baseRiskPercent * (profile.riskMultiplier || 1.0);
     const riskAmount = this.engine.balance * (riskPercent / 100);
     const slDist = Math.abs(signal.price - signal.stopLoss);
     const size = slDist > 0 ? riskAmount / slDist : 0;
 
-    const result = await this.engine.openPosition(
+    this.engine.openPosition(
       symbol,
       signal.action === 'buy' ? 'long' : 'short',
       size,
@@ -180,16 +172,16 @@ export default class LiveBotRunner {
       this._formatReason(signal),
       signal.atr,
       signal.profile || getProfile(symbol)
-    );
-
-    if (result.ok) {
-      const p = result.position;
-      const sideEmoji = p.side === 'long' ? '🟢' : '🔴';
-      console.log(`\n${sideEmoji} [${this.name}] ${p.side.toUpperCase()} @ ${p.entryPrice.toFixed(4)} 🔴LIVE`);
-      console.log(`   SL: ${p.stopLoss.toFixed(4)} | TP: ${p.takeProfit.toFixed(4)}`);
-      console.log(`   Regime: ${p.regime} | Signal: ${p.reason}`);
-      this.telegram.sendEntry(p);
-    }
+    ).then(result => {
+      if (result.ok) {
+        const p = result.position;
+        const sideEmoji = p.side === 'long' ? '🟢' : '🔴';
+        console.log(`\n${sideEmoji} [${this.name}] ${p.side.toUpperCase()} @ ${p.entryPrice.toFixed(4)} 🔴LIVE`);
+        console.log(`   SL: ${p.stopLoss.toFixed(4)} | TP: ${p.takeProfit.toFixed(4)}`);
+        console.log(`   Regime: ${p.regime} | Signal: ${p.reason}`);
+        this.telegram.sendEntry(p);
+      }
+    });
   }
 
   _onFootprint(symbol, tf, candle, footprint) {
@@ -197,11 +189,6 @@ export default class LiveBotRunner {
     if (tf !== this.cfg.timeframes.primary) return;
     this._latestFootprint = footprint;
     this.footprint.ingestRealFootprint(footprint);
-
-    if (Math.abs(footprint.deltaPercent) > 30) {
-      const dir = footprint.deltaPercent > 0 ? 'BULLISH' : 'BEARISH';
-      console.log(`📊 [${this.name}] ${dir} flow: Δ${footprint.deltaPercent.toFixed(1)}% | ${footprint.trades} trades`);
-    }
   }
 
   _startDashboard() {
@@ -222,16 +209,11 @@ export default class LiveBotRunner {
       console.log(`🎯 Win Rate:      ${stats.winRate}% (${stats.wins}W / ${stats.losses}L)`);
       console.log(`📊 Profit Factor: ${stats.profitFactor}`);
       console.log(`📉 Max DD:        ${stats.maxDrawdown}`);
-      console.log(`💵 Avg Win:       $${stats.avgWin} | Avg Loss: $${stats.avgLoss}`);
-      console.log(`💸 Total Fees:    $${stats.totalFees.toFixed(2)}`);
-      console.log(`📊 Trades:        ${stats.totalTrades}`);
 
-      const regimeEmoji = { TRENDING: '📈', RANGING: '↔️', VOL_EXPANSION: '💥', LOW_VOL: '😴', ABSORPTION: '🧲' };
       const price = this.feed.getLatestPrice(this.symbol);
-      const fp = this._latestFootprint;
-      const deltaInfo = fp ? ` | Δ${fp.deltaPercent.toFixed(1)}%` : '';
+      const regimeEmoji = { TRENDING: '📈', RANGING: '↔️', VOL_EXPANSION: '💥', LOW_VOL: '😴', ABSORPTION: '🧲' };
       console.log(`\n── Market ─────────────────────────────────────────`);
-      console.log(`  ${regimeEmoji[r.regime] || '❓'} ${r.regime} | ${price ? '$' + price.toFixed(4) : '...'}${deltaInfo}`);
+      console.log(`  ${regimeEmoji[r.regime] || '❓'} ${r.regime} | ${price ? '$' + price.toFixed(4) : '...'}`);
 
       if (positions.length > 0) {
         console.log(`\n── Open Position ───────────────────────────────────`);
@@ -242,8 +224,8 @@ export default class LiveBotRunner {
         }
       }
 
-      console.log('\n🔴 LIVE on Hyperliquid Testnet (Ctrl+C to stop)');
-    }, 3000);
+      console.log('\n🔴 LIVE on Binance Futures Testnet (Ctrl+C to stop)');
+    }, 5000);
   }
 
   _formatReason(signal) {
@@ -253,7 +235,6 @@ export default class LiveBotRunner {
     } else {
       parts.push(signal.reason || signal.type);
     }
-    if (signal.entryPattern) parts.push(`[${signal.entryPattern}]`);
     return parts.join(' ');
   }
 
@@ -275,6 +256,5 @@ export default class LiveBotRunner {
     console.log(`  Balance: $${stats.balance.toFixed(2)} | PnL: $${stats.totalPnL.toFixed(2)} | WR: ${stats.winRate}%`);
     await this.telegram.sendAlert(`🛑 ${this.name} stopped. Balance: $${stats.balance.toFixed(2)}`);
     this.feed.stop();
-    this.webhook.stop();
   }
 }

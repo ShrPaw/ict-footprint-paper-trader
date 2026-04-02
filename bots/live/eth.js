@@ -1,10 +1,13 @@
+// ETH live bot — Binance futures testnet
 import LiveBotRunner from '../LiveBotRunner.js';
 
 const bot = new LiveBotRunner({
   name: 'ETH-LIVE',
   symbol: 'ETH/USDT:USDT',
-  webhookPort: 3461,
+  startingBalance: 10000,
 });
 
-bot.start().catch(err => { console.error('Fatal:', err); process.exit(1); });
-process.on('SIGINT', async () => { await bot.stop(); process.exit(0); });
+bot.start().catch(err => {
+  console.error('ETH live bot failed:', err);
+  process.exit(1);
+});

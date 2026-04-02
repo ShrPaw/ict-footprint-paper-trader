@@ -6,20 +6,19 @@ module.exports = {
       env: { DASHBOARD_PORT: 3500 },
     },
     {
-      name: 'eth-bot',
+      name: 'eth',
       script: 'bots/eth/bot.js',
       node_args: '--env-file=.env',
     },
     {
-      name: 'sol-bot',
+      name: 'sol',
       script: 'bots/sol/bot.js',
       node_args: '--env-file=.env',
     },
     {
-      name: 'btc-bot',
+      name: 'btc',
       script: 'bots/btc/bot.js',
       node_args: '--env-file=.env',
     },
-    // XRP REMOVED — curve-fitted (33% OOS, PF 0.92). Code kept for future retest.
   ],
 };
