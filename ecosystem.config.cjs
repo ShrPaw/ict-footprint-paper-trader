@@ -20,5 +20,10 @@ module.exports = {
       script: 'bots/btc/bot.js',
       node_args: '--env-file=.env',
     },
+    {
+      name: 'xrp',
+      script: 'bots/xrp/bot.js',
+      node_args: '--env-file=.env',
+    },
   ],
 };

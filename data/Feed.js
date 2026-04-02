@@ -8,7 +8,7 @@ import config from '../config.js';
  * Provides candles + estimated footprint from OHLCV (no trade-level data like Hyperliquid).
  * For live polling, fetches latest OHLCV candles periodically.
  */
-export default class BinanceFeed extends EventEmitter {
+export default class Feed extends EventEmitter {
   constructor() {
     super();
     this.exchange = null;

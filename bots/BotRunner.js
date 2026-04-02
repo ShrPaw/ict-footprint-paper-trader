@@ -1,6 +1,6 @@
 import config from '../config.js';
 import PaperEngine from '../engine/PaperEngine.js';
-import HyperliquidFeed from '../data/HyperliquidFeed.js';
+import Feed from '../data/Feed.js';
 import TradingViewWebhook from '../data/TradingViewWebhook.js';
 import TelegramAlerter from '../alerts/TelegramAlerter.js';
 import RegimeDetector from '../analysis/RegimeDetector.js';
@@ -25,7 +25,7 @@ export default class BotRunner {
 
     // Dedicated instances — no shared state
     this.engine = new PaperEngine();
-    this.feed = new HyperliquidFeed();
+    this.feed = new Feed();
     this.webhook = new TradingViewWebhook(botConfig.webhookPort || 3456);
     this.telegram = new TelegramAlerter();
     this.regime = new RegimeDetector();

@@ -10,7 +10,7 @@ import config from '../config.js';
  * Testnet: https://testnet.binancefuture.com/
  * API keys: https://testnet.binancefuture.com/en/settings/api-management
  */
-export default class BinanceEngine extends EventEmitter {
+export default class ExchangeEngine extends EventEmitter {
   constructor() {
     super();
     this.exchange = null;
