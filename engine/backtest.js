@@ -186,7 +186,7 @@ class Backtester {
 
           // ── Check exits (no computation, just price checks) ──
           if (this.position) {
-            this._checkExit(candle15m, timestamp);
+            this._checkExit(candle15m, timestamp, i);
           }
 
           // ── Generate signal — ALL precomputed, zero math ──
@@ -310,6 +310,7 @@ class Backtester {
               }
 
               if (signal) {
+                this._currentBarIndex = i;
                 this._openPosition(symbol, signal, candle15m.close, timestamp);
                 signalCount++;
               }
@@ -685,6 +686,12 @@ class Backtester {
       originalSize: size,
       assetProfile: signal.assetProfile || 'unknown',
       profile: signal.profile || null,  // per-asset risk overrides
+      // ── Trade Lifecycle Engine — entry context ──
+      entryM15Idx: this._currentBarIndex ?? 0,
+      volatilityState: signal.volatilityState || signal.extra?.volatilityState || 'NORMAL',
+      orderflowState: signal.orderflowState || signal.extra?.orderflowState || 'DIRECTIONAL',
+      decayStage: 0,
+      decayBarsLimit: null,  // computed on first check
     };
 
     this.balance -= fee;
@@ -695,7 +702,7 @@ class Backtester {
     }
   }
 
-  _checkExit(candle, timestamp) {
+  _checkExit(candle, timestamp, currentBarIdx) {
     const pos = this.position;
     const price = candle.close;
     const side = pos.side;
@@ -787,11 +794,78 @@ class Backtester {
       }
     }
 
-    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (per-asset, default 12 ATR)
+    // ═══════════════════════════════════════════════════════════════
+    // TRADE LIFECYCLE ENGINE — Layer 2: Adaptive Decay Engine
+    // ═══════════════════════════════════════════════════════════════
+    //
+    // A trade is a hypothesis. If it doesn't behave as expected
+    // within a structural time window, the hypothesis is weakening.
+    //
+    // STRUCTURAL TIME (bars), not clock time.
+    // Volatility-adjusted: HIGH vol = fewer bars before decay,
+    // LOW vol = more bars (moves take longer to develop).
+    //
+    // DECAY STAGES:
+    //   Stage 0: Normal — trade is within expected development window
+    //   Stage 1: Warning — no trailing activation, tighten stop to 70%
+    //   Stage 2: Critical — still no activation, tighten stop to 40%
+    // ═══════════════════════════════════════════════════════════════
+    const barsSinceEntry = currentBarIdx - (pos.entryM15Idx || currentBarIdx);
+
+    // Compute decay limit if not yet set (first check)
+    if (pos.decayBarsLimit === null) {
+      // Base limits in 15m bars — volatility-adjusted
+      const volBase = {
+        'LOW': 72,      // 18h — low vol moves take time
+        'NORMAL': 48,   // 12h — standard development window
+        'HIGH': 24,     // 6h  — high vol, move should be fast
+        'EXTREME': 16,  // 4h  — extreme vol, immediate or dead
+      };
+
+      // Regime adjustment
+      const regimeMult = {
+        'VOL_EXPANSION': 0.75,  // fast moves expected
+        'TRENDING_UP': 1.0,     // standard
+        'TRENDING_DOWN': 1.0,
+        'RANGING': 1.5,         // slower moves in ranges
+      };
+
+      const base = volBase[pos.volatilityState] || 48;
+      const mult = regimeMult[pos.regime] || 1.0;
+      pos.decayBarsLimit = Math.round(base * mult);
+    }
+
+    // Decay evaluation — only if trailing hasn't activated
+    if (!pos.trailingActive && barsSinceEntry > pos.decayBarsLimit) {
+      const decayProgress = (barsSinceEntry - pos.decayBarsLimit) / pos.decayBarsLimit;
+
+      if (decayProgress > 1.0 && pos.decayStage < 2) {
+        // Stage 2: Critical — trade has had 2x the expected window
+        pos.decayStage = 2;
+        pos._emergencyATRMult = 0.4;  // 40% of original emergency stop
+      } else if (pos.decayStage < 1) {
+        // Stage 1: Warning — trade exceeded expected window
+        pos.decayStage = 1;
+        pos._emergencyATRMult = 0.7;  // 70% of original emergency stop
+      }
+    }
+
+    // Confidence decay — exponential decrease over time if no momentum
+    // This is tracked for analysis, not used for exit decisions
+    if (!pos.trailingActive) {
+      const decayFactor = pos.decayBarsLimit || 48;
+      pos._confidenceDecay = Math.exp(-barsSinceEntry / (decayFactor * 2));
+    } else {
+      pos._confidenceDecay = 1.0; // trailing active = hypothesis confirmed
+    }
+
+    // SL check — EMERGENCY CIRCUIT BREAKER (per-asset, with decay tightening)
     // Regular SL removed: stop_loss has 0% WR — pure noise trap.
     // Trailing stops and partial TP handle all exits.
-    // Configurable per-asset via riskOverrides.emergencyATR.
-    const emergencyATR = pos.profile?.riskOverrides?.emergencyATR ?? 12.0;
+    // Decay engine tightens the stop when trade hypothesis weakens.
+    const baseEmergencyATR = pos.profile?.riskOverrides?.emergencyATR ?? 12.0;
+    const decayMult = pos._emergencyATRMult ?? 1.0;
+    const emergencyATR = baseEmergencyATR * decayMult;
     const emergencyDist = pos.atr * emergencyATR;
     const emergencySL = side === 'long'
       ? pos.entryPrice - emergencyDist
@@ -855,6 +929,11 @@ class Backtester {
       assetProfile: pos.assetProfile,
       fundingCost: this.fundingRate !== null ? fundingCost : undefined,
       balance: this.balance,
+      // Trade Lifecycle Engine data
+      decayStage: pos.decayStage || 0,
+      decayConfidence: pos._confidenceDecay ?? 1.0,
+      trailingActivated: pos.trailingActive || false,
+      barsSinceEntry: this._currentBarIndex ? (this._currentBarIndex - (pos.entryM15Idx || 0)) : 0,
     };
 
     this.trades.push(trade);

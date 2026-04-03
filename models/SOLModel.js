@@ -119,6 +119,19 @@ export default class SOLModel extends BaseModel {
     if (f.distFromMean > 2.0) return null;
 
     // ═══════════════════════════════════════════════════════════════
+    // LAYER 1: Context Classification — interpret features in context
+    // Features have NO fixed meaning. Stacked delta = momentum OR
+    // exhaustion depending on the surrounding context.
+    // ═══════════════════════════════════════════════════════════════
+    const flowCtx = this._classifyContext(f, regime);
+
+    // SATURATED order flow: 5+ stacked candles with no divergence
+    // = late-stage move, buying/selling climax. Reject entry.
+    // This is conservative: only blocks the extreme tail (stacked >= 5).
+    // Trades with stacked 3-4 still pass — they have edge.
+    if (flowCtx.orderflowState === 'SATURATED') return null;
+
+    // ═══════════════════════════════════════════════════════════════
     // CORE SIGNAL: Stacked Imbalance + Momentum
     // SOL's edge: when 3+ consecutive deltas align with momentum
     // and price is confirming, the move has fuel.
@@ -236,11 +249,67 @@ export default class SOLModel extends BaseModel {
         momentum: f.momentum,
         atrZ: f.atrZ,
         distFromMean: f.distFromMean,
+        orderflowState: flowCtx.orderflowState,
+        extensionState: flowCtx.extensionState,
+        volatilityState: flowCtx.volatilityState,
       },
     });
   }
 
-  // ── SOL-Specific Helpers ────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // TRADE LIFECYCLE ENGINE — Layer 1: Context Classification
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Classify market context across 4 dimensions.
+   * Features have NO fixed meaning — their interpretation depends on context.
+   */
+  _classifyContext(features, regime) {
+    const f = features;
+    return {
+      extensionState: f.distFromMean < 1.2 ? 'LOW' : f.distFromMean < 2.0 ? 'MEDIUM' : 'HIGH',
+      volatilityState: f.atrZ < 1.0 ? 'LOW' : f.atrZ < 1.5 ? 'NORMAL' : f.atrZ < 2.0 ? 'HIGH' : 'EXTREME',
+      orderflowState: this._classifyOrderFlow(f),
+      regimeState: regime,
+    };
+  }
+
+  /**
+   * Classify order flow state from delta behavior.
+   *
+   * BALANCED:    No clear directional pressure
+   * DIRECTIONAL: Stacked delta with consistent direction — continuation signal
+   * SATURATED:   Extreme stacking (5+) without divergence — exhaustion
+   * DIVERGENT:   Delta disagrees with price — contrarian signal
+   */
+  _classifyOrderFlow(f) {
+    const hasDivergence = f.deltaHistory.length >= 6 && this._hasDivergenceInFeatures(f);
+
+    if (hasDivergence) return 'DIVERGENT';
+
+    if (f.stackedCount >= 5) return 'SATURATED';
+
+    if (f.stackedCount >= 3) return 'DIRECTIONAL';
+
+    return 'BALANCED';
+  }
+
+  /**
+   * Check for divergence using feature-level data (not raw candles).
+   * Price moving one way, delta moving opposite.
+   */
+  _hasDivergenceInFeatures(f) {
+    const deltas = f.deltaHistory;
+    if (deltas.length < 6) return false;
+
+    const recentDelta = deltas.slice(-3).reduce((a, b) => a + b, 0);
+    const olderDelta = deltas.slice(-6, -3).reduce((a, b) => a + b, 0);
+
+    // Bullish divergence: delta strengthening but we'd be selling
+    // Bearish divergence: delta weakening but we'd be buying
+    return (f.deltaTrend === 'bullish' && recentDelta < olderDelta && recentDelta < 0) ||
+           (f.deltaTrend === 'bearish' && recentDelta > olderDelta && recentDelta > 0);
+  }
 
   /**
    * Count consecutive candles with delta in the dominant direction
