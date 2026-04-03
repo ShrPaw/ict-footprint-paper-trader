@@ -240,4 +240,26 @@ export default class RegimeDetector {
       lower: middle - stdDev * std,
     };
   }
+
+  /**
+   * Compute ATR values for a range of candles in one pass. O(n).
+   * Returns array of ATR values from startIdx to endIdx (inclusive).
+   * Avoids the O(n²) pattern of calling _lastATR() in a loop.
+   */
+  _computeATRSeries(candles, period, startIdx, endIdx) {
+    const results = [];
+    for (let i = startIdx; i <= endIdx; i++) {
+      const start = Math.max(1, i - period);
+      let sum = 0;
+      for (let j = start; j <= i; j++) {
+        sum += Math.max(
+          candles[j].high - candles[j].low,
+          Math.abs(candles[j].high - candles[j - 1].close),
+          Math.abs(candles[j].low - candles[j - 1].close)
+        );
+      }
+      results.push(sum / (i - start + 1));
+    }
+    return results;
+  }
 }
