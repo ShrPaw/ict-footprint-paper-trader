@@ -1,0 +1,156 @@
+{
+  "startingBalance": 10000,
+  "finalBalance": 8827.980823093978,
+  "totalPnL": -1167.1118239636894,
+  "totalPnLPercent": -11.72019176906022,
+  "totalTrades": 4,
+  "wins": 3,
+  "losses": 1,
+  "winRate": "75.0",
+  "grossProfit": 176.85372704067484,
+  "grossLoss": 1343.9655510043642,
+  "profitFactor": "0.13",
+  "expectancy": "-291.78",
+  "avgWin": "58.95",
+  "avgLoss": "1343.97",
+  "largestWin": "134.34",
+  "largestLoss": "-1343.97",
+  "pnlWithoutLargest": "-1301.46",
+  "maxDrawdown": "1706.10",
+  "maxDrawdownPercent": "16.20",
+  "sharpeRatio": "-0.41",
+  "maxConsecutiveWins": 3,
+  "maxConsecutiveLosses": 1,
+  "totalFees": "16.60",
+  "totalFunding": "0.0000",
+  "fundingRateUsed": null,
+  "byRegime": {
+    "VOL_EXPANSION": {
+      "trades": 2,
+      "wins": 2,
+      "pnl": 42.50982675990432
+    },
+    "TRENDING_UP": {
+      "trades": 2,
+      "wins": 1,
+      "pnl": -1209.6216507235936
+    }
+  },
+  "bySignal": {
+    "OF_CONTINUATION": {
+      "trades": 2,
+      "wins": 2,
+      "pnl": 42.50982675990432
+    },
+    "STACKED_IMBALANCE": {
+      "trades": 2,
+      "wins": 1,
+      "pnl": -1209.6216507235936
+    }
+  },
+  "byExit": {
+    "partial_tp": {
+      "trades": 2,
+      "wins": 2,
+      "pnl": 150.7947361448928
+    },
+    "take_profit": {
+      "trades": 1,
+      "wins": 1,
+      "pnl": 26.05899089578204
+    },
+    "emergency_stop": {
+      "trades": 1,
+      "wins": 0,
+      "pnl": -1343.9655510043642
+    }
+  },
+  "byMode": {
+    "ORDER_FLOW": {
+      "trades": 2,
+      "wins": 2,
+      "pnl": 42.50982675990432
+    },
+    "DAYTRADE": {
+      "trades": 2,
+      "wins": 1,
+      "pnl": -1209.6216507235936
+    }
+  },
+  "byAsset": {
+    "BTC": {
+      "trades": 4,
+      "wins": 3,
+      "pnl": -1167.1118239636894
+    }
+  },
+  "bySource": {
+    "unknown": {
+      "trades": 4,
+      "wins": 3,
+      "pnl": -1167.1118239636894
+    }
+  },
+  "byYear": {
+    "2022": {
+      "trades": 4,
+      "wins": 3,
+      "pnl": -1167.1118239636894,
+      "fees": 16.60047962599177,
+      "funding": 0
+    }
+  },
+  "byMonth": {
+    "2022-01": {
+      "trades": 4,
+      "wins": 3,
+      "pnl": -1167.1118239636894
+    }
+  },
+  "monthlyStats": {
+    "median": "-1167.11",
+    "profitableMonths": 0,
+    "totalMonths": 1,
+    "winRate": "0",
+    "best": "-1167.11",
+    "worst": "-1167.11"
+  },
+  "regimeDistribution": {
+    "LOW_VOL": {
+      "candles": 13358,
+      "percent": "36.0"
+    },
+    "RANGING": {
+      "candles": 5854,
+      "percent": "15.8"
+    },
+    "VOL_EXPANSION": {
+      "candles": 7266,
+      "percent": "19.6"
+    },
+    "TRENDING_DOWN": {
+      "candles": 5378,
+      "percent": "14.5"
+    },
+    "TRENDING_UP": {
+      "candles": 5280,
+      "percent": "14.2"
+    },
+    "ABSORPTION": {
+      "candles": 15,
+      "percent": "0.0"
+    }
+  },
+  "weekend": {
+    "trades": 0,
+    "wins": 0,
+    "winRate": "0",
+    "pnl": "0.00"
+  },
+  "weekday": {
+    "trades": 4,
+    "wins": 3,
+    "winRate": "75.0",
+    "pnl": "-1167.11"
+  }
+}
