@@ -157,8 +157,9 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'low',
     riskMultiplier: 0.5,      // HALF size: speculative, volatile, protect capital
     slTightness: 1.2,
-    // VOL_EXP ONLY. RANGING kills (-$282). TRENDING_DOWN + LOW_VOL globally bad.
-    blockedRegimes: ['RANGING', 'TRENDING_DOWN', 'LOW_VOL'],
+    // VOL_EXP ONLY. RANGING kills (-$282). TRENDING_UP -$171 in H1 2022.
+    // TRENDING_DOWN + LOW_VOL globally bad.
+    blockedRegimes: ['RANGING', 'TRENDING_UP', 'TRENDING_DOWN', 'LOW_VOL'],
     riskOverrides: {
       slMultiplier: 1.3,       // wider: XRP wicks are violent
       trailingStop: { activationATR: 1.0, trailATR: 0.5 },  // tight trail once it moves
