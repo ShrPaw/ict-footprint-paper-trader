@@ -219,3 +219,35 @@ Changes Applied:
 
 Next: Run full backtests (SOL, BTC) to validate impact.
 ═══════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════
+  BACKTEST RESULTS — Session #12 (All Fixes Applied)
+═══════════════════════════════════════════════════════════════════
+
+  ETH (2022-2026):
+    PnL: -$465 | PF: 0.92 | WR: 90.5% | Trades: 283 | Emergency: 27 (was 63)
+    Emergency stop fix VALIDATED: 57% fewer fires, cost halved.
+    PROBLEM: VOL_EXP hard gate too aggressive — filtering profitable TRENDING_UP setups.
+
+  SOL (2022-2026):
+    PnL: +$7,024 | PF: 1.39 | WR: 91.2% | Trades: 556 | Emergency: 49
+    RANGING: +$5,832 | TRENDING_UP: +$1,191
+    Best performer. Institutional quality PF + WR.
+
+  BTC (2022-2026):
+    PnL: +$2,343 | PF: 1.31 | WR: 92.2% | Trades: 322 | Emergency: 25
+    TRENDING_UP only. Conservative but consistent.
+
+  COMBINED: +$8,902 | 1,161 trades | 101 emergency stops
+
+═══════════════════════════════════════════════════════════════════
+  NEXT SESSION PRIORITIES
+═══════════════════════════════════════════════════════════════════
+
+  1. Soften VOL_EXP hard gate (ETH fix)
+  2. Test ETH with RANGING unblocked
+  3. Funding rate impact test
+  4. Walk-forward analysis
+  5. SOL emergency stop reduction (49 stops = -$18K)
+
+═══════════════════════════════════════════════════════════════════

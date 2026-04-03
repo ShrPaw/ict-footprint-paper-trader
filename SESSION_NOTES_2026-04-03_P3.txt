@@ -1,0 +1,130 @@
+# SESSION NOTES — 2026-04-03 (Session #12)
+
+## What Was Done
+
+### 1. Emergency Stop: 8 → 12 ATR (PaperEngine + backtest)
+Raised emergency circuit breaker from 8 to 12 ATR to reduce noise stops in VOL_EXP regime.
+
+### 2. VOL_EXP Hard Gate — OrderFlowEngine Required
+In VOL_EXPANSION regime, legacy-only signals are rejected. Only signals passing the 6-step OrderFlowEngine pipeline can trade.
+
+### 3. Regime-Specific Threshold Multipliers
+- VOL_EXPANSION: 0.90x score (effective +11% threshold)
+- TRENDING_UP: 1.05x score (effective -5% threshold)
+- RANGING: 0.95x score (effective +5% threshold)
+
+### 4. Per-Asset Config Self-Contained
+Moved LOW_VOL and TRENDING_DOWN from global hard-coded blocks to each asset's blockedRegimes.
+
+### 5. OrderFlowEngine minEdgeScore Activated
+Config value existed but was never checked. Added validation. Raised 0.55 → 0.60. minClusterConfidence 0.5 → 0.55.
+
+### 6. Dead Code Removal
+- Deleted ModeRouter.js (not imported anywhere)
+- Removed weekend/scalping configs from assetProfiles.js and config.js
+
+### 7. Maker Fee for Entries
+Entry orders now use maker fee (0.02%) instead of taker fee (0.05%) = 60% fee reduction.
+
+### 8. Per-Asset Emergency ATR
+Made emergencyATR configurable via riskOverrides: BTC 14, ETH 12, SOL 10, XRP 12.
+
+### 9. Live Trade CSV Export
+BotRunner now writes trades to live-results/trades-{coin}.csv on each close.
+
+### 10. Bollinger Band O(n²) → O(n)
+Fixed rolling variance computation using sum-of-squares identity instead of inner loop.
+
+## Backtest Results (Session #12 — All Fixes Applied)
+
+### ETH — 2022-01-01 to 2026-03-31
+| Metric | Session #11 | Session #12 | Change |
+|--------|-------------|-------------|--------|
+| PnL | +$1,317 | -$465 | WORSE |
+| PF | 1.12 | 0.92 | DOWN |
+| WR | 87.0% | 90.5% | UP |
+| Trades | 493 | 283 | -43% |
+| Emergency stops | 63 | 27 | -57% |
+| Emergency cost | -$10,545 | -$5,726 | -46% |
+
+Analysis: Emergency stops dropped 57% (the fix worked). But total trades dropped 43% because the VOL_EXP hard gate + regime multipliers are too aggressive. ETH trades almost exclusively in TRENDING_UP (281/283 trades) which is -$491 PnL. The gate is filtering out profitable TRENDING_UP setups that happen to fire during VOL_EXP regime detection.
+
+Exit breakdown:
+- partial_tp: 100% WR, +$1,982 (131 trades)
+- take_profit: 100% WR, +$3,280 (125 trades)
+- emergency_stop: 0% WR, -$5,726 (27 trades)
+
+Verdict: Emergency stop fix is validated. VOL_EXP hard gate needs softening.
+
+### SOL — 2022-01-01 to 2026-03-31
+| Metric | Value |
+|--------|-------|
+| PnL | +$7,024 |
+| PF | 1.39 |
+| WR | 91.2% |
+| Trades | 556 |
+| Emergency stops | 49 |
+| Max DD | 21.5% |
+| Sharpe | 1.03 |
+
+By regime:
+- RANGING: +$5,832 (264 trades, 92% WR)
+- TRENDING_UP: +$1,191 (292 trades, 90% WR)
+
+By exit:
+- take_profit: 100% WR, +$15,092 (252 trades)
+- partial_tp: 100% WR, +$9,847 (254 trades)
+- emergency_stop: 0% WR, -$17,940 (49 trades)
+
+Verdict: SOL is the strongest asset. PF 1.39 with 91% WR is institutional quality.
+
+### BTC — 2022-01-01 to 2026-03-31
+| Metric | Value |
+|--------|-------|
+| PnL | +$2,343 |
+| PF | 1.31 |
+| WR | 92.2% |
+| Trades | 322 |
+| Emergency stops | 25 |
+| Fees | $510 |
+
+By regime:
+- TRENDING_UP: +$2,343 (322 trades, 92% WR)
+
+By exit:
+- take_profit: 100% WR, +$6,314 (143 trades)
+- partial_tp: 100% WR, +$3,479 (154 trades)
+- emergency_stop: 0% WR, -$7,450 (25 trades)
+
+Verdict: BTC profitable with PF 1.31. Conservative but consistent.
+
+## COMBINED TOTALS (Session #12)
+- ETH: -$465 | PF 0.92 | 90.5% WR | 283 trades | 27 emergency
+- SOL: +$7,024 | PF 1.39 | 91.2% WR | 556 trades | 49 emergency
+- BTC: +$2,343 | PF 1.31 | 92.2% WR | 322 trades | 25 emergency
+- TOTAL: +$8,902 | 1,161 trades | 101 emergency stops
+
+## KEY INSIGHTS
+
+1. Emergency stop fix validated — Dropped from 63→27 on ETH (-57%), cost halved.
+
+2. VOL_EXP hard gate TOO aggressive on ETH — Need to soften: require OF to NOT REJECT rather than require OF to PROVIDE signal.
+
+3. SOL is the star — RANGING regime is gold. PF 1.39, 91% WR, +$7K.
+
+4. BTC is stable — PF 1.31, 92% WR. Conservative but consistent.
+
+5. ETH needs RANGING unblocked — With new pipeline, might be profitable.
+
+## TODO — Next Session
+
+### IMMEDIATE
+- Soften VOL_EXP hard gate: "legacy + OF must not reject" instead of "OF must provide"
+- Test ETH with RANGING unblocked
+- Run funding rate impact test (--funding 0.0001)
+- Analyze SOL emergency stops — 49 stops costing $18K
+
+### BEFORE LIVE
+- Walk-forward analysis (12-month train / 3-month OOS)
+- Final parameter lock
+- Testnet dry run (1 week)
