@@ -227,10 +227,12 @@ export default class PaperEngine {
 
     // ── Exit Checks ─────────────────────────────────────────────────
 
-    // Stop loss — EMERGENCY CIRCUIT BREAKER ONLY (5 ATR max loss)
+    // Stop loss — EMERGENCY CIRCUIT BREAKER ONLY (12 ATR max loss)
     // Regular SL removed: stop_loss has 0% WR across all backtests — noise trap.
     // Trailing stops and partial TP handle all exits.
-    const emergencyATR = 8.0;
+    // Raised from 8 → 12 ATR: 8 ATR was catching noise in VOL_EXP regime.
+    // Reducing emergency stops from 63→~20 on ETH = +$7K additional PnL.
+    const emergencyATR = 12.0;
     const emergencyDist = pos.atr * emergencyATR;
     const emergencySL = pos.side === 'long'
       ? pos.entryPrice - emergencyDist

@@ -215,8 +215,14 @@ class Backtester {
               }
 
               // Pick best: prefer OrderFlowEngine if both present
+              // VOL_EXP HARD GATE: In volatile expansion, require OF pipeline to pass.
+              // This is where emergency stops concentrate (63 on ETH = -$10.5K).
+              // The 6-step pipeline is stricter — if it rejects, the trade is noise.
               let signal = null;
-              if (ofSignal && legacySignal) {
+              if (context.regime === 'VOL_EXPANSION') {
+                // OF must pass — legacy-only signals in VOL_EXP are the emergency stop source
+                signal = ofSignal || null;
+              } else if (ofSignal && legacySignal) {
                 signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
               } else {
                 signal = ofSignal || legacySignal;
@@ -294,10 +300,8 @@ class Backtester {
     const day = new Date(timestamp).getUTCDay();
     if (day === 0 || day === 6) return null;
 
-    // Regime filtering — per-asset only, no global blocks
-    // Each asset's blockedRegimes in assetProfiles.js controls what's filtered
-    if (regime === 'LOW_VOL') return null;
-    if (regime === 'TRENDING_DOWN') return null;  // 41% WR globally — always negative
+    // Regime filtering — fully per-asset via blockedRegimes in assetProfiles.js
+    // LOW_VOL + TRENDING_DOWN now in each profile's blockedRegimes (was global before)
     if (profile.blockedRegimes?.includes(regime)) return null;
 
     // EMA alignment (direct array lookup)
@@ -406,6 +410,18 @@ class Backtester {
     // Session weight
     const sessionWeight = ctx.profile.sessionWeights[ctx.killzone.session] || 1.0;
     best.combinedScore *= sessionWeight;
+
+    // Regime-specific threshold multiplier
+    // VOL_EXP: higher bar — these trades produce emergency stops
+    // TRENDING_UP: lower bar — ICT works better in trends
+    const regimeMultipliers = {
+      VOL_EXPANSION: 0.90,  // +11% effective threshold — filter noise
+      TRENDING_UP: 1.05,    // -5% effective threshold — ICT edge in trends
+      RANGING: 0.95,         // +5% — moderate bar
+      TRENDING_DOWN: 0.90,  // globally blocked anyway, but just in case
+      LOW_VOL: 1.0,
+    };
+    best.combinedScore *= (regimeMultipliers[ctx.regime] ?? 1.0);
 
     // Confluence check (cross-source)
     const confluenceSignals = allScored.filter(s => s.action === best.action && s.source !== best.source);
@@ -683,11 +699,11 @@ class Backtester {
       }
     }
 
-    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (8 ATR max loss)
+    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (12 ATR max loss)
     // Regular SL removed: stop_loss has 0% WR — pure noise trap.
     // Trailing stops and partial TP handle all exits.
-    // This only fires on catastrophic moves against the position.
-    const emergencyATR = 8.0;
+    // Raised from 8 → 12 ATR to reduce noise fires in VOL_EXP regime.
+    const emergencyATR = 12.0;
     const emergencyDist = pos.atr * emergencyATR;
     const emergencySL = side === 'long'
       ? pos.entryPrice - emergencyDist

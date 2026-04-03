@@ -177,3 +177,45 @@
   entry quality — trades that go immediately against us.
 
 ═══════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════
+  PATCH — 2026-04-03 | Session #12 | Emergency Stop Fix + Hard Gates
+═══════════════════════════════════════════════════════════════════
+
+Changes Applied:
+
+1. EMERGENCY STOP: 8 ATR → 12 ATR
+   PaperEngine.js + backtest.js
+   Rationale: 8 ATR was too tight for VOL_EXP regime. Trades that would
+   have recovered via trailing stops were killed prematurely.
+   Expected: emergency stops drop from 63 → ~20-30 on ETH.
+
+2. VOL_EXP HARD GATE — OrderFlowEngine Required
+   backtest.js + DaytradeMode.js
+   In VOL_EXPANSION regime, legacy-only signals are rejected.
+   Only signals that pass the 6-step OrderFlowEngine pipeline trade.
+   Rationale: emergency stops concentrate in VOL_EXP. The OF pipeline
+   is stricter and should filter noise entries.
+
+3. REGIME-SPECIFIC THRESHOLD MULTIPLIERS
+   backtest.js + DaytradeMode.js
+   VOL_EXPANSION: 0.90x score (effective +11% threshold)
+   TRENDING_UP: 1.05x score (effective -5% threshold)
+   RANGING: 0.95x score (effective +5% threshold)
+   Rationale: raise the bar where emergency stops happen, lower it
+   where ICT has proven edge.
+
+4. PER-ASSET CONFIG SELF-CONTAINED
+   assetProfiles.js + backtest.js + DaytradeMode.js
+   Moved LOW_VOL and TRENDING_DOWN from global hard-coded blocks to
+   each asset's blockedRegimes array. Each bot is now fully defined
+   by its own profile — no hidden global behavior.
+
+5. OrderFlowEngine minEdgeScore ACTIVATED
+   OrderFlowEngine.js + config.js
+   The minEdgeScore config existed but was never checked. Added
+   validation in _validateEdge(). Raised from 0.55 → 0.60.
+   Also raised minClusterConfidence from 0.5 → 0.55.
+
+Next: Run full backtests (SOL, BTC) to validate impact.
+═══════════════════════════════════════════════════════════════════

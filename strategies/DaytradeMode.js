@@ -44,11 +44,8 @@ export default class DaytradeMode {
     const regimeResult = this.regime.detect(symbol, candles1h);
     const regime = regimeResult.regime;
 
-    // 4. Skip unfavorable regimes
-    if (regime === 'LOW_VOL') return null;
-    // TRENDING_DOWN: -$167 ETH (42% WR), -$830 SOL (41% WR). No edge.
-    if (regime === 'TRENDING_DOWN') return null;
-    // Per-asset regime blocks (e.g., SOL VOL_EXPANSION: 51% WR, -$66 noise)
+    // 4. Skip unfavorable regimes — fully per-asset via blockedRegimes
+    // LOW_VOL + TRENDING_DOWN now in each profile's blockedRegimes (was global before)
     if (profile.blockedRegimes?.includes(regime)) return null;
 
     const price = candles1h[candles1h.length - 1].close;
@@ -110,9 +107,12 @@ export default class DaytradeMode {
 
     // 10. Pick the best signal: prefer OrderFlowEngine if both present
     // (OF pipeline is stricter — if it passes, it's higher quality)
+    // VOL_EXP HARD GATE: In volatile expansion, require OF pipeline to pass.
+    // Emergency stops concentrate in VOL_EXP — OF filters noise entries.
     let signal = null;
-    if (ofSignal && legacySignal) {
-      // Both passed — take the higher scored one
+    if (regime === 'VOL_EXPANSION') {
+      signal = ofSignal || null;
+    } else if (ofSignal && legacySignal) {
       signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
     } else if (ofSignal) {
       signal = ofSignal;
@@ -214,6 +214,16 @@ export default class DaytradeMode {
     // Session boost
     const sessionWeight = profile.sessionWeights[killzone.session] || 1.0;
     best.combinedScore *= sessionWeight;
+
+    // Regime-specific threshold multiplier (matches backtest.js)
+    const regimeMultipliers = {
+      VOL_EXPANSION: 0.90,
+      TRENDING_UP: 1.05,
+      RANGING: 0.95,
+      TRENDING_DOWN: 0.90,
+      LOW_VOL: 1.0,
+    };
+    best.combinedScore *= (regimeMultipliers[regime] ?? 1.0);
 
     // Confluence
     const confluenceSignals = allScored.filter(s => s.action === best.action && s.source !== best.source);

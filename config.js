@@ -146,11 +146,11 @@ export default {
   orderFlow: {
     enabled: true,
     // Minimum edge score to accept a signal (0-1 scale)
-    minEdgeScore: 0.55,
+    minEdgeScore: 0.60,
     // Cluster types that require key level context
     requireKeyLevel: ['ABSORPTION', 'TRAPPED_TRADERS'],
     // False signal filters
-    minClusterConfidence: 0.5,
+    minClusterConfidence: 0.55,
     minEventConfidence: 0.6,
   },
 

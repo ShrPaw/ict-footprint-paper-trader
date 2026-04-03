@@ -522,9 +522,17 @@ export default class OrderFlowEngine {
                     cluster.type === ClusterType.ABSORPTION ? clusterDir !== eventDir : true;
     if (aligned) edgeScore += 0.15;
 
+    edgeScore = Math.min(edgeScore, 1.0);
+
+    // Minimum edge score gate
+    const minEdge = config.orderFlow?.minEdgeScore ?? 0.60;
+    if (edgeScore < minEdge) {
+      return { valid: false, reason: `Edge score ${edgeScore.toFixed(2)} below minimum ${minEdge}` };
+    }
+
     return {
       valid: true,
-      edgeScore: Math.min(edgeScore, 1.0),
+      edgeScore,
       alignment: aligned ? 'aligned' : 'conflicting',
       clusterType: cluster.type,
       eventType: event.type,

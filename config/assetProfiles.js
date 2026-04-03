@@ -31,8 +31,8 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'high',
     riskMultiplier: 1.0,
     slTightness: 1.0,
-    // ONLY VOL_EXPANSION. RANGING kills (-$728). TRENDING_DOWN globally blocked.
-    blockedRegimes: ['RANGING'],
+    // ONLY VOL_EXPANSION. RANGING kills (-$728). TRENDING_DOWN 41% WR globally.
+    blockedRegimes: ['RANGING', 'TRENDING_DOWN', 'LOW_VOL'],
     riskOverrides: {
       slMultiplier: 2.0,       // WIDE: BTC needs room before trailing activates
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },  // wider trail, let winners breathe
@@ -72,8 +72,8 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'high',
     riskMultiplier: 0.9,
     slTightness: 1.1,
-    // RANGING blocked: -$1,869 on futures (45% WR)
-    blockedRegimes: ['RANGING'],
+    // RANGING blocked: -$1,869 on futures (45% WR). TRENDING_DOWN + LOW_VOL globally bad.
+    blockedRegimes: ['RANGING', 'TRENDING_DOWN', 'LOW_VOL'],
     riskOverrides: {
       slMultiplier: 2.0,       // wider: 1.5 was noise trap (3% WR on stop_loss)
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },
@@ -113,8 +113,8 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'medium',
     riskMultiplier: 0.8,
     slTightness: 1.3,
-    // RANGING is PROFITABLE for SOL (+$1,680). Keep it. Only block TRENDING_DOWN + LOW_VOL.
-    blockedRegimes: [],
+    // RANGING is PROFITABLE for SOL (+$1,680). Keep it. Block TRENDING_DOWN + LOW_VOL.
+    blockedRegimes: ['TRENDING_DOWN', 'LOW_VOL'],
     riskOverrides: {
       slMultiplier: 1.0,       // tighter OK: SOL's extreme vol means trails activate fast
       trailingStop: { activationATR: 0.9, trailATR: 0.5 },  // tight trail on big moves
@@ -160,8 +160,8 @@ const ASSET_PROFILES = {
     orderFlowReliability: 'low',
     riskMultiplier: 0.5,      // HALF size: speculative, volatile, protect capital
     slTightness: 1.2,
-    // VOL_EXP ONLY. RANGING kills (-$282). Everything else is noise.
-    blockedRegimes: ['RANGING'],
+    // VOL_EXP ONLY. RANGING kills (-$282). TRENDING_DOWN + LOW_VOL globally bad.
+    blockedRegimes: ['RANGING', 'TRENDING_DOWN', 'LOW_VOL'],
     riskOverrides: {
       slMultiplier: 1.3,       // wider: XRP wicks are violent
       trailingStop: { activationATR: 1.0, trailATR: 0.5 },  // tight trail once it moves
