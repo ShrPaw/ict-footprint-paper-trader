@@ -1,0 +1,141 @@
+# SESSION NOTES — 2026-04-04 (Session #14 — Data Pipeline Validation)
+
+## What Was Done
+
+### EDGE DISCOVERY ENGINE — Full Statistical Analysis (Phase 1-7)
+
+Built and ran the complete edge discovery pipeline on the existing 66-trade dataset.
+Concluded: no structural entry edge exists (PF 0.47 without exit management).
+
+### DATA PIPELINE VALIDATION — Reality Audit (Phase 1-6)
+
+Built unrestricted data expansion engine to validate whether the previous conclusion
+was valid or a data artifact. Generated 496,881 signals across 4 assets.
+
+## KEY FINDINGS
+
+### The Previous Analysis Was Wrong
+
+The original conclusion ("no entry edge") was based on 66 trades — statistically
+insufficient. The expanded dataset (496,881 signals) reveals:
+
+### 1. ENTRY HAS NO PREDICTIVE POWER (Confirmed at Scale)
+
+- RR 1:2 fixed exit: 51.5% WR, $2.4M total — slightly above breakeven
+- Random exit baseline: 47.8% WR, $3.2M total — OUTPERFORMS directional signals
+- Directional signals LOSE $783K compared to random coin flip
+- Conclusion: current features do not capture what moves price
+
+### 2. DURATION IS THE ONLY REAL EDGE
+
+- Trades ≤1h: 100% WR, +$6.8M
+- Trades ≤4h: 100% WR, +$18.7M
+- Trades 24-48h: 73% WR, -$5.1M
+- Trades >48h: 57% WR, -$25.9M
+- Every trade that closes quickly wins. Every stale trade dies.
+
+### 3. TRAILING STOPS LOSE MONEY (Unfiltered)
+
+- With unrestricted signals, trailing stops produce PF 0.92, -$4.2M
+- The production system's PF 2.02 was survivorship bias from 99.94% filtering
+- Trailing stops only "work" when you filter out 99.94% of opportunities
+
+### 4. FEATURE INTERACTIONS THAT WORK
+
+- ABSORPTION regime: PF 1.53-3.87 (but tiny sample)
+- TRENDING_DOWN + short: PF 1.14, 83K trades
+- LOW_VOL + short: PF 1.09, 65K trades
+- TRENDING_DOWN|NV|ME: PF 5.64, 429 trades
+- TRENDING_DOWN|NV|LE: PF 5.35, 317 trades
+
+### 5. TEMPORAL VALIDATION
+
+- 2022: +$1.07M (crypto winter — favorable)
+- 2023: +$961K (still favorable)
+- 2024: -$1.79M (regime shift)
+- 2025: -$4.34M (catastrophic)
+- System has NO temporal consistency across years
+
+### 6. EMERGENCY STOPS
+
+- 55,890 emergency exits across all signals
+- Total emergency loss: -$48.4M
+- Average duration: 4,593 minutes (3.2 days)
+- Emergency stops are stale trades, not bad entries
+
+## Files Created
+
+```
+analysis/
+  edge-discovery-engine.js      — Statistical analyzer (66-trade dataset)
+  data-expansion-engine.js      — Unrestricted signal generator (497K signals)
+  entry-isolation-analyzer.js   — Entry vs exit isolation analysis
+FINAL_EDGE_DISCOVERY_REPORT_2026-04-04.md — Full report (Phase 1-7)
+```
+
+## What To Do Next
+
+### IMMEDIATE
+
+1. **Hard time exit at 4h** — the only validated edge. Prevents 100% of emergency stops.
+2. **Remove trailing stops from unrestricted trading** — they lose money without filters.
+3. **Only trade TRENDING_DOWN + short** — the only profitable regime×direction combo at scale.
+
+### ENTRY MODEL REBUILD
+
+Current features have zero/negative predictive power. Need:
+- Volume profile analysis (POC shifts, value area)
+- Liquidity dynamics (order book imbalance, depth)
+- Institutional flow patterns (icebergs, block trades)
+- Market microstructure (bid-ask spread dynamics)
+
+### WALK-FORWARD VALIDATION
+
+No parameter should be tuned on full dataset. Use rolling 12m train / 3m OOS from day one.
+
+## Session History
+
+### Session #1 — 2026-03-30
+- Cloned repo, ran npm install, got backtests working (Jan-May 2025 SPOT)
+- Analyzed ETH results, built Hyperliquid testnet integration
+
+### Session #2 — 2026-03-31 (early AM)
+- Found backtests were on Binance SPOT not FUTURES
+- Changed backtest symbols to futures format
+
+### Session #3 — 2026-03-31
+- Created BinanceFeed.js, BinanceEngine.js
+- Major backtest upgrades (year-by-year, monthly, funding, regime dist)
+
+### Session #4 — 2026-03-31
+- Deep-read entire codebase (32 files)
+- Fixed backtest.js O(n²) bottleneck
+
+### Session #5 — 2026-03-31
+- Applied Round 2 optimization: cached windows
+
+### Session #6 — 2026-03-31
+- Full precomputed O(n) architecture refactor
+
+### Session #7 — 2026-04-02
+- Per-asset signal thresholds
+- First successful full futures backtest — -$2,979, $37K fees
+
+### Session #8 — 2026-04-03
+- Multi-Model Architecture (SOL/BTC/ETH/XRP independent models)
+- Raised thresholds to 0.75-0.90 range
+
+### Session #9-12 — 2026-04-03
+- Trade Lifecycle Engine (decay, confidence)
+- Exhaustion Detector
+- Portfolio Risk Manager
+- Signal instrumentation
+
+### Session #13 — 2026-04-03
+- Edge Discovery Report (66 trades, concluded no entry edge)
+
+### Session #14 — 2026-04-04 (THIS SESSION)
+- Data Pipeline Validation (496,881 signals)
+- Confirmed: entry has no predictive power at scale
+- Duration is the only real edge
+- Features need complete rebuild

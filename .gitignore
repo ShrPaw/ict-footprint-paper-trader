@@ -2,3 +2,5 @@ node_modules/
 *.log
 .env
 backtest-results/
+data/expanded-dataset-*.jsonl
+data/expanded-summary-*.json
