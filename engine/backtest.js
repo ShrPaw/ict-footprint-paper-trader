@@ -22,6 +22,7 @@ import {
   extractLiquiditySweeps, extractOTEs,
 } from './Precompute.js';
 import OrderFlowEngine from './OrderFlowEngine.js';
+import ModelRouter from '../models/ModelRouter.js';
 
 class Backtester {
   constructor(options = {}) {
@@ -56,6 +57,9 @@ class Backtester {
 
     // Institutional OrderFlowEngine (6-step pipeline)
     this.orderFlowEngine = new OrderFlowEngine();
+
+    // Per-asset Model Router (multi-model architecture)
+    this.modelRouter = new ModelRouter();
   }
 
   async run() {
@@ -177,54 +181,83 @@ class Backtester {
               regimes, fvgSignals, obSignals, sweepSignals, oteSignals, symbol, timestamp);
 
             if (context) {
-              // Legacy ICT + Footprint signal
-              const legacySignal = this._evaluateSignal(context);
+              // ═══════════════════════════════════════════════════════════
+              // MULTI-MODEL ARCHITECTURE: Route to per-asset model
+              // Each asset has its OWN feature set, signal logic, and thresholds.
+              // This is model separation, not parameter tuning.
+              // ═══════════════════════════════════════════════════════════
 
-              // OrderFlowEngine signal (6-step institutional pipeline)
-              let ofSignal = null;
-              if (config.orderFlow?.enabled !== false) {
-                const ofCtx = {
-                  candles1h, candles15m,
-                  index15m: i, index1h: h1Idx,
-                  // BUG FIX: Pass FULL indicator arrays, not scalar values.
-                  // OrderFlowEngine._analyzeContext() indexes into these arrays.
-                  indicators1h: {
-                    ema9: indicators1h.ema9,
-                    ema21: indicators1h.ema21,
-                    ema50: indicators1h.ema50,
-                    atr: indicators1h.atr,
-                  },
-                  profile: context.profile,
-                  regime: context.regime,
-                  ictSignals: [
-                    ...(context.fvgSignals || []),
-                    ...(context.obSignals || []),
-                    ...(context.sweepSignals || []),
-                    ...(context.oteSignals || []),
-                  ].filter(s => s.type !== 'FVG'), // FVG killed
-                  oteSignals: context.oteSignals,
-                  sweepSignals: context.sweepSignals,
-                };
+              // Enrich context with delta array and model-expected field names
+              const modelCtx = {
+                ...context,
+                // Map backtest field names → model-expected field names
+                index1h: context.h1Idx,
+                index15m: context.m15Idx,
+                deltaArr: indicators15m.delta.delta,
+                timestamp: candle15m.timestamp,
+                profile: context.profile,
+                regime: context.regime,
+                regimeResult: regimes[h1Idx],
+                killzone: context.killzone,
+                sweepSignals: context.sweepSignals,
+                obSignals: context.obSignals,
+                oteSignals: context.oteSignals,
+                volumeRatio: context.volumeRatio,
+              };
 
-                const ofResult = this.orderFlowEngine.evaluate(ofCtx);
-                if (ofResult.signal) {
-                  ofSignal = {
-                    ...ofResult.signal,
-                    source: 'order_flow',
-                    combinedScore: ofResult.signal.confidence,
+              let signal = this.modelRouter.evaluate(symbol, modelCtx);
+
+              // ═══════════════════════════════════════════════════════════
+              // FALLBACK: Legacy + OrderFlowEngine (transition period)
+              // If model returns null, try the legacy pipeline.
+              // Remove this once all models are validated.
+              // ═══════════════════════════════════════════════════════════
+              if (!signal) {
+                // Legacy ICT + Footprint signal
+                const legacySignal = this._evaluateSignal(context);
+
+                // OrderFlowEngine signal (6-step institutional pipeline)
+                let ofSignal = null;
+                if (config.orderFlow?.enabled !== false) {
+                  const ofCtx = {
+                    candles1h, candles15m,
+                    index15m: i, index1h: h1Idx,
+                    indicators1h: {
+                      ema9: indicators1h.ema9,
+                      ema21: indicators1h.ema21,
+                      ema50: indicators1h.ema50,
+                      atr: indicators1h.atr,
+                    },
+                    profile: context.profile,
+                    regime: context.regime,
+                    ictSignals: [
+                      ...(context.fvgSignals || []),
+                      ...(context.obSignals || []),
+                      ...(context.sweepSignals || []),
+                      ...(context.oteSignals || []),
+                    ].filter(s => s.type !== 'FVG'),
+                    oteSignals: context.oteSignals,
+                    sweepSignals: context.sweepSignals,
                   };
-                }
-              }
 
-              // Pick best signal — SOFTENED VOL_EXP GATE.
-              // Old: OF must provide signal (rejected all legacy in VOL_EXP, killed ETH).
-              // New: prefer OF if present, otherwise accept legacy. OF still filters
-              // noise via its own pipeline, but doesn't block profitable legacy setups.
-              let signal = null;
-              if (ofSignal && legacySignal) {
-                signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
-              } else {
-                signal = ofSignal || legacySignal;
+                  const ofResult = this.orderFlowEngine.evaluate(ofCtx);
+                  if (ofResult.signal) {
+                    ofSignal = {
+                      ...ofResult.signal,
+                      source: 'order_flow',
+                      combinedScore: ofResult.signal.confidence,
+                    };
+                  }
+                }
+
+                // Pick best legacy signal
+                if (ofSignal && legacySignal) {
+                  signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
+                } else {
+                  signal = ofSignal || legacySignal;
+                }
+
+                if (signal) signal.source = signal.source || 'legacy_fallback';
               }
 
               if (signal) {
@@ -583,6 +616,7 @@ class Backtester {
       regime: signal.regime,
       reason: signal.reason || signal.type,
       signalType: signal.type,
+      signalSource: signal.source || 'unknown',
       mode: signal.mode || 'DAYTRADE',
       entryTime: timestamp,
       fee,
@@ -864,10 +898,11 @@ class Backtester {
     const sharpe = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(365) : 0;
 
     // Breakdowns
-    const byRegime = {}, bySignal = {}, byExit = {}, byMode = {}, byAsset = {};
+    const byRegime = {}, bySignal = {}, byExit = {}, byMode = {}, byAsset = {}, bySource = {};
     for (const t of trades) {
       for (const [group, key] of [[byRegime, t.regime], [bySignal, t.signalType || 'unknown'],
-        [byExit, t.closeReason], [byMode, t.mode || 'UNKNOWN'], [byAsset, t.assetProfile || t.symbol?.split('/')[0] || 'unknown']]) {
+        [byExit, t.closeReason], [byMode, t.mode || 'UNKNOWN'], [byAsset, t.assetProfile || t.symbol?.split('/')[0] || 'unknown'],
+        [bySource, t.signalSource || 'unknown']]) {
         if (!group[key]) group[key] = { trades: 0, wins: 0, pnl: 0 };
         group[key].trades++;
         if (t.pnl > 0) group[key].wins++;
@@ -945,7 +980,7 @@ class Backtester {
       totalFees: totalFees.toFixed(2),
       totalFunding: totalFunding.toFixed(4),
       fundingRateUsed: this.fundingRate,
-      byRegime, bySignal, byExit, byMode, byAsset,
+      byRegime, bySignal, byExit, byMode, byAsset, bySource,
       byYear,
       byMonth,
       monthlyStats: {
@@ -997,6 +1032,12 @@ class Backtester {
     for (const [asset, data] of Object.entries(s.byAsset)) {
       const wr = data.trades > 0 ? ((data.wins / data.trades) * 100).toFixed(0) : '0';
       console.log(`  ${asset.padEnd(8)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
+    }
+
+    console.log('\n── By Source (Model vs Legacy) ──────────────────');
+    for (const [source, data] of Object.entries(s.bySource)) {
+      const wr = data.trades > 0 ? ((data.wins / data.trades) * 100).toFixed(0) : '0';
+      console.log(`  ${source.padEnd(24)} ${String(data.trades).padStart(4)} trades | ${wr}% WR | PnL: $${data.pnl.toFixed(2)}`);
     }
 
     console.log('\n── By Regime ─────────────────────────────────────');

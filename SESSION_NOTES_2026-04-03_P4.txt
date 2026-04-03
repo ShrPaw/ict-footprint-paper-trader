@@ -1,0 +1,137 @@
+# SESSION NOTES — 2026-04-03 (Session #13)
+
+## What Was Done
+
+### MULTI-MODEL ARCHITECTURE — Complete System Redesign
+
+Moved from ONE strategy with different parameters to FOUR independent alpha engines.
+This is MODEL SEPARATION, not parameter tuning.
+
+### New Files Created
+
+```
+models/
+  BaseModel.js      — Abstract interface, shared utilities (killzone, ATR z-score, etc.)
+  SOLModel.js       — Retail Momentum Engine (stacked imbalance + momentum)
+  BTCModel.js       — Institutional Structure Engine (OB, sweep, OTE + delta)
+  ETHModel.js       — Hybrid Confluence Engine (mandatory ICT + flow confluence)
+  XRPModel.js       — Extreme Event Engine (extreme delta + volume spike + stall)
+  ModelRouter.js    — Asset → Model dispatcher
+```
+
+### Files Modified
+
+- `strategies/DaytradeMode.js` — Integrated ModelRouter, legacy fallback during transition
+- `engine/backtest.js` — Integrated ModelRouter in backtest loop, added signal source tracking
+
+---
+
+## Architecture: Before vs After
+
+### BEFORE (Single Strategy)
+```
+DaytradeMode._scoreSignal()
+  → Same logic for all 4 assets
+  → Only thresholds/weights differ
+  → Order blocks treated the same on SOL and BTC
+  → Result: emergency stops, curve-fitting via parameters
+```
+
+### AFTER (Multi-Model)
+```
+ModelRouter
+  → SOLModel: Retail momentum (stacked delta, volatility filter, late-move guard)
+  → BTCModel: Institutional structure (OB, sweep, OTE, EMA stack)
+  → ETHModel: Hybrid confluence (mandatory ICT + flow agreement)
+  → XRPModel: Extreme events only (all 3 conditions required)
+```
+
+---
+
+## Per-Asset Model Design
+
+### SOL — Retail Momentum Engine
+- **Edge source:** Momentum + order flow imbalance
+- **Core features:** Stacked delta imbalance (3+), short-term momentum, volatility expansion filter
+- **Filters:** ATR z-score > 2 = no trade, price > 2 ATR from mean = no trade
+- **Avoids:** Order blocks (retail doesn't respect them), OTE (too slow for SOL speed)
+- **Regime:** RANGING is gold (+$5,832 historically), TRENDING_UP continuation works
+
+### BTC — Institutional Structure Engine
+- **Edge source:** ICT structure + controlled order flow
+- **Core features:** Order block retest, OTE zone, liquidity sweep reversal, full EMA stack
+- **Filters:** ATR z-score > 1.5 = avoid (volatility spike = knife catching)
+- **Requires:** Full EMA 9>21>50 alignment (not just price > EMA21)
+- **Regime:** TRENDING_UP only (blocked in RANGING historically)
+
+### ETH — Hybrid Confluence Engine
+- **Edge source:** Confluence ONLY — no solo signals
+- **Core features:** ICT zone (OB/sweep/OTE) + flow signal (stacked delta/divergence)
+- **Rule:** No ICT zone = no trade. No flow signal = no trade. Both must agree on direction.
+- **Regime:** TRENDING_UP primary, VOL_EXP gated
+
+### XRP — Extreme Event Engine
+- **Edge source:** Extreme divergence ONLY
+- **Core features:** Delta z-score > 2.0, volume spike > 2x, price stall (body < 50% avg)
+- **Rule:** ALL THREE conditions must be met. Missing any = no trade.
+- **Regime:** VOL_EXPANSION only (blocked everywhere else)
+- **Direction:** Reversal only (delta direction tells what's being absorbed)
+
+---
+
+## Shared Utilities (BaseModel)
+
+Each model inherits:
+- `checkKillzone()` — session filtering
+- `isWeekend()` — weekend filter
+- `checkSessionGate()` — per-asset allowed sessions
+- `checkRegimeBlock()` — per-asset blocked regimes
+- `computeATRzScore()` — volatility expansion detection
+- `priceDistanceFromMean()` — late-move filter
+- `buildSignal()` — standardized signal construction with per-asset SL/TP
+
+---
+
+## Backtest Results (Quick Test — 10 days, 1000 candles)
+
+| Asset | Trades | WR | PnL | Source |
+|-------|--------|-----|-----|--------|
+| ETH | 4 | 100% | +$81.80 | Model |
+| SOL | 7 | 71% | -$84.32 | Model + Legacy |
+| BTC | 2 | 50% | +$19.54 | Model + Legacy |
+| XRP | 4 | 100% | +$209.21 | Model |
+| **Total** | **17** | **82%** | **+$226.23** | |
+
+Note: Only 10-day sample due to Binance rate limiting. Need full 4-year backtest for validation.
+
+---
+
+## Code Quality
+
+- All imports verified ✅
+- ModelRouter instantiation confirmed ✅
+- No duplicate methods in DaytradeMode ✅
+- Legacy fallback preserved during transition ✅
+- Signal source tracking added to trade records ✅
+- "By Source" breakdown added to backtest report ✅
+
+---
+
+## TODO — Next Session
+
+### IMMEDIATE
+- [ ] Run full 4-year backtest (ETH, SOL, BTC) with new multi-model architecture
+- [ ] Compare model performance vs legacy per asset
+- [ ] Tune per-model thresholds based on backtest results
+- [ ] Remove legacy fallback once models are validated
+
+### OPTIMIZATION
+- [ ] SOL: Tune stacked imbalance threshold (3 vs 4 vs 5)
+- [ ] BTC: Test with RANGING unblocked (structural entries might work now)
+- [ ] ETH: Test confluence-only in RANGING (was blocked, but confluence might fix it)
+- [ ] XRP: Validate extreme event thresholds (z-score 2.0 vs 2.5 vs 3.0)
+
+### BEFORE LIVE
+- [ ] Walk-forward analysis (12-month train / 3-month OOS)
+- [ ] Final parameter lock per model
+- [ ] Testnet dry run (1 week)

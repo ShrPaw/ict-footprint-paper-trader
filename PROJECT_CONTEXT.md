@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-03 07:15 GMT+8
 **Session:** #11 (2026-04-03)
-**Version:** 4.1.0 (OrderFlowEngine + ClusterAnalyzer + trailing-only exits)
+**Version:** 5.1.0 (Multi-Model Architecture)
 
 ---
 
@@ -57,40 +57,31 @@ See `OPTIMIZATION_REPORT.md` for full analysis and next steps.
 ## Architecture
 
 ```
-bots/
-  BotRunner.js            — Paper bot runner (Hyperliquid data + PaperEngine)
-  LiveBotRunner.js        — Live bot runner (Hyperliquid testnet)
-  BinanceLiveBotRunner.js — Live bot runner (Binance futures testnet)
-  eth/sol/btc/xrp/bot.js  — Paper bot entry points
-  live/eth/sol/btc/xrp.js — Hyperliquid live entry points
-  live/binance/eth/sol/btc/xrp.js — Binance live entry points
+models/
+  BaseModel.js            — Abstract interface + shared utilities (killzone, ATR z-score, etc.)
+  ModelRouter.js          — Asset → Model dispatcher (routes symbol to correct engine)
+  SOLModel.js             — Retail Momentum Engine (stacked imbalance + momentum)
+  BTCModel.js             — Institutional Structure Engine (OB, sweep, OTE + delta)
+  ETHModel.js             — Hybrid Confluence Engine (mandatory ICT + flow confluence)
+  XRPModel.js             — Extreme Event Engine (extreme delta + volume spike + stall)
 strategies/
-  DaytradeMode.js         — THE strategy: 1H ICT + footprint + OrderFlowEngine confluence
-  DaytradeMode.js         — THE strategy: 1H ICT + OrderFlowEngine
+  DaytradeMode.js         — Signal shell: data prep → ModelRouter → signal (legacy fallback)
 engine/
   PaperEngine.js          — Simulated orders, PnL, trailing stops (emergency-only SL)
-  HyperliquidEngine.js    — Hyperliquid testnet execution
-  BinanceEngine.js        — Binance futures testnet execution
-  backtest.js             — Walk-forward backtester (dual-pipeline: ICT + OrderFlowEngine)
-  OrderFlowEngine.js      — NEW: 6-step institutional decision pipeline
+  backtest.js             — Walk-forward backtester (multi-model architecture)
+  OrderFlowEngine.js      — 6-step institutional decision pipeline (used by ETH model)
   Precompute.js           — O(n) indicator precomputation
-  main.js                 — Legacy multi-asset trader (unused)
 analysis/
   RegimeDetector.js       — Market regime classification
   ICTAnalyzer.js          — Order Blocks, FVG, OTE, Liquidity Sweeps, BOS
   RealFootprintAnalyzer.js — Order flow delta, absorption, POC
-  ClusterAnalyzer.js      — NEW: 4 cluster type classification (Absorption/Continuation/Exhaustion/Trapped)
+  ClusterAnalyzer.js      — 4 cluster type classification
 config/
-  assetProfiles.js        — Per-asset intelligence + regime blocking (thresholds raised)
-  config.js               — Global config (breakeven killed, OF engine config added)
+  assetProfiles.js        — Per-asset intelligence + regime blocking
+  config.js               — Global config
 data/
   HyperliquidFeed.js      — Hyperliquid data (trade-level footprint)
   BinanceFeed.js          — Binance futures data (OHLCV via ccxt)
-  TradingViewWebhook.js   — TradingView alert webhooks
-alerts/
-  TelegramAlerter.js      — Telegram notifications
-dashboard/
-  server.js + index.html  — Web dashboard (port 3500)
 ```
 
 ## Three Operating Modes
@@ -147,8 +138,9 @@ npm run dashboard   # port 3500
 
 ## Key Design Decisions
 
-1. **Per-asset regime blocking** — the real edge
-2. **ICT on 1H only** — 15m FVG had 24% WR
+1. **Multi-Model Architecture (Session #13)** — Each asset has its OWN model with independent feature set, signal logic, and thresholds. NOT parameter tuning — model separation.
+2. **Per-asset regime blocking** — the real edge
+3. **ICT on 1H only** — 15m FVG had 24% WR
 3. **TRENDING_DOWN blocked globally** — 41% WR
 4. **No regular stop loss** — 0% WR in all backtests, replaced with 8 ATR emergency circuit breaker
 5. **No weekends** — overtrading, no edge (for daytrade mode)

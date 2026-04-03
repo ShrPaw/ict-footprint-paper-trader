@@ -9,6 +9,7 @@
 import config from '../config.js';
 import { getProfile } from '../config/assetProfiles.js';
 import OrderFlowEngine from '../engine/OrderFlowEngine.js';
+import ModelRouter from '../models/ModelRouter.js';
 
 export default class DaytradeMode {
   constructor(regimeDetector, ictAnalyzer, footprintAnalyzer) {
@@ -16,6 +17,7 @@ export default class DaytradeMode {
     this.ict = ictAnalyzer;
     this.footprint = footprintAnalyzer;
     this.orderFlow = new OrderFlowEngine();
+    this.modelRouter = new ModelRouter();
     this.lastSignalTime = {};
     this._atrCache = {};
     this._emaCache = {};
@@ -27,135 +29,125 @@ export default class DaytradeMode {
 
     const profile = getProfile(symbol);
     const lastCandle = candles1h[candles1h.length - 1];
+    const price = candles1h[candles1h.length - 1].close;
 
-    // 1. Weekday only
-    if (this._isWeekend(lastCandle.timestamp)) return null;
-
-    // 2. Killzone check
-    const killzone = this._checkKillzone(lastCandle.timestamp);
-    if (!killzone.allowed) return null;
-
-    // 2b. Session hard-gate — per-asset allowed sessions (if configured)
-    if (profile.allowedSessions && !profile.allowedSessions.includes(killzone.session)) {
-      return null;
-    }
-
-    // 3. Regime detection on 1H
+    // ── Data Preparation (shared infrastructure) ─────────────────
+    // Regime detection on 1H
     const regimeResult = this.regime.detect(symbol, candles1h);
     const regime = regimeResult.regime;
 
-    // 4. Skip unfavorable regimes — fully per-asset via blockedRegimes
-    // LOW_VOL + TRENDING_DOWN now in each profile's blockedRegimes (was global before)
-    if (profile.blockedRegimes?.includes(regime)) return null;
-
-    const price = candles1h[candles1h.length - 1].close;
-
-    // 5. EMA alignment — require price above/below EMA21 (not full 9>21>50 stack)
-    const ema21 = this._cachedEMA(candles1h, 21);
-    const ema50 = this._cachedEMA(candles1h, 50);
-
-    const bullish = price > ema21 && price > ema50;
-    const bearish = price < ema21 && price < ema50;
-
-    if (!bullish && !bearish) return null;
-
-    // 6. Run ICT analysis on 1H
+    // ICT analysis on 1H
     const ictResult = this.ict.analyze(symbol, candles1h);
 
-    // 7. Run footprint (use 15m if available for micro-confirmation)
+    // Footprint (use 15m if available for micro-confirmation)
     const fpCandles = candles15m || candles1h;
     const footprintResult = this.footprint.analyze(symbol, fpCandles, realFootprint);
 
-    // 8. Run OrderFlowEngine pipeline (6-step institutional analysis)
-    let ofSignal = null;
-    if (config.orderFlow?.enabled) {
-      const indicators1h = {
-        ema9: this._cachedEMA(candles1h, 9),
-        ema21, ema50,
-        atr: this._currentATR(candles1h),
-      };
+    // EMA values
+    const ema21 = this._cachedEMA(candles1h, 21);
+    const ema50 = this._cachedEMA(candles1h, 50);
+    const ema9 = this._cachedEMA(candles1h, 9);
 
-      const ofCtx = {
-        candles1h,
-        candles15m: fpCandles,
-        index15m: fpCandles.length - 1,
-        index1h: candles1h.length - 1,
-        indicators1h,
-        profile,
-        regime,
-        // ICT signals for key level detection
-        ictSignals: ictResult.signals,
-        oteSignals: ictResult.signals?.filter(s => s.type === 'OTE'),
-        sweepSignals: ictResult.signals?.filter(s => s.type === 'LIQUIDITY_SWEEP'),
-      };
+    // ── Build Model Context ─────────────────────────────────────
+    // Each per-asset model extracts its own features from this shared data
+    const ctx = {
+      symbol,
+      candles1h,
+      candles15m: fpCandles,
+      index1h: candles1h.length - 1,
+      index15m: fpCandles.length - 1,
+      timestamp: lastCandle.timestamp,
+      price,
+      profile,
+      regime,
+      regimeResult,
+      atr: this._currentATR(candles1h),
+      killzone: this._checkKillzone(lastCandle.timestamp),
 
-      const ofResult = this.orderFlow.evaluate(ofCtx);
-      if (ofResult.signal) {
-        ofSignal = {
-          ...ofResult.signal,
-          source: 'order_flow',
-          combinedScore: ofResult.signal.confidence,
-        };
-      }
-    }
+      // Indicators (scalars for current candle — models can access arrays too)
+      indicators1h: {
+        ema9: new Array(candles1h.length).fill(null),  // models compute from candles
+        ema21: new Array(candles1h.length).fill(null),
+        ema50: new Array(candles1h.length).fill(null),
+        atr: new Array(candles1h.length).fill(null),
+      },
 
-    // 9. Score with asset-specific weights (ICT + Footprint confluence)
+      // Pre-populate last values for model convenience
+      ema9, ema21, ema50,
+
+      // ICT signals (from analyzer)
+      ictSignals: ictResult.signals || [],
+      obSignals: ictResult.signals?.filter(s => s.type === 'ORDER_BLOCK') || [],
+      sweepSignals: ictResult.signals?.filter(s => s.type === 'LIQUIDITY_SWEEP') || [],
+      oteSignals: ictResult.signals?.filter(s => s.type === 'OTE') || [],
+
+      // Footprint signals
+      fpSignals: footprintResult.signals || [],
+      deltaArr: null, // live mode uses footprint analyzer directly
+      volumeRatio: null,
+
+      // Volume metrics (if available)
+      volumeRatio: this._getVolumeRatio(candles1h),
+    };
+
+    // ── Route to Per-Asset Model ────────────────────────────────
+    // Each model has its OWN feature extraction, signal logic, and thresholds.
+    // This is NOT parameter tuning — it's independent alpha engines.
+    const result = this.modelRouter.evaluate(symbol, ctx);
+    if (result) return result;
+
+    // ── Fallback: Legacy scoring (transition period) ────────────
+    // Remove this once all models are validated in backtests.
+    // The legacy path uses the old single-strategy approach as safety net.
+    return this._legacyFallback(symbol, ctx, ictResult, footprintResult, regimeResult);
+  }
+
+  /**
+   * Legacy fallback — old _scoreSignal logic, kept during transition.
+   * Once per-asset models are validated, remove this method entirely.
+   */
+  _legacyFallback(symbol, ctx, ictResult, footprintResult, regimeResult) {
+    const profile = ctx.profile;
+    const regime = ctx.regime;
+    const killzone = ctx.killzone;
+    const candles1h = ctx.candles1h;
+
+    // Only run legacy if model returned null AND basic gates pass
+    if (this.isWeekend(ctx.timestamp)) return null;
+    if (!killzone.allowed) return null;
+    if (profile.allowedSessions && !profile.allowedSessions.includes(killzone.session)) return null;
+    if (profile.blockedRegimes?.includes(regime)) return null;
+
+    const bullish = ctx.price > ctx.ema21 && ctx.price > ctx.ema50;
+    const bearish = ctx.price < ctx.ema21 && ctx.price < ctx.ema50;
+    if (!bullish && !bearish) return null;
+
     const legacySignal = this._scoreSignal(
       regime, ictResult, footprintResult, regimeResult,
       profile, bullish, killzone
     );
 
-    // 10. Pick the best signal — SOFTENED VOL_EXP GATE.
-    // Old: in VOL_EXP, only OF signals accepted (killed ETH profitability).
-    // New: prefer OF if present (stricter pipeline = higher quality),
-    // but accept legacy signals if OF didn't produce one.
-    let signal = null;
-    if (ofSignal && legacySignal) {
-      signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
-    } else if (ofSignal) {
-      signal = ofSignal;
-    } else if (legacySignal) {
-      signal = legacySignal;
-    }
+    if (!legacySignal) return null;
 
-    if (!signal) return null;
-
-    // 11. Direction filter
-    if (signal.action === 'buy' && !bullish) return null;
-    if (signal.action === 'sell' && !bearish) return null;
-
-    // 12. Strict trend alignment in TRENDING regimes
-    if (regime === 'TRENDING_UP' && signal.action === 'sell') return null;
-
-    // 13. Rate limit (longer for 1H — fewer candles)
-    if (this._isRateLimited(symbol, lastCandle.timestamp)) return null;
-
-    // 14. SL/TP — per-asset overrides for SL multiplier
-    const atr = signal.atr || this._currentATR(candles1h);
+    // Apply same SL/TP logic
+    const atr = legacySignal.atr || ctx.atr;
     const slMult = (profile.riskOverrides?.slMultiplier ?? config.risk[regime]?.slMultiplier ?? 0.9) * profile.slTightness;
     const tpMult = config.risk[regime]?.tpMultiplier || 2.5;
-
-    const sl = signal.stopLoss || (signal.action === 'buy'
-      ? price - atr * slMult
-      : price + atr * slMult);
-
-    const tp = signal.takeProfit || (signal.action === 'buy'
-      ? price + atr * tpMult
-      : price - atr * tpMult);
-
+    const sl = legacySignal.action === 'buy' ? ctx.price - atr * slMult : ctx.price + atr * slMult;
+    const tp = legacySignal.action === 'buy' ? ctx.price + atr * tpMult : ctx.price - atr * tpMult;
     const riskPercent = (config.risk[regime]?.riskPercent || 0.75) * profile.riskMultiplier;
     const riskAmount = config.engine.startingBalance * (riskPercent / 100);
-    const slDistance = Math.abs(price - sl);
+    const slDistance = Math.abs(ctx.price - sl);
     const size = slDistance > 0 ? riskAmount / slDistance : 0;
 
-    this.lastSignalTime[symbol] = lastCandle.timestamp || Date.now();
+    this.lastSignalTime[symbol] = ctx.timestamp || Date.now();
 
     return {
-      ...signal,
+      ...legacySignal,
       mode: this.modeName,
       regime,
       regimeConfidence: regimeResult.confidence,
-      price,
+      price: ctx.price,
       stopLoss: sl,
       takeProfit: tp,
       size: Math.max(size, 0),
@@ -164,7 +156,38 @@ export default class DaytradeMode {
       assetProfile: profile.name,
       profile,
       session: killzone.session,
+      source: 'legacy_fallback',
     };
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+
+  isWeekend(timestamp) {
+    const day = timestamp ? new Date(timestamp).getUTCDay() : new Date().getUTCDay();
+    return day === 0 || day === 6;
+  }
+
+  _checkKillzone(timestamp) {
+    const now = timestamp ? new Date(timestamp) : new Date();
+    const time = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const kz = config.killzones;
+    if (kz.deadzones.some(dz => time >= dz.start && time < dz.end)) return { allowed: false, session: 'dead' };
+    const inLondon = time >= kz.london.start && time < kz.london.end;
+    const inNY = time >= kz.ny.start && time < kz.ny.end;
+    const inOverlap = time >= kz.overlap.start && time < kz.overlap.end;
+    const inAsia = (time >= kz.asia.start || time < kz.asia.end);
+    const session = inOverlap ? 'overlap' : inNY ? 'ny' : inLondon ? 'london' : inAsia ? 'asia' : 'off-session';
+    if (session === 'off-session') return { allowed: false, session };
+    return { allowed: true, overlap: inOverlap, session };
+  }
+
+  _getVolumeRatio(candles1h) {
+    const n = candles1h.length;
+    if (n < 21) return 1.0;
+    let sum = 0;
+    for (let i = n - 21; i < n - 1; i++) sum += candles1h[i].volume;
+    const avg = sum / 20;
+    return avg > 0 ? candles1h[n - 1].volume / avg : 1.0;
   }
 
   _scoreSignal(regime, ict, footprint, regimeResult, profile, bullish, killzone) {
@@ -295,30 +318,6 @@ export default class DaytradeMode {
     return false;
   }
 
-  _checkKillzone(timestamp) {
-    const now = timestamp ? new Date(timestamp) : new Date();
-    const time = now.getUTCHours() + now.getUTCMinutes() / 60;
-    const kz = config.killzones;
-    if (kz.deadzones.some(dz => time >= dz.start && time < dz.end)) return { allowed: false, session: 'dead' };
-    const inLondon = time >= kz.london.start && time < kz.london.end;
-    const inNY = time >= kz.ny.start && time < kz.ny.end;
-    const inOverlap = time >= kz.overlap.start && time < kz.overlap.end;
-    const inAsia = (time >= kz.asia.start || time < kz.asia.end);
-    const session = inOverlap ? 'overlap' : inNY ? 'ny' : inLondon ? 'london' : inAsia ? 'asia' : 'off-session';
-    if (session === 'off-session') return { allowed: false, session };
-    return { allowed: true, overlap: inOverlap, session };
-  }
-
-  _isWeekend(timestamp) {
-    const day = timestamp ? new Date(timestamp).getUTCDay() : new Date().getUTCDay();
-    return day === 0 || day === 6;
-  }
-
-  _isRateLimited(symbol, timestamp) {
-    const lastTime = this.lastSignalTime[symbol];
-    if (!lastTime) return false;
-    return (timestamp || Date.now()) - lastTime < config.strategy.signalCooldown;
-  }
 
   _cachedEMA(candles, period) {
     const key = `${candles.length}-${candles[candles.length - 1].timestamp}`;
