@@ -25,11 +25,13 @@
 //   TRENDING_DOWN / LOW_VOL: blocked
 
 import BaseModel from './BaseModel.js';
+import ExhaustionDetector from '../engine/ExhaustionDetector.js';
 import config from '../config.js';
 
 export default class SOLModel extends BaseModel {
   constructor() {
     super('SOL_MODEL');
+    this.exhaustion = new ExhaustionDetector();
   }
 
   evaluate(ctx) {
@@ -191,6 +193,22 @@ export default class SOLModel extends BaseModel {
     // F) Regime-specific threshold multiplier
     const regimeMult = { VOL_EXPANSION: 0.90, TRENDING_UP: 1.05, RANGING: 0.95 };
     confidence *= (regimeMult[regime] ?? 1.0);
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXHAUSTION GATE: Is this move already over?
+    // This is the #1 cause of emergency stops — confusing exhaustion for momentum.
+    // ═══════════════════════════════════════════════════════════════
+    const exhaustionCheck = this.exhaustion.check({
+      ...ctx,
+      atrZ: f.atrZ,
+      distFromMean: f.distFromMean,
+      stackedCount: f.stackedCount,
+      volumeRatio: f.volRatio,
+    });
+
+    if (exhaustionCheck.blocked) {
+      return null; // Hard block — no trade in exhaustion zone
+    }
 
     // ── Threshold Check (per-asset) ─────────────────────────────
     const minSolo = ctx.profile.daytrade.minSoloScore ?? 0.85;

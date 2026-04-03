@@ -10,6 +10,7 @@ import config from '../config.js';
 import { getProfile } from '../config/assetProfiles.js';
 import OrderFlowEngine from '../engine/OrderFlowEngine.js';
 import ModelRouter from '../models/ModelRouter.js';
+import ExhaustionDetector from '../engine/ExhaustionDetector.js';
 
 export default class DaytradeMode {
   constructor(regimeDetector, ictAnalyzer, footprintAnalyzer) {
@@ -18,6 +19,7 @@ export default class DaytradeMode {
     this.footprint = footprintAnalyzer;
     this.orderFlow = new OrderFlowEngine();
     this.modelRouter = new ModelRouter();
+    this.exhaustion = new ExhaustionDetector();
     this.lastSignalTime = {};
     this._atrCache = {};
     this._emaCache = {};
@@ -139,6 +141,23 @@ export default class DaytradeMode {
     const riskAmount = config.engine.startingBalance * (riskPercent / 100);
     const slDistance = Math.abs(ctx.price - sl);
     const size = slDistance > 0 ? riskAmount / slDistance : 0;
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXHAUSTION GATE: Block entries in exhaustion zones
+    // ═══════════════════════════════════════════════════════════════
+    const exhaustionResult = this.exhaustion.check({
+      candles1h,
+      index1h: candles1h.length - 1,
+      candles15m: ctx.candles15m,
+      index15m: ctx.candles15m ? ctx.candles15m.length - 1 : null,
+      atr: legacySignal.atr || ctx.atr,
+      symbol,
+      volumeRatio: ctx.volumeRatio,
+    });
+
+    if (exhaustionResult.blocked) {
+      return null; // Hard block — no trade in exhaustion zone
+    }
 
     this.lastSignalTime[symbol] = ctx.timestamp || Date.now();
 

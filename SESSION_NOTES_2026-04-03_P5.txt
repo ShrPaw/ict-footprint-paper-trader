@@ -1,0 +1,213 @@
+# SESSION NOTES — 2026-04-03 (Session #14)
+
+## What Was Done: STRUCTURAL TRANSFORMATION
+
+Full institutional audit → architectural redesign → code implementation.
+
+This session was NOT optimization. It was structural transformation of the system
+from a fragile, curve-fitted trading system into a risk-controlled, distribution-aware
+quantitative engine.
+
+---
+
+## AUDIT FINDINGS (Critical)
+
+### 1. SOL Concentration Risk — FALSE DIVERSIFICATION
+- SOL = 78.9% of total PnL (+$7,024 / +$8,902)
+- Remove SOL → system is barely profitable (+$1,878) with one loser (ETH)
+- System has ONE alpha source, not a portfolio
+
+### 2. HIGH WINRATE TRAP — Negative Skew
+- 90%+ WR but emergency stops cost $31,116 total
+- System harvests small wins while exposed to catastrophic losses
+- Classic negative skew distribution
+
+### 3. EMERGENCY STOP DEPENDENCY — Model Failure, Not Risk Management
+- Emergency stops have 0% WR — they're NOT risk management
+- They're evidence the model entered in INVALID conditions
+- Root cause: model confuses exhaustion for momentum
+
+### 4. NO OUT-OF-SAMPLE VALIDATION
+- 13 sessions of in-sample tuning against one dataset
+- 45+ tunable parameters → near-certain curve-fitting risk
+- Walk-forward analysis is MANDATORY before live
+
+### 5. ETH FAILED — Every Configuration Lost Money
+- Session #8: +$3,392 → Session #12: -$465
+- Every "fix" made it worse
+- Confluence model (Session #13) is right direction but unproven
+
+---
+
+## CODE CHANGES
+
+### New Files Created
+
+1. **engine/ExhaustionDetector.js** — Entry Quality Engine
+   - Answers: "Is this move already over?"
+   - 6 detection checks:
+     * Volatility spike (ATR z-score)
+     * Price extension from mean
+     * Stacked delta exhaustion
+     * Recent move magnitude
+     * Volume climax
+     * Momentum deceleration
+   - Per-asset thresholds (SOL/BTC/ETH/XRP)
+   - Conservative: block on ANY critical trigger or 2+ secondary triggers
+   - Returns detailed diagnostics for every check
+
+2. **engine/PortfolioRiskManager.js** — Global Risk Layer
+   - Portfolio drawdown control (10% max → pause ALL)
+   - Emergency stop clustering detection (3+ in 24h → pause)
+   - Consecutive loss tracking (7+ → hard pause)
+   - Confidence decay (3+ losses → reduce size)
+   - Regime transition detection (reduce size during transitions)
+   - Cross-asset correlation awareness (3+ positions → reduce)
+   - Per-asset state tracking
+   - Auto-recovery after winning streak
+
+### Files Modified
+
+3. **models/SOLModel.js** — Added ExhaustionDetector
+   - Exhaustion gate before threshold check
+   - Blocks entries in exhaustion zones
+   - Primary fix for 49 emergency stops ($18K losses)
+
+4. **models/BTCModel.js** — Added ExhaustionDetector
+   - Exhaustion gate before volatility spike filter
+   - Double protection against bad entries
+
+5. **models/ETHModel.js** — Added ExhaustionDetector
+   - Exhaustion gate after confluence check
+   - Catches late-stage setups that pass confluence
+
+6. **models/XRPModel.js** — Added ExhaustionDetector
+   - Exhaustion gate after mandatory extreme conditions
+   - Even extreme events can be exhaustion
+
+7. **strategies/DaytradeMode.js** — Added ExhaustionDetector
+   - Exhaustion gate in legacy fallback path
+   - Ensures ALL signal paths use exhaustion detection
+
+8. **engine/backtest.js** — Major Integration
+   - Imported ExhaustionDetector + PortfolioRiskManager
+   - Exhaustion gate in signal evaluation loop
+   - Portfolio risk validation before position opens
+   - Position size adjustment from risk manager
+   - Trade recording with portfolio risk manager
+   - ATR z-score helper method
+   - Risk management section in report:
+     * Exhaustion blocks count
+     * Portfolio risk blocks count
+     * Filter rate (% of potential trades blocked)
+     * Emergency stop analysis with regime breakdown
+
+9. **config.js** — Added Risk Config
+   - portfolioRisk section with all limits
+   - exhaustion section with default thresholds
+
+10. **config/assetProfiles.js** — ETH Marked Disabled
+    - Added `disabled: true` to ETH profile
+    - Updated comment block with current status
+    - ETH remains for backtesting but not live deployment
+
+11. **package.json** — Version Bump to 6.0.0
+
+---
+
+## ARCHITECTURAL CHANGES
+
+### Before (v5.0)
+```
+Model → Signal → Execute
+                    ↓
+              Emergency Stop (0% WR)
+```
+
+### After (v6.0)
+```
+Model → Signal → Exhaustion Gate → Portfolio Risk → Execute
+              ↓ (blocked)        ↓ (blocked)
+              NO TRADE           NO TRADE
+              ↓ (adjusted)
+              Reduced Size
+```
+
+### Signal Flow (New)
+```
+1. Model generates signal (per-asset alpha engine)
+2. ExhaustionDetector.check() — is this move already over?
+   → Critical triggers: ATR-z, price extension, recent move
+   → Secondary triggers: stacked delta, volume climax, momentum decay
+   → BLOCK if any critical OR 2+ secondary
+3. PortfolioRiskManager.validate() — is the portfolio safe?
+   → Portfolio DD check
+   → Daily loss check
+   → Emergency stop clustering check
+   → Consecutive loss check
+   → Per-asset emergency limit check
+   → Adjustments: confidence decay, DD proximity, correlation
+4. Execute with adjusted position size
+5. PortfolioRiskManager.recordTrade() — track for future decisions
+```
+
+---
+
+## VERIFICATION NEEDED
+
+- [ ] Run full 4-year backtest (ETH, SOL, BTC) with new exhaustion engine
+- [ ] Compare emergency stop count: old vs new
+- [ ] Verify exhaustion filter doesn't block too many profitable trades
+- [ ] Run walk-forward analysis with exhaustion engine
+- [ ] Test portfolio risk recovery mechanism
+
+---
+
+## NEXT SESSION PRIORITIES
+
+### IMMEDIATE
+1. Run backtest: `npm run backtest:sol` — verify exhaustion blocks reduce emergency stops
+2. Run backtest: `npm run backtest:btc` — verify BTC still profitable with exhaustion gate
+3. Analyze: How many profitable trades did exhaustion gate block? (false positive rate)
+4. Tune: If false positive rate > 30%, loosen thresholds slightly
+
+### THIS WEEK
+5. Run walk-forward analysis with new pipeline
+6. Run Monte Carlo simulation on new results
+7. ETH confluence model full backtest (if exhaustion gate makes it viable)
+
+### BEFORE LIVE
+8. 30-day paper trading with real footprint data
+9. Final parameter lock per model
+10. Testnet dry run
+
+---
+
+## KEY METRICS TO TRACK
+
+After running new backtests, compare:
+
+| Metric | Old (Session #12) | Target (v6.0) |
+|--------|-------------------|----------------|
+| SOL emergency stops | 49 | <20 |
+| SOL PnL | +$7,024 | >+$5,000 |
+| SOL PF | 1.39 | >1.2 |
+| BTC emergency stops | 25 | <15 |
+| BTC PnL | +$2,343 | >+$1,500 |
+| Exhaustion block rate | 0% | 15-30% |
+| False positive rate | N/A | <25% |
+
+The system should trade LESS but with HIGHER quality.
+The goal is NOT more profit — it's FEWER catastrophic losses.
+
+---
+
+## VERDICT
+
+The system has been transformed from:
+- ❌ Profitable but fragile (negative skew, SOL concentration, no validation)
+- To:
+- ✅ Architecturally robust (exhaustion detection, portfolio risk, per-asset models)
+
+Whether the edge survives this transformation is UNPROVEN until backtests confirm.
+The architecture is now correct. The next step is VALIDATION.

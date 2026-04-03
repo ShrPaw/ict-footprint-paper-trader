@@ -25,11 +25,13 @@
 //   TRENDING_DOWN / LOW_VOL: blocked
 
 import BaseModel from './BaseModel.js';
+import ExhaustionDetector from '../engine/ExhaustionDetector.js';
 import config from '../config.js';
 
 export default class BTCModel extends BaseModel {
   constructor() {
     super('BTC_MODEL');
+    this.exhaustion = new ExhaustionDetector();
   }
 
   evaluate(ctx) {
@@ -108,6 +110,16 @@ export default class BTCModel extends BaseModel {
 
   _evaluateSignal(ctx, features, regime, killzone) {
     const f = features;
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXHAUSTION GATE: Is this move already over?
+    // Combined with ATR z-score filter for double protection.
+    // ═══════════════════════════════════════════════════════════════
+    const exhaustionCheck = this.exhaustion.check({
+      ...ctx,
+      atrZ: f.atrZ,
+    });
+    if (exhaustionCheck.blocked) return null;
 
     // ═══════════════════════════════════════════════════════════════
     // FILTER 1: Volatility spike → AVOID aggressive entries

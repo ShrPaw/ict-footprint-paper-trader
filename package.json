@@ -1,6 +1,6 @@
 {
   "name": "ict-footprint-paper-trader",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "Institutional-grade Order Flow & Cluster Trading Engine for crypto perpetuals (Binance)",
   "type": "module",
   "scripts": {

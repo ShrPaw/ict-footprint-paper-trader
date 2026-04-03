@@ -27,11 +27,13 @@
 //   TRENDING_DOWN / LOW_VOL: blocked
 
 import BaseModel from './BaseModel.js';
+import ExhaustionDetector from '../engine/ExhaustionDetector.js';
 import config from '../config.js';
 
 export default class ETHModel extends BaseModel {
   constructor() {
     super('ETH_MODEL');
+    this.exhaustion = new ExhaustionDetector();
   }
 
   evaluate(ctx) {
@@ -133,6 +135,18 @@ export default class ETHModel extends BaseModel {
 
     // At least one source must agree with EMA direction
     if (!ictAgrees && !flowAgrees) return null;
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXHAUSTION GATE: Is this move already over?
+    // ETH confluence already helps, but exhaustion detection catches
+    // late-stage setups that pass confluence checks.
+    // ═══════════════════════════════════════════════════════════════
+    const exhaustionCheck = this.exhaustion.check({
+      ...ctx,
+      atrZ: f.atrZ,
+      volumeRatio: f.volRatio,
+    });
+    if (exhaustionCheck.blocked) return null;
 
     // ═══════════════════════════════════════════════════════════════
     // CONFIDENCE SCORING

@@ -49,17 +49,20 @@ const ASSET_PROFILES = {
   },
 
   // ═══════════════════════════════════════════════════════════════════
-  // ⚡ ETH — The Institutional Workhorse
+  // ⚡ ETH — The Institutional Workhorse ⚠️ DISABLED FOR LIVE
   // ═══════════════════════════════════════════════════════════════════
   // Character: Moderate vol, clean trends, responds well to ICT concepts.
   // RANGING blocked on futures (-$1,869, 45% WR). VOL_EXP is the main edge.
-  // Needs extra-wide stops because stop_loss has only 7% WR — noise trap.
-  // Best during NY/overlap (institutional hours).
-  // Walk-forward: 67% OOS profitable, PF 1.46. Best overall performer.
+  // Status: DISABLED for live trading. PF 0.92, -$465 in Session #12.
+  // Every configuration has failed or degraded. Needs fundamental rethinking.
+  // Keep for backtesting new models only. Do NOT deploy to live.
   // Strategy: wider stops than anyone, let trailing do the work.
   'ETH/USDT:USDT': {
     name: 'ETH',
     coin: 'ETH',
+    // ⚠️ DISABLED: PF 0.92, -$465. Every config has failed. Do not deploy.
+    // Keep for backtesting confluence model. Remove from live rotation.
+    disabled: true,
     volatility: 'high',
     avgDailyRange: 0.035,
     atrMultiplier: 1.2,

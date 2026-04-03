@@ -26,12 +26,13 @@
 //   TRENDING_DOWN / LOW_VOL: blocked
 
 import BaseModel from './BaseModel.js';
+import ExhaustionDetector from '../engine/ExhaustionDetector.js';
 import config from '../config.js';
 
 export default class XRPModel extends BaseModel {
   constructor() {
     super('XRP_MODEL');
-    // Cache for delta distribution stats
+    this.exhaustion = new ExhaustionDetector();
     this._deltaStats = null;
   }
 
@@ -162,6 +163,16 @@ export default class XRPModel extends BaseModel {
     if ((action === 'buy' && f.bearish) || (action === 'sell' && f.bullish)) {
       return null; // Fighting the trend = death for XRP
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXHAUSTION GATE: Even extreme events can be exhaustion
+    // ═══════════════════════════════════════════════════════════════
+    const exhaustionCheck = this.exhaustion.check({
+      ...ctx,
+      atrZ: this.computeATRzScore(ctx.candles1h, ctx.index1h),
+      volumeRatio: Math.max(f.volRatio, f.vol15mRatio),
+    });
+    if (exhaustionCheck.blocked) return null;
 
     // ═══════════════════════════════════════════════════════════════
     // CONFIDENCE SCORING

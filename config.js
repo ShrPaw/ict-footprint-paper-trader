@@ -134,6 +134,27 @@ export default {
     },
   },
 
+  // ── Portfolio Risk (global risk layer) ──────────────────────────
+  portfolioRisk: {
+    maxTotalDrawdown: 0.10,          // 10% portfolio DD → pause ALL bots
+    maxDailyPortfolioLoss: 0.05,     // 5% daily loss → stop trading
+    maxEmergencyStopsPerDay: 3,      // cluster detection: >3 stops in 24h → pause
+    maxConsecutiveLosses: 5,         // confidence decay trigger
+    consecutiveLossPause: 7,         // hard pause after N consecutive losses
+    correlationThreshold: 0.8,       // high correlation warning
+  },
+
+  // ── Exhaustion Detection (entry quality) ──────────────────────
+  exhaustion: {
+    enabled: true,
+    // Default thresholds (per-asset overrides in ExhaustionDetector.js)
+    maxATRzScore: 1.8,
+    maxPriceExtension: 2.0,
+    maxStackedDelta: 4,
+    maxRecentMove: 2.5,
+    volumeSpikeThreshold: 2.0,
+  },
+
   // ── Order Flow Engine (institutional-grade pipeline) ───────────
   orderFlow: {
     enabled: true,

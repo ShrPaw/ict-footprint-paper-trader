@@ -23,6 +23,8 @@ import {
 } from './Precompute.js';
 import OrderFlowEngine from './OrderFlowEngine.js';
 import ModelRouter from '../models/ModelRouter.js';
+import ExhaustionDetector from './ExhaustionDetector.js';
+import PortfolioRiskManager from './PortfolioRiskManager.js';
 
 class Backtester {
   constructor(options = {}) {
@@ -38,6 +40,10 @@ class Backtester {
     this.dailyTradeCount = 0;
     this.lastResetDay = null;
     this.stats = null;
+
+    // Risk tracking
+    this.exhaustionBlocks = 0;
+    this.portfolioRiskBlocks = 0;
 
     // Config
     this.symbols = options.symbols || config.symbols;
@@ -60,6 +66,14 @@ class Backtester {
 
     // Per-asset Model Router (multi-model architecture)
     this.modelRouter = new ModelRouter();
+
+    // Exhaustion detector — entry quality engine
+    this.exhaustion = new ExhaustionDetector();
+
+    // Portfolio risk manager — global risk layer
+    this.portfolioRisk = new PortfolioRiskManager({
+      startingBalance: this.startingBalance,
+    });
   }
 
   async run() {
@@ -258,6 +272,41 @@ class Backtester {
                 }
 
                 if (signal) signal.source = signal.source || 'legacy_fallback';
+              }
+
+              if (signal) {
+                // ═══════════════════════════════════════════════════════════
+                // EXHAUSTION GATE: Block entries in exhaustion zones
+                // Prevents the core failure mode: confusing exhaustion for momentum
+                // ═══════════════════════════════════════════════════════════
+                const exhaustionResult = this.exhaustion.check({
+                  ...context,
+                  ...modelCtx,
+                  atrZ: this._computeATRz(indicators1h.atr, h1Idx),
+                });
+
+                if (exhaustionResult.blocked) {
+                  signal = null; // Hard block
+                  this.exhaustionBlocks++;
+                }
+              }
+
+              if (signal) {
+                // ═══════════════════════════════════════════════════════════
+                // PORTFOLIO RISK: Global risk validation before entry
+                // ═══════════════════════════════════════════════════════════
+                const riskResult = this.portfolioRisk.validate(symbol, signal, {
+                  balance: this.balance,
+                  activePositions: this.position ? [this.position] : [],
+                });
+
+                if (!riskResult.allowed) {
+                  signal = null; // Portfolio risk blocked
+                  this.portfolioRiskBlocks++;
+                } else if (riskResult.adjustments.positionSizeMultiplier) {
+                  // Apply position size adjustment from risk manager
+                  signal._riskSizeMultiplier = riskResult.adjustments.positionSizeMultiplier;
+                }
               }
 
               if (signal) {
@@ -592,7 +641,12 @@ class Backtester {
 
     const riskPercent = riskParams.riskPercent * (signal.profile?.riskMultiplier ?? 1.0);
     const riskAmount = this.balance * (riskPercent / 100);
-    const size = riskAmount / slDistance;
+    let size = riskAmount / slDistance;
+
+    // Apply portfolio risk position size multiplier (confidence decay, DD proximity, etc.)
+    if (signal._riskSizeMultiplier) {
+      size *= signal._riskSizeMultiplier;
+    }
     // Maker fee for entries — limit orders at mid ± offset.
     // Taker fee for exits (urgent). Saves ~60% on entry fees.
     const entrySlippageRate = config.engine.slippageByRegime?.[signal.regime] ?? config.engine.slippage;
@@ -787,7 +841,7 @@ class Backtester {
     this.balance += pnl;
     this.dailyPnL += pnl;
 
-    this.trades.push({
+    const trade = {
       symbol: pos.symbol, side: pos.side, size: pos.size,
       entryPrice: pos.entryPrice, exitPrice: fillPrice,
       entryTime: pos.entryTime, exitTime: timestamp,
@@ -800,7 +854,13 @@ class Backtester {
       isWeekend: pos.isWeekend, entryPattern: pos.entryPattern,
       assetProfile: pos.assetProfile,
       fundingCost: this.fundingRate !== null ? fundingCost : undefined,
-    });
+      balance: this.balance,
+    };
+
+    this.trades.push(trade);
+
+    // Record with portfolio risk manager for global risk tracking
+    this.portfolioRisk.recordTrade(pos.symbol, trade);
 
     this.position = null;
 
@@ -820,6 +880,33 @@ class Backtester {
   // ═══════════════════════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Compute ATR z-score for exhaustion detection.
+   * Returns how many standard deviations the current ATR is from its mean.
+   */
+  _computeATRz(atrArray, index, lookback = 50) {
+    if (!atrArray || index == null || index < lookback) return 0;
+
+    const currentATR = atrArray[index];
+    if (!currentATR || currentATR === 0) return 0;
+
+    let sum = 0, sumSq = 0;
+    const start = Math.max(0, index - lookback);
+    const count = index - start + 1;
+
+    for (let j = start; j <= index; j++) {
+      const v = atrArray[j] || 0;
+      sum += v;
+      sumSq += v * v;
+    }
+
+    const mean = sum / count;
+    const variance = Math.max(0, sumSq / count - mean * mean);
+    const std = Math.sqrt(variance);
+
+    return std > 0 ? (currentATR - mean) / std : 0;
+  }
 
   _checkKillzone(timestamp) {
     const now = timestamp ? new Date(timestamp) : new Date();
@@ -1087,6 +1174,36 @@ class Backtester {
       console.log(`  ✅ System remains profitable without largest trade`);
     }
     console.log(`  Max consecutive losses: ${s.maxConsecutiveLosses} | Max consecutive wins: ${s.maxConsecutiveWins}`);
+
+    console.log('\n── Risk Management ───────────────────────────────');
+    console.log(`  Exhaustion blocks:  ${this.exhaustionBlocks} (entries rejected as exhaustion)`);
+    console.log(`  Portfolio blocks:   ${this.portfolioRiskBlocks} (entries rejected by risk manager)`);
+    const totalBlocks = this.exhaustionBlocks + this.portfolioRiskBlocks;
+    const totalAttempted = s.totalTrades + totalBlocks;
+    const filterRate = totalAttempted > 0 ? ((totalBlocks / totalAttempted) * 100).toFixed(1) : '0';
+    console.log(`  Filter rate:        ${filterRate}% (${totalBlocks}/${totalAttempted} potential trades blocked)`);
+    const riskState = this.portfolioRisk.getRiskState();
+    console.log(`  Final risk level:   ${riskState.riskLevel}`);
+    console.log(`  Emergency stops:    ${riskState.emergencyStopsLast24h} (last 24h window)`);
+
+    // Emergency stop analysis
+    const emergencyTrades = this.trades.filter(t => t.closeReason === 'emergency_stop');
+    if (emergencyTrades.length > 0) {
+      const emergencyPnL = emergencyTrades.reduce((s, t) => s + t.pnl, 0);
+      const avgLoss = emergencyPnL / emergencyTrades.length;
+      console.log(`  Emergency analysis: ${emergencyTrades.length} stops | Total: $${emergencyPnL.toFixed(2)} | Avg: $${avgLoss.toFixed(2)}/stop`);
+
+      // Regime breakdown of emergency stops
+      const byRegime = {};
+      for (const t of emergencyTrades) {
+        if (!byRegime[t.regime]) byRegime[t.regime] = { count: 0, pnl: 0 };
+        byRegime[t.regime].count++;
+        byRegime[t.regime].pnl += t.pnl;
+      }
+      for (const [regime, data] of Object.entries(byRegime)) {
+        console.log(`    ${regime.padEnd(16)} ${data.count} stops | $${data.pnl.toFixed(2)}`);
+      }
+    }
 
     console.log('\n── Last 10 Trades ────────────────────────────────');
     for (const t of this.trades.slice(-10)) {
