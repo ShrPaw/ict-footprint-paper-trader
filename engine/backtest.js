@@ -561,16 +561,17 @@ class Backtester {
     const riskPercent = riskParams.riskPercent * (signal.profile?.riskMultiplier ?? 1.0);
     const riskAmount = this.balance * (riskPercent / 100);
     const size = riskAmount / slDistance;
-    const fee = size * price * config.engine.takerFee;
-    const margin = (size * price) / 10;
+    // Maker fee for entries — limit orders at mid ± offset.
+    // Taker fee for exits (urgent). Saves ~60% on entry fees.
+    const entrySlippageRate = config.engine.slippageByRegime?.[signal.regime] ?? config.engine.slippage;
+    const slippage = price * entrySlippageRate * (signal.action === 'buy' ? 1 : -1);
+    const fillPrice = price + slippage;
+    const fee = size * fillPrice * config.engine.makerFee;
+    const margin = (size * fillPrice) / 10;
 
     if (margin + fee > this.balance) return;
     if (Math.abs(this.dailyPnL) / this.startingBalance >= config.engine.maxDailyLoss) return;
     if (this.dailyTradeCount >= config.engine.maxDailyTrades) return;
-
-    const entrySlippageRate = config.engine.slippageByRegime?.[signal.regime] ?? config.engine.slippage;
-    const slippage = price * entrySlippageRate * (signal.action === 'buy' ? 1 : -1);
-    const fillPrice = price + slippage;
 
     this.dailyTradeCount++;
     this.position = {
@@ -699,11 +700,11 @@ class Backtester {
       }
     }
 
-    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (12 ATR max loss)
+    // SL check — EMERGENCY CIRCUIT BREAKER ONLY (per-asset, default 12 ATR)
     // Regular SL removed: stop_loss has 0% WR — pure noise trap.
     // Trailing stops and partial TP handle all exits.
-    // Raised from 8 → 12 ATR to reduce noise fires in VOL_EXP regime.
-    const emergencyATR = 12.0;
+    // Configurable per-asset via riskOverrides.emergencyATR.
+    const emergencyATR = pos.profile?.riskOverrides?.emergencyATR ?? 12.0;
     const emergencyDist = pos.atr * emergencyATR;
     const emergencySL = side === 'long'
       ? pos.entryPrice - emergencyDist

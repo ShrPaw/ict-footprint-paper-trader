@@ -24,14 +24,6 @@ export default {
     deadzones: [{ start: 4, end: 6 }, { start: 18, end: 22 }],
   },
 
-  // ── Weekend Mode (legacy config — now handled by WeekendMode.js) ─
-  weekend: {
-    enabled: true,
-    confluenceScoreBoost: 0.10,
-    slMultiplierBoost: 0.2,
-    riskMultiplier: 0.5,
-  },
-
   // Regime detection thresholds
   regime: {
     atrPeriod: 14,

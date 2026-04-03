@@ -152,21 +152,24 @@ export function computeBollinger(candles, period, stdDev) {
   const upper = new Array(n).fill(null);
   const lower = new Array(n).fill(null);
 
+  // O(n) rolling: maintain sum and sum-of-squares for variance
+  // var = E[x²] - E[x]² (no inner loop needed)
   let sum = 0;
+  let sumSq = 0;
   for (let i = 0; i < n; i++) {
-    sum += candles[i].close;
-    if (i >= period) sum -= candles[i - period].close;
+    const v = candles[i].close;
+    sum += v;
+    sumSq += v * v;
+    if (i >= period) {
+      const old = candles[i - period].close;
+      sum -= old;
+      sumSq -= old * old;
+    }
     if (i >= period - 1) {
       const mean = sum / period;
       middle[i] = mean;
-
-      // Rolling variance
-      let varSum = 0;
-      for (let j = i - period + 1; j <= i; j++) {
-        const diff = candles[j].close - mean;
-        varSum += diff * diff;
-      }
-      const std = Math.sqrt(varSum / period);
+      const variance = Math.max(0, sumSq / period - mean * mean);
+      const std = Math.sqrt(variance);
       upper[i] = mean + stdDev * std;
       lower[i] = mean - stdDev * std;
     }

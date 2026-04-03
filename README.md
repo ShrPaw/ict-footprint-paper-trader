@@ -89,9 +89,7 @@ bots/
   xrp/bot.js            — XRP entry point (research mode)
 strategies/
   DaytradeMode.js       — 1H ICT + trend (THE strategy)
-  ModeRouter.js         — Routes to daytrade
-  WeekendMode.js        — Footprint (disabled)
-  ScalpingProMode.js    — 15m hybrid (disabled)
+  DaytradeMode.js       — THE strategy: 1H ICT + OrderFlowEngine
 engine/
   main.js               — Legacy multi-asset trader
   PaperEngine.js        — Orders, PnL, trailing stops

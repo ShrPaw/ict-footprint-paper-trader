@@ -66,8 +66,7 @@ bots/
   live/binance/eth/sol/btc/xrp.js — Binance live entry points
 strategies/
   DaytradeMode.js         — THE strategy: 1H ICT + footprint + OrderFlowEngine confluence
-  ModeRouter.js           — Routes weekday→Daytrade, weekend→Weekend
-  WeekendMode.js          — Footprint only (disabled for most assets)
+  DaytradeMode.js         — THE strategy: 1H ICT + OrderFlowEngine
 engine/
   PaperEngine.js          — Simulated orders, PnL, trailing stops (emergency-only SL)
   HyperliquidEngine.js    — Hyperliquid testnet execution

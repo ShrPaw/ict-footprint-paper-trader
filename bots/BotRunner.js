@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import config from '../config.js';
 import PaperEngine from '../engine/PaperEngine.js';
 import Feed from '../data/Feed.js';
@@ -172,6 +174,9 @@ export default class BotRunner {
           durationMin: t.durationMin,
         }),
       }).catch(() => {});
+
+      // Write trade to CSV for post-session analysis
+      this._appendTradeCSV(t);
     }
   }
 
@@ -317,6 +322,28 @@ export default class BotRunner {
       }
       if (now.getUTCHours() === 0 && now.getUTCMinutes() === 1) this.dailySummarySent = false;
     }, 60000);
+  }
+
+  _appendTradeCSV(trade) {
+    try {
+      const dir = path.join(process.cwd(), 'live-results');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `trades-${this.coin.toLowerCase()}.csv`);
+      const header = 'symbol,side,entryPrice,exitPrice,pnl,pnlPercent,closeReason,regime,reason,durationMin,totalFees,entryTime,exitTime\n';
+      const row = [
+        trade.symbol, trade.side, trade.entryPrice, trade.exitPrice,
+        trade.pnl?.toFixed(4), trade.pnlPercent?.toFixed(4),
+        trade.closeReason, trade.regime, `"${trade.reason}"`,
+        trade.durationMin, trade.totalFees?.toFixed(4),
+        new Date(trade.entryTime).toISOString(),
+        new Date(trade.exitTime).toISOString(),
+      ].join(',') + '\n';
+
+      if (!fs.existsSync(file)) fs.writeFileSync(file, header);
+      fs.appendFileSync(file, row);
+    } catch (e) {
+      // Silent fail — CSV export is best-effort
+    }
   }
 
   _formatReason(signal) {

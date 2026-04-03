@@ -32,7 +32,9 @@ export default class PaperEngine {
     const slippageRate = config.engine.slippageByRegime?.[regime] ?? config.engine.slippage;
     const slippage = price * slippageRate * (side === 'long' ? 1 : -1);
     const fillPrice = price + slippage;
-    const fee = size * fillPrice * config.engine.takerFee;
+    // Maker fee for entries — limit orders at mid ± offset.
+    // Taker fee reserved for urgent exits. Saves ~60% on entry fees.
+    const fee = size * fillPrice * config.engine.makerFee;
     const margin = (size * fillPrice) / 10;
 
     if (margin + fee > this.balance) {
@@ -227,12 +229,11 @@ export default class PaperEngine {
 
     // ── Exit Checks ─────────────────────────────────────────────────
 
-    // Stop loss — EMERGENCY CIRCUIT BREAKER ONLY (12 ATR max loss)
+    // Stop loss — EMERGENCY CIRCUIT BREAKER ONLY (per-asset, default 12 ATR)
     // Regular SL removed: stop_loss has 0% WR across all backtests — noise trap.
     // Trailing stops and partial TP handle all exits.
-    // Raised from 8 → 12 ATR: 8 ATR was catching noise in VOL_EXP regime.
-    // Reducing emergency stops from 63→~20 on ETH = +$7K additional PnL.
-    const emergencyATR = 12.0;
+    // Configurable per-asset via riskOverrides.emergencyATR.
+    const emergencyATR = pos.profile?.riskOverrides?.emergencyATR ?? 12.0;
     const emergencyDist = pos.atr * emergencyATR;
     const emergencySL = pos.side === 'long'
       ? pos.entryPrice - emergencyDist

@@ -37,6 +37,7 @@ const ASSET_PROFILES = {
       slMultiplier: 2.0,       // WIDE: BTC needs room before trailing activates
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },  // wider trail, let winners breathe
       breakeven: { activationATR: 0.8 },  // protect stalled trades early
+      emergencyATR: 14.0,      // widest: BTC has less noise, more room before circuit breaker
     },
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
@@ -45,8 +46,6 @@ const ASSET_PROFILES = {
       minSoloScore: 0.88,        // RAISED: was 0.78 — sniper mode
       signalCooldown: 7200000,
     },
-    weekend: { enabled: false, confluenceBoost: 0.15, riskMultiplier: 0.4 },
-    scalping: { minVolumeMult: 1.2, deltaImbalanceRatio: 2.5 },
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -78,6 +77,7 @@ const ASSET_PROFILES = {
       slMultiplier: 2.0,       // wider: 1.5 was noise trap (3% WR on stop_loss)
       trailingStop: { activationATR: 1.2, trailATR: 0.7 },
       breakeven: { activationATR: 0.8 },  // BELOW trailing (1.2)
+      emergencyATR: 12.0,      // default: balance between protection and recovery
     },
     daytrade: {
       adxThreshold: 20, emaAlignment: true,
@@ -86,8 +86,6 @@ const ASSET_PROFILES = {
       minSoloScore: 0.90,        // RAISED: was 0.78 — only the absolute best
       signalCooldown: 7200000,
     },
-    weekend: { enabled: false, confluenceBoost: 0.12, riskMultiplier: 0.5 },
-    scalping: { minVolumeMult: 1.0, deltaImbalanceRatio: 2.0 },
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -119,6 +117,7 @@ const ASSET_PROFILES = {
       slMultiplier: 1.0,       // tighter OK: SOL's extreme vol means trails activate fast
       trailingStop: { activationATR: 0.9, trailATR: 0.5 },  // tight trail on big moves
       breakeven: { activationATR: 0.6 },  // fast protection
+      emergencyATR: 10.0,      // tighter: SOL's extreme vol means 10 ATR is already huge
     },
     daytrade: {
       adxThreshold: 22, emaAlignment: true,
@@ -127,8 +126,6 @@ const ASSET_PROFILES = {
       minSoloScore: 0.85,        // RAISED: was 0.72 — sniper quality
       signalCooldown: 7200000,
     },
-    weekend: { enabled: false, confluenceBoost: 0.18, riskMultiplier: 0.35 },
-    scalping: { minVolumeMult: 0.8, deltaImbalanceRatio: 1.8 },
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -166,6 +163,7 @@ const ASSET_PROFILES = {
       slMultiplier: 1.3,       // wider: XRP wicks are violent
       trailingStop: { activationATR: 1.0, trailATR: 0.5 },  // tight trail once it moves
       breakeven: { activationATR: 0.7 },  // early protection
+      emergencyATR: 12.0,      // moderate: XRP wicks are violent but recoverable
     },
     daytrade: {
       adxThreshold: 25,        // higher: need STRONG trend confirmation for XRP
@@ -176,8 +174,6 @@ const ASSET_PROFILES = {
       minSoloScore: 0.90,        // was 0.78 — raised 15%
       signalCooldown: 14400000,  // 4h cooldown — double the others
     },
-    weekend: { enabled: false, confluenceBoost: 0.20, riskMultiplier: 0.3 },
-    scalping: { minVolumeMult: 1.5, deltaImbalanceRatio: 2.5 },
   },
 };
 
