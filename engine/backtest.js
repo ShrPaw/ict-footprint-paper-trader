@@ -186,11 +186,13 @@ class Backtester {
                 const ofCtx = {
                   candles1h, candles15m,
                   index15m: i, index1h: h1Idx,
+                  // BUG FIX: Pass FULL indicator arrays, not scalar values.
+                  // OrderFlowEngine._analyzeContext() indexes into these arrays.
                   indicators1h: {
-                    ema9: indicators1h.ema9[h1Idx],
-                    ema21: context.ema21,
-                    ema50: context.ema50,
-                    atr: context.atr,
+                    ema9: indicators1h.ema9,
+                    ema21: indicators1h.ema21,
+                    ema50: indicators1h.ema50,
+                    atr: indicators1h.atr,
                   },
                   profile: context.profile,
                   regime: context.regime,
@@ -214,15 +216,12 @@ class Backtester {
                 }
               }
 
-              // Pick best: prefer OrderFlowEngine if both present
-              // VOL_EXP HARD GATE: In volatile expansion, require OF pipeline to pass.
-              // This is where emergency stops concentrate (63 on ETH = -$10.5K).
-              // The 6-step pipeline is stricter — if it rejects, the trade is noise.
+              // Pick best signal — SOFTENED VOL_EXP GATE.
+              // Old: OF must provide signal (rejected all legacy in VOL_EXP, killed ETH).
+              // New: prefer OF if present, otherwise accept legacy. OF still filters
+              // noise via its own pipeline, but doesn't block profitable legacy setups.
               let signal = null;
-              if (context.regime === 'VOL_EXPANSION') {
-                // OF must pass — legacy-only signals in VOL_EXP are the emergency stop source
-                signal = ofSignal || null;
-              } else if (ofSignal && legacySignal) {
+              if (ofSignal && legacySignal) {
                 signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
               } else {
                 signal = ofSignal || legacySignal;

@@ -314,14 +314,16 @@ export default class BotRunner {
   }
 
   _scheduleDailySummary() {
-    setInterval(() => {
+    const checkDaily = () => {
       const now = new Date();
       if (now.getUTCHours() === 0 && now.getUTCMinutes() === 0 && !this.dailySummarySent) {
         this.dailySummarySent = true;
         this.telegram.sendDailySummary(this.engine.getStats());
       }
       if (now.getUTCHours() === 0 && now.getUTCMinutes() === 1) this.dailySummarySent = false;
-    }, 60000);
+    };
+    // Check every 5 minutes instead of every 60s — still catches the midnight window
+    setInterval(checkDaily, 300000);
   }
 
   _appendTradeCSV(trade) {

@@ -105,14 +105,12 @@ export default class DaytradeMode {
       profile, bullish, killzone
     );
 
-    // 10. Pick the best signal: prefer OrderFlowEngine if both present
-    // (OF pipeline is stricter — if it passes, it's higher quality)
-    // VOL_EXP HARD GATE: In volatile expansion, require OF pipeline to pass.
-    // Emergency stops concentrate in VOL_EXP — OF filters noise entries.
+    // 10. Pick the best signal — SOFTENED VOL_EXP GATE.
+    // Old: in VOL_EXP, only OF signals accepted (killed ETH profitability).
+    // New: prefer OF if present (stricter pipeline = higher quality),
+    // but accept legacy signals if OF didn't produce one.
     let signal = null;
-    if (regime === 'VOL_EXPANSION') {
-      signal = ofSignal || null;
-    } else if (ofSignal && legacySignal) {
+    if (ofSignal && legacySignal) {
       signal = ofSignal.combinedScore >= legacySignal.combinedScore ? ofSignal : legacySignal;
     } else if (ofSignal) {
       signal = ofSignal;

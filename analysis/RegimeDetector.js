@@ -65,17 +65,17 @@ export default class RegimeDetector {
     const ema21 = this._lastEMA(candles, 21, lookStart);
     const ema50 = this._lastEMA(candles, 50, lookStart);
 
-    // ATR (last value)
+    // ATR — precompute all needed values at once instead of recalculating in loop
     const atr = this._lastATR(candles, config.regime.atrPeriod);
     const atrPercent = atr / price;
 
-    // ATR percentile
+    // ATR percentile — use cached ATR values
+    const atrValues = this._computeATRSeries(candles, config.regime.atrPeriod, Math.max(0, i - 50), i);
     let atrRank = 0;
-    for (let j = Math.max(0, i - 50); j <= i; j++) {
-      const a = this._lastATR(candles.slice(0, j + 1), config.regime.atrPeriod);
-      if (a / candles[j].close <= atrPercent) atrRank++;
+    for (let j = 0; j < atrValues.length; j++) {
+      if (atrValues[j] / candles[Math.max(0, i - 50) + j].close <= atrPercent) atrRank++;
     }
-    const atrPercentile = atrRank / Math.min(51, i + 1);
+    const atrPercentile = atrRank / atrValues.length;
 
     // ADX
     const currentADX = this._lastADX(candles, config.regime.adxPeriod);
