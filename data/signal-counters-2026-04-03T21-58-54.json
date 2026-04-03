@@ -1,0 +1,33 @@
+{
+  "backtest": {
+    "totalCandles": 148751,
+    "weekendBlocked": 40896,
+    "killzoneBlocked": 24656,
+    "sessionBlocked": 0,
+    "regimeBlocked": 29321,
+    "emaBlocked": 5983,
+    "cooldownBlocked": 200,
+    "contextNull": 0,
+    "modelEvaluations": 39203,
+    "modelNull": 35313,
+    "modelSignal": 161,
+    "exhaustionBlocked": 3729,
+    "portfolioBlocked": 0,
+    "tradeOpened": 161
+  },
+  "solGates": {
+    "weekend": 40896,
+    "killzone": 24656,
+    "sessionGate": 0,
+    "regimeBlock": 29321,
+    "featureNull": 0,
+    "atrZFilter": 4791,
+    "distFilter": 7064,
+    "saturatedBlock": 3230,
+    "noDirection": 8834,
+    "lowStacking": 3421,
+    "exhaustionBlock": 3729,
+    "thresholdBlock": 7973,
+    "signalGenerated": 161
+  }
+}
