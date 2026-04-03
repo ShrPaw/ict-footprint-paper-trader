@@ -1,0 +1,96 @@
+# 📋 NEXT SESSION PROMPT — ICT Footprint Paper Trader
+
+**Session Date:** 2026-04-03
+**Session Type:** Edge Discovery & Forensic Analysis
+**Status:** ROOT CAUSE IDENTIFIED — FIX NOT YET IMPLEMENTED
+
+---
+
+## COPY THIS PROMPT FOR NEXT SESSION:
+
+```
+Read EDGE_DISCOVERY_REPORT.md, AB_TEST_RESULTS.md, and REAL_DIAGNOSIS.md in the repo.
+
+CONTEXT: We ran full forensic analysis on the ICT footprint paper trader.
+The system had 50-76 trades with PF 3.36 but only in 2022. We investigated WHY.
+
+ROOT CAUSE FOUND: SOLModel's core feature is INVERTED.
+
+The model reads "stacked delta (3+ same-direction candles)" as MOMENTUM.
+Reality: stacked delta = EXHAUSTION. The entry IS the reversal point.
+
+EVIDENCE:
+- All 19 SOL emergency stops (2022-2026) come from SOL_MOMENTUM_DIV signal
+- All exit at exactly 10 ATR against entry  
+- Entry features look NORMAL (ATR-z: -0.07, dist: 0.82 ATR, ADX: 24.2)
+- No warning signs because the SIGNAL ITSELF is the problem
+- 2022 looked good due to regime luck (crypto winter rescued bad entries)
+
+WHAT ACTUALLY WORKS:
+- Exit management: trailing stops + partial TP (100% WR, genuinely robust)
+- DELTA_DIVERGENCE signal (93% WR, +$733 PnL) — flow disagrees with price = edge
+- Per-asset regime blocking concept (sound, just paired with wrong signals)
+
+WHAT FAILS:
+- SOL_MOMENTUM_DIV / SOL_STACKED_IMBALANCE — 95% of emergency stops
+- Stacked delta interpreted as continuation (should be contrarian)
+- RANGING regime for SOL (58% of stops, not the +$1,680 the README claims)
+
+THE FIX (not removing components):
+1. Invert stacked-imbalance interpretation in SOLModel
+2. Block entries when stacked >= 4 (currently boosts confidence)
+3. Require DIVERGENCE for entry, not convergence
+4. Keep portfolio risk, exhaustion detector, all existing architecture
+
+FILES TO READ:
+- REAL_DIAGNOSIS.md — the actual diagnosis with forensic evidence
+- EDGE_DISCOVERY_REPORT.md — full observability analysis
+- AB_TEST_RESULTS.md — A/B test (portfolio risk removed, proves it's NOT the problem)
+- audit/emergency_stop_forensics.js — the forensic tool (reusable)
+- audit/gate_tracer.js — per-gate rejection counter (reusable)
+- audit/SignalTracer.js — full signal trace system (reusable)
+
+YOUR TASK:
+1. Fix SOLModel._evaluateSignal() — invert or block stacked-imbalance entries
+2. Re-run backtest with the fix applied
+3. Compare: does the fix reduce emergency stops WITHOUT killing wins?
+4. Do NOT remove portfolio risk or exhaustion detector
+5. Do NOT optimize blindly — understand each change
+
+KEY METRICS TO BEAT:
+- Current (with filters, 2022 only): 50 trades, 96% WR, PF 3.36, +$1,170
+- Goal: trades across ALL years, PF > 1.5, emergency stops < 10% of trades
+```
+
+---
+
+## SESSION SUMMARY
+
+### What we did:
+1. Cloned repo, read all 32+ source files
+2. Ran full 4-asset backtest (2022-2026) with original system
+3. Built observability framework (SignalTracer, gate_tracer, deep_analysis)
+4. Ran gate tracing — found signals ARE generated every year, portfolio risk blocks them
+5. Ran A/B test (portfolio risk removed) — proved it's NOT the problem, PF 1.06 = no edge
+6. Ran per-stop emergency forensics — found the REAL problem: feature inversion
+7. Pushed all analysis tools + reports to GitHub
+
+### Files added:
+- `EDGE_DISCOVERY_REPORT.md` — full forensic report
+- `AB_TEST_RESULTS.md` — A/B comparison results  
+- `REAL_DIAGNOSIS.md` — the actual root cause diagnosis
+- `audit/SignalTracer.js` — full signal trace system
+- `audit/deep_analysis.js` — forensic trade analyzer
+- `audit/gate_tracer.js` — per-gate rejection counter
+- `audit/backtest_no_filters.js` — A/B test engine
+- `audit/emergency_stop_forensics.js` — per-stop forensic tool
+
+### Key finding:
+SOLModel interprets stacked delta as momentum. It's actually exhaustion.
+Fix: invert the interpretation or require divergence confirmation.
+
+### NOT the problem:
+- Portfolio risk manager (keep it)
+- Exhaustion detector (keep it, but it's a no-op currently)
+- Emergency stop at 10 ATR (appropriate sizing for SOL)
+- Per-asset regime blocking (concept is sound)
