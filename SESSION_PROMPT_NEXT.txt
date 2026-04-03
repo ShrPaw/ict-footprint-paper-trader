@@ -1,0 +1,155 @@
+# SESSION PROMPT — Next Session Starter
+# Copy this entire file and paste it as your first message to the AI.
+# It contains everything needed to continue from where we left off.
+
+---
+
+You are continuing work on the ICT Footprint Paper Trader (v6.0.0).
+
+## CONTEXT
+
+We just completed Session #14 — a full institutional audit and structural transformation.
+Read these files first to understand the current state:
+
+1. PROJECT_CONTEXT.md — system architecture and history
+2. SESSION_NOTES_2026-04-03_P5.txt — what we just did (audit + transformation)
+3. FIXES_AND_PRIORITIES.txt — current priority queue
+4. SESSION_NOTES_2026-04-03_P4.txt — multi-model architecture (Session #13)
+
+## WHAT WAS JUST DONE (Session #14)
+
+### Audit Findings (Critical):
+- SOL = 78.9% of PnL (false diversification)
+- 90%+ WR hiding negative skew (emergency stops = model failure)
+- 13 sessions of in-sample tuning (no out-of-sample validation)
+- ETH failed under every configuration (disabled for live)
+
+### Code Changes:
+- NEW: engine/ExhaustionDetector.js — 6-check entry quality engine
+  Blocks entries when move is already over. Per-asset thresholds.
+  Checks: volatility spike, price extension, stacked delta, recent move,
+  volume climax, momentum deceleration.
+
+- NEW: engine/PortfolioRiskManager.js — global risk layer
+  Portfolio DD control (10% max), emergency stop clustering detection
+  (3+ in 24h → pause), consecutive loss pause (7+), confidence decay,
+  regime transition risk reduction.
+
+- All 4 models (SOL/BTC/ETH/XRP) now use ExhaustionDetector
+- Legacy fallback in DaytradeMode uses ExhaustionDetector
+- Backtest engine integrated with both new components
+- Risk management section added to backtest report
+- ETH marked as disabled for live trading (config/assetProfiles.js)
+- Config.js: added portfolioRisk and exhaustion sections
+- Version bumped to 6.0.0
+
+### Quick Test Results (1000 candles):
+- 13 exhaustion blocks (52% filter rate) — engine is working
+- Only 1 emergency stop (down from old system's higher counts)
+- All modules compile cleanly
+
+## IMMEDIATE NEXT STEPS
+
+### STEP 1: Run full 4-year backtest for SOL
+```bash
+cd /root/.openclaw/workspace/ict-footprint-paper-trader
+npm run backtest:sol
+```
+
+Compare to Session #12 baseline:
+- Old: +$7,024 | PF 1.39 | WR 91.2% | 556 trades | 49 emergency stops
+- Target: >+$5,000 | PF >1.2 | <20 emergency stops
+
+Key metrics to check:
+- How many exhaustion blocks? (target: 15-30% of attempted trades)
+- Emergency stop count (should be significantly lower)
+- Did exhaustion gate block profitable trades? (false positive rate)
+
+### STEP 2: Run full 4-year backtest for BTC
+```bash
+npm run backtest:btc
+```
+
+Compare to Session #12 baseline:
+- Old: +$2,343 | PF 1.31 | WR 92.2% | 322 trades | 25 emergency stops
+- Target: >+$1,500 | PF >1.2 | <15 emergency stops
+
+### STEP 3: Analyze results
+- If emergency stops dropped significantly → exhaustion engine works
+- If false positive rate > 25% → loosen ExhaustionDetector thresholds
+- If PF dropped below 1.0 → the edge was in the emergency stop trades (unlikely but possible)
+
+### STEP 4: Tune thresholds if needed
+Per-asset thresholds are in engine/ExhaustionDetector.js → assetThresholds object.
+Adjust if false positive rate is too high:
+- maxATRzScore: raise to allow more volatility
+- maxPriceExtension: raise to allow more extension
+- maxStackedDelta: raise to allow longer stacks
+- maxRecentMove: raise to allow bigger recent moves
+
+### STEP 5: Run ETH with new pipeline
+ETH was disabled because PF 0.92. With exhaustion gate, the confluence
+model might work. Test it:
+```bash
+npm run backtest:eth
+```
+Only re-enable for live if PF > 1.2 with >200 trades.
+
+### STEP 6: Walk-Forward Analysis
+```bash
+npm run walkforward:eth
+npm run walkforward:sol
+npm run walkforward:btc
+```
+This is the ONLY real validation. In-sample results are meaningless.
+Acceptance: OOS PF ≥ 1.2 in >60% of windows.
+
+## KEY FILES TO MODIFY IF TUNING
+
+- engine/ExhaustionDetector.js — exhaustion thresholds (per-asset)
+- engine/PortfolioRiskManager.js — risk limits
+- config.js — portfolioRisk and exhaustion global settings
+- config/assetProfiles.js — per-asset signal thresholds, regime blocks
+
+## WHAT NOT TO DO
+
+- Do NOT optimize for higher PnL — optimize for fewer emergency stops
+- Do NOT lower signal thresholds — the high thresholds (0.75-0.90) are the edge
+- Do NOT re-enable ETH for live without PF > 1.2 validated
+- Do NOT remove the exhaustion gate even if it blocks some winners
+  (false positives are acceptable; false negatives kill accounts)
+
+## ARCHITECTURE REMINDER
+
+Signal flow:
+```
+Model → Exhaustion Gate → Portfolio Risk → Execute
+              ↓ (blocked)        ↓ (blocked)
+              NO TRADE           NO TRADE
+```
+
+The system should trade LESS but with HIGHER quality.
+The goal is NOT more profit — it's FEWER catastrophic losses.
+
+## CURRENT PRIORITY QUEUE
+
+Phase 2 (NOW):
+  1. Run SOL 4-year backtest with exhaustion engine ← START HERE
+  2. Run BTC 4-year backtest with exhaustion engine
+  3. Analyze exhaustion filter impact (false positive rate)
+  4. Tune thresholds if needed
+  5. ETH backtest with new pipeline
+
+Phase 3 (this week):
+  6. Walk-forward analysis
+  7. Monte Carlo simulation
+  8. Funding rate impact test
+
+Phase 4 (before live):
+  9. Final parameter lock
+  10. 30-day paper trading with real data
+  11. Testnet dry run
+
+---
+
+Good luck. Think in distributions. Protect capital above all.
