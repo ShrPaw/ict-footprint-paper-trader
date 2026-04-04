@@ -1,76 +1,75 @@
-# 📋 NEXT SESSION PROMPT — ICT Footprint Paper Trader
+# NEXT SESSION PROMPT — Session #19
 
-**Session Date:** 2026-04-04
-**Session Type:** Walk-Forward Adversarial Testing (Phase 2.5)
-**Status:** Edge Discovery Complete — 5 candidates ready for stress testing
+## Context
 
----
+You are continuing work on the ICT Footprint Paper Trader. Session #18 performed
+walk-forward validation of the multi-asset funding rate system and reached a
+post-validation decision.
 
-## COPY THIS PROMPT FOR NEXT SESSION:
+## What Was Done
+
+### Session #18: Walk-Forward Validation + Post-Validation Decision
+
+1. **Walk-Forward Validation** — 16 rolling windows, 12-month train / 3-month test / 3-month step
+   - Built `validation/WalkForwardEngine.js` — full walk-forward engine with data integrity
+   - Thresholds recomputed per train window using ONLY historical data
+   - No lookahead bias, no leakage, no parameter modification
+   - Fetched Binance funding rates + 1H candles for BTC, ETH, XRP (2021-01 to 2026-04)
+
+2. **Results — CASE B: FRAGILE EDGE**
+   - Mean PF: 1.243 (passes >1.2 threshold)
+   - Profitable windows: 62.5% (fails ≥65% by 1 window)
+   - PF std dev: 0.592 (high dispersion)
+   - Max consecutive losing windows: 2 (passes <4)
+   - PF degradation IS→OOS: 5.6% (passes <40%)
+   - OOS return: +11.41% ($10K → $11,141) over ~4 years
+   - One catastrophic window: W2 (Apr-Jul 2022, PF 0.42, -7.92%, 9.11% DD)
+
+3. **Per-Asset OOS Breakdown**
+   - BTC: PF 1.26, 327 trades, 51.1% WR — VALID EDGE
+   - ETH: PF 1.03, 292 trades, 49.3% WR — NO EDGE
+   - XRP: PF 1.09, 364 trades, 49.5% WR — DEGRADED (in-sample was 1.73)
+
+4. **Post-Validation Decision (Strict Protocol)**
+   - System verdict: NO — multi-asset system not deployable
+   - Edge location: B — Partial, BTC only
+   - Failure modes: asset heterogeneity, edge dilution (concurrent slot competition), tail event sensitivity (Terra/Luna crash)
+   - Capital decision: REJECT multi-asset system
+   - Next phase: ISOLATE EDGE — validate BTC as standalone single-asset system
+
+## Files Created
 
 ```
-Read SESSION_NOTES_2026-04-04_P2.txt, EDGE_DISCOVERY_REPORT_2026-04-04.md, and PROJECT_CONTEXT.md in the repo.
-
-CONTEXT: Session #15 completed a 3-phase edge discovery pipeline. 112 hypotheses were tested across ETH, SOL, BTC, XRP. Five structural price pattern candidates survived all early rejection filters and adversarial stability testing.
-
-TOP CANDIDATES (ranked by quality):
-
-1. SOL / Higher-Low Uptrend: 1712 events, +0.59% mean 24h, t=5.02, 51.9% WR, 100% subsample stability, works in ALL regimes
-2. BTC / Displacement Bullish: 455 events, +0.57% mean, t=4.14, 55.4% WR, positive ALL 5 years
-3. XRP / Post-Bear Volume Surge: 1415 events, +0.45% mean, t=3.40, 52.7% WR, 82% quarter agreement
-4. ETH / Displacement Bullish: 431 events, +0.58% mean, t=3.15, 53.1% WR
-5. SOL / Stop-Run Trending Up: 170 events, +1.29% mean, t=2.74 (highest mean, smallest sample)
-
-WHAT FAILED: All breakouts, volatility transitions, volume-only signals, EMA crosses, killzone timing. Only structural price patterns survived.
-
-YOUR TASK — Walk-Forward Adversarial Testing (Phase 2.5):
-
-For EACH of the top 3 candidates (SOL HL, BTC displacement, XRP vol surge):
-
-1. WALK-FORWARD ANALYSIS
-   - Rolling 12-month train / 3-month OOS windows
-   - Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
-   - Window 2: Train Apr 2022-Mar 2023 | OOS: Apr-Jun 2023
-   - Continue until 2026 Q1
-   - Report: OOS mean return, OOS win rate, OOS t-stat per window
-
-2. REGIME-SUBSAMPLE STRESS TEST
-   - Does the edge hold when you EXCLUDE each regime?
-   - E.g., SOL HL without RANGING: still significant?
-   - Test: remove each regime one at a time, recompute stats
-
-3. NOISE INJECTION TEST
-   - Add ±1h random timing noise to event detection
-   - Does the edge survive ±1 candle timing uncertainty?
-   - Run 50 iterations with random ±1h jitter on entry time
-
-4. BOOTSTRAP CONFIDENCE INTERVAL
-   - 1000 bootstrap resamples of the return distribution
-   - Report: 95% CI for mean return
-   - Is the lower bound still positive?
-
-5. FEE/SLIPPAGE SENSITIVITY
-   - At what fee level does the edge die?
-   - Taker: 0.05%, Maker: 0.02%, Slippage: estimate 0.01-0.05%
-   - Report: breakeven fee level per candidate
-
-CONSTRAINTS:
-- NO parameter optimization
-- NO trade strategy construction
-- NO exit modeling
-- NO cross-asset generalization
-- Each asset STRICTLY isolated
-- Report honestly — if an edge fails WFA, say so
-
-OUTPUT:
-- Per-candidate: WFA results table, regime stress results, noise test results, bootstrap CI, fee sensitivity
-- Final verdict: which candidates (if any) survive Phase 2.5
-- Recommendation: proceed to strategy construction or reject
-
-FILES TO READ:
-- analysis/edge-discovery-v2.js — event detectors (reuse these)
-- analysis/edge-discovery-deep.js — conditional detectors
-- analysis/edge-stability-test.js — stability framework
-- EDGE_DISCOVERY_REPORT_2026-04-04.md — full findings
-- SESSION_NOTES_2026-04-04_P2.txt — session notes
+validation/
+  WalkForwardEngine.js          — Walk-forward validation engine
+  WALK_FORWARD_REPORT.md        — Full 16-window report
+  wf-oos-equity.json            — OOS equity curve
+  wf-oos-trades.jsonl           — All 983 OOS trades
+  wf-windows.json               — Per-window detailed results
+SESSION_PROMPT_NEXT.txt         — Updated with Session #19 prompt (BTC isolation)
+NEXT_SESSION_PROMPT.txt         — This file
 ```
+
+## Current State
+
+- ✅ Research complete (Phases 1-5.5)
+- ✅ Architecture validated (12 exit models tested)
+- ✅ Robustness validated (5 stress tests passed)
+- ✅ Production system built and backtested (PF 1.34, 887 trades)
+- ✅ Walk-forward validation complete (16 windows, CASE B — FRAGILE)
+- ✅ Post-validation decision: ISOLATE BTC EDGE
+- ⬜ BTC standalone walk-forward validation — NEXT SESSION
+
+## Your Task
+
+Isolate BTC as a single-asset system and run walk-forward validation.
+See SESSION_PROMPT_NEXT.txt for the full task specification.
+
+## Key Files to Read
+
+- `PROJECT_CONTEXT.md` — master project state (updated)
+- `SESSION_PROMPT_NEXT.txt` — next session prompt (BTC isolation task)
+- `validation/WALK_FORWARD_REPORT.md` — multi-asset walk-forward results
+- `funding/FundingConfig.js` — locked system parameters
+- `funding/FundingEngine.js` — signal detection logic
+- `validation/WalkForwardEngine.js` — walk-forward engine (adapt for BTC-only)

@@ -1,59 +1,80 @@
-# NEXT SESSION PROMPT — Session #18
+# 📋 NEXT SESSION PROMPT — ICT Footprint Paper Trader
 
-## Context
+**Session Date:** 2026-04-05
+**Session Type:** Walk-Forward Validation Complete — Edge Isolation Required
+**Status:** CASE B — FRAGILE EDGE | BTC-only isolation decided
 
-You are continuing work on the ICT Footprint Paper Trader. Session #17 built
-the complete production funding rate trading system.
+---
 
-## What Was Done
+## COPY THIS PROMPT FOR NEXT SESSION:
 
-### Session #17: Production System Build
+```
+Read PROJECT_CONTEXT.md, NEXT_SESSION_PROMPT.txt, validation/WALK_FORWARD_REPORT.md, and SESSION_NOTES_2026-04-04_P4.txt in the repo.
 
-1. **Architecture Prototyping** — Grid test of 12 exit architectures × 3 assets
-   - Verdict: CASE A — Viable architecture exists for all assets
-   - Simplest structure: TIME_48h exits (pure time-based, 48h hold)
-   - Key finding: Catastrophic stops DESTROY edge rather than preserve it
+CONTEXT: Session #18 completed walk-forward validation of the funding rate system (BTC, ETH, XRP). 16 rolling windows, 12-month train / 3-month test / 3-month step. Results classified as CASE B — FRAGILE EDGE.
 
-2. **Robustness Validation** — 5-step stress test under real capital conditions
-   - Loss cluster stress: survives 30 consecutive losses (DD 17-22%)
-   - Tail extremes: survives MAE up to 50% (2-4× historical worst)
-   - Exit stability: monotonic from 36→60h, sensitivity range 0.2-0.5 bps
-   - Capital path: no blowups, max DD 8-14% (fixed/compound/multi-asset)
-   - Failure threshold: 0% probability of ≥20% DD at 1% risk
-   - Verdict: 🟢 PRODUCTION-READY (all assets 9-10/10)
+WALK-FORWARD RESULTS:
+- Mean PF: 1.243 (passes >1.2)
+- Profitable windows: 62.5% (fails ≥65% by 1 window)
+- PF std dev: 0.592 (high dispersion)
+- Max consecutive losing windows: 2 (passes)
+- PF degradation IS→OOS: 5.6% (passes <40%)
+- OOS return: +11.41% over ~4 years
+- One catastrophic window: W2 (Apr-Jul 2022, PF 0.42, -7.92%)
 
-3. **Production System Build** — Clean, minimal, faithful to validated architecture
-   - FundingEngine: signal detection (p10/p95/p90 cumulative)
-   - PositionManager: sizing (1% risk on worst MAE), max 3 concurrent
-   - RiskMonitor: drawdown/consecutive loss tracking, alert-only
-   - BacktestEngine: event-driven simulation with full reporting
-   - FundingBotRunner: live paper trading bot
-   - Backtest validated: PF matches research (BTC 1.30, ETH 1.13, XRP 1.67)
+PER-ASSET OOS:
+- BTC: PF 1.26, 327 trades, 51.1% WR — VALID EDGE
+- ETH: PF 1.03, 292 trades, 49.3% WR — NO EDGE
+- XRP: PF 1.09, 364 trades, 49.5% WR — DEGRADED (was 1.73 in-sample)
 
-## Current State
+POST-VALIDATION DECISION:
+- System verdict: NOT deployable as multi-asset system
+- Edge location: BTC only
+- Capital decision: REJECT multi-asset system
+- Next phase: ISOLATE EDGE — run BTC as standalone single-asset system
 
-- ✅ Research complete (Phases 1-5.5)
-- ✅ Architecture validated (12 exit models tested)
-- ✅ Robustness validated (5 stress tests passed)
-- ✅ Production system built and backtested
-- ✅ All code pushed to GitHub
+YOUR TASK — BTC Edge Isolation:
 
-## Your Task
+1. BUILD single-asset BTC walk-forward validation
+   - Same methodology: 12-month train / 3-month test / 3-month step
+   - BTC ONLY — no ETH, no XRP, no concurrent position sharing
+   - Same entry logic: extremeLow_p10, extremeHigh_p95, highCumDrain
+   - Same exit: 48h fixed time, no stops
+   - Same risk: 1% per trade, no concurrent limit (single asset)
 
-Just give the best context possible. Read through the entire project — all session
-notes, all reports, all code — and provide a comprehensive briefing on where we are,
-what's been done, what works, and what the next logical steps could be.
+2. RUN walk-forward on BTC alone
+   - Compare to multi-asset BTC results (PF 1.26, 327 trades)
+   - Does PF improve without slot competition from ETH/XRP?
+   - Does the catastrophic W2 window persist?
 
-No specific action required. Context is the deliverable.
+3. EVALUATE against pass conditions:
+   - Mean PF > 1.2
+   - ≥ 65% profitable windows
+   - No ≥ 4 consecutive losing windows
+   - PF degradation < 40% vs in-sample
 
-## Key Files to Read
+4. CLASSIFY:
+   - 🟢 PRODUCTION READY — deploy BTC-only system
+   - 🟡 FRAGILE — edge exists but not deployable
+   - 🔴 NON-ROBUST — terminate project
 
-- `PROJECT_CONTEXT.md` — master project state
-- `SESSION_PROMPT_NEXT.txt` — this file
-- `SESSION_NOTES_2026-04-04_P3.txt` — last research session
-- `FINAL_RESEARCH_REPORT.md` — complete research pipeline
-- `analysis/ARCHITECTURE_PROTOTYPE_REPORT.md` — exit architecture grid test
-- `analysis/ROBUSTNESS_VALIDATION_REPORT.md` — stress test results
-- `FUNDING_BACKTEST_REPORT.md` — production backtest validation
-- `funding/` — all production system modules
-- `FIXES_AND_PRIORITIES.txt` — historical fix log
+CONSTRAINTS:
+- BTC ONLY. Do NOT re-test ETH or XRP.
+- Do NOT modify parameters, signals, or exits.
+- Do NOT add filters or improvements.
+- Pure validation of BTC in isolation.
+
+OUTPUT:
+- Single-asset BTC walk-forward report
+- Comparison to multi-asset BTC results
+- Final classification for BTC standalone
+- Deployment recommendation
+
+FILES TO READ:
+- funding/FundingEngine.js — signal detection
+- funding/FundingConfig.js — locked parameters
+- funding/BacktestEngine.js — backtest reference
+- validation/WalkForwardEngine.js — walk-forward engine (adapt for BTC-only)
+- validation/WALK_FORWARD_REPORT.md — full multi-asset results
+- PROJECT_CONTEXT.md — system state
+```

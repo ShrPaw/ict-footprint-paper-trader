@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-04 11:32 GMT+8
-**Session:** #17 (2026-04-04)
-**Version:** 7.0.0 (Production System Built)
+**Last updated:** 2026-04-05 05:50 GMT+8
+**Session:** #18 (2026-04-05)
+**Version:** 7.1.0 (Walk-Forward Validated — Fragile Edge)
 
 ---
 
@@ -285,71 +285,44 @@ WEBHOOK_SECRET=paper-trader-local
 
 ## TODO / Next Session
 
-### ✅ FUNDING RATE EDGE VALIDATED (Session #16)
-- [x] **Phase 2.7: Edge Extractability** — OHLCV edges fragile, unbounded tail risk
-- [x] **Phase 3: Risk Overlay** — OHLCV edges destroyed by stops (PF 0.64-0.73)
-- [x] **Phase 4: Duration Edge** — No universal duration edge, regime-conditional only
-- [x] **Phase 4.5: Regime Detection** — Cannot detect TRENDING_UP in real-time
-- [x] **Phase 5: Funding Edge Discovery** — 33 significant findings from funding rates
+### ✅ WALK-FORWARD VALIDATION COMPLETE (Session #18)
 - [x] **Phase 5.5: Structural Validation** — 5 ROBUST STRUCTURAL EDGES confirmed
+- [x] **Session #17: Production System Build** — Clean funding rate system, 887 trades, PF 1.34
+- [x] **Session #18: Walk-Forward Validation** — 16 rolling windows, CASE B — FRAGILE EDGE
 
-### TOP PRIORITY: STRATEGY CONSTRUCTION (NEXT SESSION)
+### WALK-FORWARD RESULTS (Session #18)
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Mean PF | 1.243 | > 1.2 | ✅ |
+| Profitable windows | 62.5% (10/16) | ≥ 65% | ❌ |
+| PF std dev | 0.592 | — | High dispersion |
+| Max consecutive losses | 2 | < 4 | ✅ |
+| PF degradation IS→OOS | 5.6% | < 40% | ✅ |
+| OOS return | +11.41% | — | $10K → $11,141 |
 
-The funding rate edge is validated. Next session should build the actual trading system:
+Per-asset OOS: BTC PF 1.26 ✅ | ETH PF 1.03 ❌ | XRP PF 1.09 ⚠️
 
-1. **Entry Logic**
-   - Monitor funding rates at settlement (every 8h: 00:00, 08:00, 16:00 UTC)
-   - Trigger on: extreme funding (p10/p95) OR cumulative drain (p90)
-   - Entry: at next candle open after funding print
-   - Assets: BTC, ETH, XRP (all validated)
+### POST-VALIDATION DECISION
+- **System verdict:** NOT deployable (multi-asset)
+- **Edge location:** BTC only (PF 1.26 OOS)
+- **Capital decision:** REJECT multi-asset system
+- **Failure modes:** asset heterogeneity, edge dilution (slot competition), tail event sensitivity (W2: PF 0.42)
+- **Next phase:** ISOLATE BTC EDGE
 
-2. **Position Sizing**
-   - Fixed risk per trade (1% capital?)
-   - Size based on expected MAE, not ATR stops
+### TOP PRIORITY: BTC STANDALONE WALK-FORWARD (NEXT SESSION)
 
-3. **Exit Logic**
-   - Primary: 48h fixed time exit (validated optimal horizon)
-   - Risk overlay: TBD — needs design compatible with edge characteristics
-   - NO tight stops (OHLCV edges proved tight stops destroy thin-margin edges)
-   - Consider: wide catastrophic stop (5-10%?) + time exit
+Isolate BTC as a single-asset system and re-validate:
+1. Build BTC-only walk-forward (same methodology, 12mo train / 3mo test / 3mo step)
+2. No ETH, no XRP, no concurrent position sharing
+3. Compare to multi-asset BTC results (PF 1.26, 327 trades)
+4. Evaluate: does PF improve without slot competition?
+5. Classify: 🟢 PRODUCTION READY / 🟡 FRAGILE / 🔴 NON-ROBUST
 
-4. **Risk Management**
-   - Max positions per asset: 1 (can't stack funding events)
-   - Max total exposure: TBD
-   - Portfolio DD limit: TBD
-
-5. **Walk-Forward Validation**
-   - Rolling 12m train / 3m OOS
-   - Lock funding thresholds per OOS window
-   - Test on 2026 Q2 as true OOS (if available)
-
-### IMPLEMENTATION ORDER
-
-1. Build `engine/FundingEngine.js` — detects funding events, generates signals
-2. Build `engine/FundingBacktest.js` — backtests with funding rate data
-3. Test risk overlay options (wide stop + time exit vs no stop + time exit)
-4. Walk-forward analysis
-5. Live paper trading integration
-
-### IMPORTANT CONSTRAINTS
-
-- Do NOT optimize funding thresholds (use p10/p90/p95 as-is)
-- Do NOT combine with OHLCV signals (proven to add no value)
-- Do NOT use tight stops (edge margin doesn't support <2% stops)
-- The edge is in FUNDING, not in price — keep the system simple
-
----
-
-## Session History
-
-### Sessions 1-15: OHLCV Research
-See SESSION_NOTES files. Concluded: no extractable edge from OHLCV data.
-
-### Session #16 (this session): Complete Research Pipeline
-- Phase 2.7-4.5: Exhaustive OHLCV validation → all edges rejected
-- Phase 5: Funding rate edge discovery → 33 significant findings
-- Phase 5.5: Structural validation → 5 ROBUST STRUCTURAL EDGES
-- First extractable edge found in the entire project
+### CONSTRAINTS
+- BTC ONLY — do NOT re-test ETH or XRP
+- Do NOT modify parameters, signals, or exits
+- Do NOT add filters or improvements
+- Pure validation of BTC in isolation
 
 ---
 
@@ -358,9 +331,8 @@ See SESSION_NOTES files. Concluded: no extractable edge from OHLCV data.
 ### Session #1 — 2026-03-30
 - Cloned repo, ran npm install, got backtests working (Jan-May 2025 SPOT)
 - Analyzed ETH results, built Hyperliquid testnet integration
-- Created LiveBotRunner, HyperliquidEngine, live/ entry points
 
-### Session #2 — 2026-03-31 (early AM)
+### Session #2 — 2026-03-31
 - Found backtests were on Binance SPOT not FUTURES
 - Changed backtest symbols to futures format
 - Created PROJECT_CONTEXT.md
@@ -368,66 +340,52 @@ See SESSION_NOTES files. Concluded: no extractable edge from OHLCV data.
 ### Session #3 — 2026-03-31
 - Created BinanceFeed.js, BinanceEngine.js, BinanceLiveBotRunner.js
 - Created live/binance/ entry points for all 4 assets
-- Major backtest upgrades (year-by-year, monthly, funding, regime dist, robustness checks)
-- Updated package.json, config.js
-- Pushed everything to GitHub
-- Started ETH backtest — too slow, killed it
+- Major backtest upgrades (year-by-year, monthly, funding, regime dist)
 
 ### Session #4 — 2026-03-31
 - Deep-read entire codebase (32 files)
-- Attempted ETH futures backtest — failed: O(n²) filtering bottleneck
-- **Fixed backtest.js**: incremental index tracking instead of .filter() (NOT YET TESTED)
+- Fixed backtest.js: O(n²) → incremental index tracking
 - Defined 10 statistical rigor criteria for backtest validation
-- Established walk-forward analysis plan (12-month train / 3-month OOS)
-- Execution order: baseline backtests → analyze → build WFA → run WFA
-- See SESSION_NOTES_2026-03-31.txt for full details
 
-### Session #5 — 2026-03-31
-- Applied Round 2 optimization: cached windows on 1h boundaries only
-- Still too slow — analyzers recomputed from scratch each iteration
-- Pushed changes to GitHub
-
-### Session #6 — 2026-03-31
-- **MAJOR: Full precomputed O(n) architecture refactor**
-- Created engine/Precompute.js with all indicators precomputed
-- Rewrote engine/backtest.js v3.0 — 3-layer architecture
-- Updated all 3 analyzers to support dual-mode (precomputed + live)
-- Performance target: O(n) total instead of O(n²)
+### Session #5-6 — 2026-03-31
+- Full precomputed O(n) architecture refactor
+- Created engine/Precompute.js, rewrote backtest.js v3.0
 
 ### Session #7 — 2026-04-02
-- **Per-asset signal thresholds** — each of 4 bots gets own minConfluenceScore / minSoloScore in assetProfiles.js
-- BTC: 0.55/0.70, ETH: 0.60/0.75, SOL: 0.52/0.68, XRP: 0.62/0.78
-- Fixed precomputed confidence calibration (OB/sweep/OTE were producing 0.04-0.55 instead of 0.5-1.0)
-- Fixed backtest scoring: normalize combinedScore by source weight so precomputed and live use same scale
-- **First successful full futures backtest** — 4 years, all 4 assets, 5225 total trades
-- Results: -$2,979 total PnL, $37K in fees. System overtrades, SL too tight for futures.
-- Key insight: trailing stops (100% WR) are the real edge, regular SL (7-14% WR) are noise traps
-- Key insight: RANGING regime is toxic on futures (blocked for BTC/XRP but not ETH)
-- Pushed all changes to GitHub
+- First successful full futures backtest — 4 years, 5225 trades
+- Results: -$2,979, system overtrades, SL too tight
+- Key insight: trailing stops (100% WR) are the real edge
 
-### Session #8 — 2026-04-03
-- Multi-Model Architecture (SOL/BTC/ETH/XRP independent models)
-- Raised thresholds to 0.75-0.90 range
-
-### Session #9-12 — 2026-04-03
-- Trade Lifecycle Engine (decay, confidence)
-- Exhaustion Detector, Portfolio Risk Manager
-- Emergency stop optimization (8→12 ATR)
-- VOL_EXP hard gate, regime-specific threshold multipliers
+### Session #8-12 — 2026-04-03
+- Multi-Model Architecture, Trade Lifecycle, Exhaustion Detector
+- Emergency stop optimization, VOL_EXP hard gate
 
 ### Session #13 — 2026-04-03
-- Edge Discovery Report (66 trades, concluded no entry edge)
+- Edge Discovery Report (66 trades, concluded no entry edge from OHLCV)
 
 ### Session #14 — 2026-04-04
 - Data Pipeline Validation (496,881 signals)
 - Confirmed: entry has no predictive power at scale
-- Duration is the only real edge
 
-### Session #15 — 2026-04-04 (THIS SESSION)
-- **Full 3-phase edge discovery research** (112 hypotheses tested)
-- Built edge-discovery-v2.js, edge-discovery-deep.js, edge-stability-test.js
-- Found 5 structural price pattern candidates surviving all filters
-- Key insight: only price structure works (higher lows, displacement candles, stop runs)
-- All volatility/volume/EMA-based hypotheses rejected
-- Top: SOL higher-low (t=5.02), BTC displacement (positive all 5 yrs), XRP vol reversal (82% Q agreement)
-- Next: walk-forward adversarial testing on top 3 candidates
+### Session #15 — 2026-04-04
+- Full 3-phase edge discovery (112 hypotheses tested)
+- Found 5 structural price pattern candidates
+
+### Session #16 — 2026-04-04
+- Phase 2.7-5.5: Complete research pipeline
+- OHLCV edges all rejected (fragile, destroyed by stops)
+- **FUNDING RATE EDGE DISCOVERED** — first extractable edge
+- 5 robust structural edges from Binance funding rates
+
+### Session #17 — 2026-04-04
+- Built production funding rate system (`funding/` modules)
+- Architecture validation (12 exit models tested)
+- Robustness validation (5 stress tests passed, all 9-10/10)
+- Backtest: 887 trades, PF 1.34, +26.21%, max DD 8.24%
+
+### Session #18 — 2026-04-05
+- **Walk-forward validation: 16 rolling windows, CASE B — FRAGILE EDGE**
+- Mean PF 1.243, 62.5% profitable windows, one catastrophic window (W2: PF 0.42)
+- BTC PF 1.26 (valid), ETH PF 1.03 (no edge), XRP PF 1.09 (degraded)
+- Post-validation decision: REJECT multi-asset, ISOLATE BTC EDGE
+- Built `validation/WalkForwardEngine.js`, full report in `validation/`
