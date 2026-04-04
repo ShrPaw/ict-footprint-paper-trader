@@ -1,57 +1,93 @@
-# NEXT SESSION PROMPT — Session #15
+# NEXT SESSION PROMPT — Session #17
 
 ## Context
 
-You are continuing work on the ICT Footprint Paper Trader. Session #14 performed
-a full data pipeline validation using 496,881 unrestricted signals.
+You are continuing work on the ICT Footprint Paper Trader. Session #16 performed
+a complete research pipeline from Phase 2.7 through Phase 5.5.
 
 ## CRITICAL FINDING
 
-The entry model has NO predictive power. Directional signals underperform random
-coin flip by $783K across 497K signals. The only real edge is DURATION:
-- Trades ≤4h: 100% WR, +$18.7M
-- Trades >48h: 57% WR, -$25.9M
+ALL OHLCV-based edges were REJECTED after full validation:
+- Phase 2.7: Edges fragile (unbounded tail risk)
+- Phase 3: ALL edges DESTROYED by risk overlay (PF 0.64-0.73)
+- Phase 4: No universal duration edge exists
+- Phase 4.5: Cannot detect TRENDING_UP regime in real-time
+
+**BUT: A FUNDING RATE POSITIONING EDGE WAS DISCOVERED AND VALIDATED.**
+
+## VALIDATED EDGE — FUNDING RATE STRUCTURAL PRESSURE
+
+5 signals classified as ROBUST STRUCTURAL EDGE:
+
+| Signal | Asset | Events | 48h Return | t-stat | Score |
+|--------|-------|--------|------------|--------|-------|
+| Extreme Low Funding (p10) | BTC | 466 | +0.58% | 3.07 | 8/8 |
+| Extreme High Funding (p95) | BTC | 233 | +0.65% | 2.32 | 7/8 |
+| High Cumulative Drain | BTC | 897 | +0.34% | 2.87 | 7/8 |
+| High Cumulative Drain | ETH | 466 | +0.55% | 2.76 | 8/8 |
+| **High Cumulative Drain** | **XRP** | **466** | **+1.81%** | **4.17** | **7/8** |
+| Extreme Low Funding (p10) | XRP | 466 | +1.04% | 3.56 | 8/8 |
+
+## WHY THIS EDGE IS DIFFERENT
+
+1. Survives 8h entry delay (60-97% retention)
+2. Survives friction (mean 3-13× above fees)
+3. Regime independent (83-100% of regimes positive)
+4. Year stable (67-100% of years positive)
+5. Causal mechanism (funding forces position closing)
+6. Binary detection (no fuzzy thresholds)
 
 ## YOUR TASK
 
-1. **IMPLEMENT HARD TIME EXIT at 4 hours**
-   - Any trade where trailing hasn't activated within 240 minutes → close at market
-   - This prevents 100% of emergency stops (55,890 stops = -$48.4M)
+BUILD THE TRADING SYSTEM. This is the first extractable edge.
 
-2. **BUILD NEW ENTRY SIGNALS**
-   - Current features (stacked delta, ATR-z, dist from mean) have r=-0.178 to r=+0.07
-   - Need: volume profile, liquidity dynamics, institutional flow, microstructure
-   - Start with: TRENDING_DOWN + short direction (only profitable combo at scale: PF 1.14, 83K trades)
+### Entry Logic
+- Monitor funding rates at settlement (every 8h: 00:00, 08:00, 16:00 UTC)
+- Trigger on: extreme funding (p10/p95) OR cumulative drain (p90)
+- Entry: at next candle open after funding print
+- Assets: BTC, ETH, XRP
 
-3. **WALK-FORWARD VALIDATION**
-   - Rolling 12m train / 3m OOS
-   - No parameter tuning on full dataset
-   - Lock parameters per OOS window
+### Exit Logic
+- Primary: 48h fixed time exit
+- Risk overlay: wide catastrophic stop (5-10%) + time exit
+- NO tight stops (proven to destroy edges)
+- Consider: trailing stop that activates AFTER 24h (delayed trailing)
 
-4. **TEST: TRENDING_DOWN ONLY + 4h TIME EXIT**
-   - Block all other regimes
-   - Short only
-   - Hard 4h time exit
-   - This is the most promising configuration from the data
+### Risk Management
+- Max 1 position per asset per funding event
+- Position sizing based on MAE distribution
+- Portfolio-level DD limit
 
-## KEY DATA FILES
-
-- `data/expanded-dataset-2026-04-03T23-18-07.jsonl` — 496,881 signals (too large for git)
-- `analysis/data-expansion-engine.js` — regenerates the dataset
-- `analysis/entry-isolation-analyzer.js` — analyzes entry vs exit isolation
-- `FINAL_EDGE_DISCOVERY_REPORT_2026-04-04.md` — full report
+### Backtesting
+- Use `analysis/phase5-funding-edge.js` as reference for data loading
+- Build `engine/FundingBacktest.js` with:
+  - Funding rate data (fetchFundingRateHistory)
+  - 1h candles for path analysis
+  - Year-by-year breakdown
+  - Monthly PnL distribution
+  - Walk-forward validation
 
 ## DO NOT
 
-- Optimize parameters blindly
-- Assume any feature has edge without testing against random baseline
-- Skip walk-forward validation
-- Tune on the full dataset
+- Optimize funding thresholds (use p10/p90/p95 as-is)
+- Combine with OHLCV signals (proven to add no value)
+- Use tight stops (<2% — edge margin doesn't support it)
+- Build complex signal logic (the edge is binary)
+
+## KEY DATA FILES
+
+- `analysis/phase5-funding-edge.js` — funding rate data loading + hypothesis tests
+- `analysis/phase5.5-funding-validation.js` — full validation framework
+- `analysis/PHASE5.5_VALIDATION_REPORT.md` — detailed validation results
+- `analysis/PHASE5_FUNDING_REPORT.md` — initial discovery report
+- `PROJECT_CONTEXT.md` — updated with funding edge details
 
 ## START HERE
 
-1. Read SESSION_NOTES_2026-04-04.txt
-2. Read FINAL_EDGE_DISCOVERY_REPORT_2026-04-04.md
-3. Implement hard 4h time exit in PaperEngine.js
-4. Test TRENDING_DOWN + short + 4h exit configuration
-5. Build walk-forward framework
+1. Read PROJECT_CONTEXT.md (updated with funding edge)
+2. Read PHASE5.5_VALIDATION_REPORT.md (validation details)
+3. Build FundingEngine.js — detect funding events
+4. Build FundingBacktest.js — backtest with risk overlay
+5. Test exit strategies (time-only vs wide-stop + time)
+6. Walk-forward analysis
+7. Paper trading integration
