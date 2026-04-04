@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-03 07:15 GMT+8
-**Session:** #11 (2026-04-03)
-**Version:** 5.1.0 (Multi-Model Architecture)
+**Last updated:** 2026-04-04 09:38 GMT+8
+**Session:** #15 (2026-04-04)
+**Version:** 6.0.0 (Edge Discovery Research)
 
 ---
 
@@ -178,32 +178,37 @@ WEBHOOK_SECRET=paper-trader-local
 
 ## TODO / Next Session
 
-### STEP 1 — Optimize Based on Futures Results (IMMEDIATE)
-- [x] **Full precompute refactor** — engine/Precompute.js + rewritten backtest.js v3.0
-- [x] **Per-asset signal thresholds** — 1 TH per bot in assetProfiles.js
-- [x] **Calibrated precompute confidence** — OB/sweep/OTE confidence recalibrated
-- [x] **First full futures backtest** — 2022-2026 Binance futures, all 4 assets
-- [ ] **Analyze 2022 vs 2023-2026 divergence** — why did 2022 work but later years didn't?
-- [ ] **Reduce overtrading** — raise thresholds, add longer cooldown, or regime-specific cooldown
-- [ ] **Fix SL placement** — current 0.5x ATR stops get eaten by noise on futures
-- [ ] **Block RANGING for ETH** — -$1,869 in RANGING, should be blocked like BTC/XRP
-- [ ] **Fee optimization** — $37K in fees is unsustainable. Consider maker orders or fee-aware sizing
+### ✅ EDGE DISCOVERY COMPLETE (Session #15)
+- [x] **Phase 1: Broad hypothesis screen** — 64 hypotheses, 16 event types × 4 assets
+- [x] **Phase 2: Deep conditional analysis** — 40 regime-conditional hypotheses
+- [x] **Phase 3: Adversarial stability** — year-by-year, quarterly, subsample bootstrap
+- [x] **5 structural price pattern candidates identified** — see EDGE_DISCOVERY_REPORT_2026-04-04.md
 
-### STEP 2 — Walk-Forward Analysis (after parameter tuning)
-Rolling 12-month train / 3-month OOS test:
-```
-Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
-Window 2: Train Apr 2022 - Mar 2023 | OOS: Apr-Jun 2023
-...continues until today
-```
-Parameters to optimize per window:
-- `blockedRegimes` per asset
-- `slTightness` / `riskMultiplier` per asset
-- `minConfluenceScore` / `minSoloScore` per asset (THE new lever)
-- `trailingStop.activationATR` / `trailATR`
+### TOP EDGE CANDIDATES (from Session #15)
+1. **SOL / Higher-Low Uptrend** — 1712 events, +0.59% mean, t=5.02, 51.9% WR, works ALL regimes
+2. **BTC / Displacement Bullish** — 455 events, +0.57% mean, t=4.14, 55.4% WR, positive ALL 5 years
+3. **XRP / Post-Bear Volume Surge** — 1415 events, +0.45% mean, t=3.40, 52.7% WR, 82% quarter agreement
+4. **ETH / Displacement Bullish** — 431 events, +0.58% mean, t=3.15, 53.1% WR
+5. **SOL / Stop-Run Trending Up** — 170 events, +1.29% mean, t=2.74 (highest mean, smallest n)
 
-### Setup
-- [ ] User needs Binance testnet API keys for live trading
+**Key finding:** Only structural price patterns work. All breakouts, volatility transitions, volume-only signals, EMA crosses fail due to clustering or instability.
+
+### STEP 1 — Walk-Forward Adversarial Testing (NEXT SESSION)
+For each of top 3 candidates (SOL HL, BTC displacement, XRP vol surge):
+- [ ] Rolling 12m train / 3m OOS walk-forward analysis
+- [ ] Regime-subsample stress test (exclude each regime one at a time)
+- [ ] Noise injection test (±1h timing jitter, 50 iterations)
+- [ ] Bootstrap confidence interval (1000 resamples, 95% CI)
+- [ ] Fee/slippage sensitivity (breakeven fee level)
+
+### STEP 2 — Entry Model Rebuild (after WFA confirms)
+- [ ] Build entry logic only if WFA confirms edge
+- [ ] Risk-adjust with actual fee/slippage model
+- [ ] Test on 2026 Q2 data as true OOS
+
+### STEP 3 — Previous TODO Items (Superseded by Edge Discovery)
+The old entry model (ICT + OrderFlow) has been shown to have no predictive power at scale (Session #14, 496K signals). The new structural patterns replace the old signal logic.
+- [ ] Old backtest optimizations are archived — focus on new edge candidates only
 
 ---
 
@@ -258,3 +263,30 @@ Parameters to optimize per window:
 - Key insight: trailing stops (100% WR) are the real edge, regular SL (7-14% WR) are noise traps
 - Key insight: RANGING regime is toxic on futures (blocked for BTC/XRP but not ETH)
 - Pushed all changes to GitHub
+
+### Session #8 — 2026-04-03
+- Multi-Model Architecture (SOL/BTC/ETH/XRP independent models)
+- Raised thresholds to 0.75-0.90 range
+
+### Session #9-12 — 2026-04-03
+- Trade Lifecycle Engine (decay, confidence)
+- Exhaustion Detector, Portfolio Risk Manager
+- Emergency stop optimization (8→12 ATR)
+- VOL_EXP hard gate, regime-specific threshold multipliers
+
+### Session #13 — 2026-04-03
+- Edge Discovery Report (66 trades, concluded no entry edge)
+
+### Session #14 — 2026-04-04
+- Data Pipeline Validation (496,881 signals)
+- Confirmed: entry has no predictive power at scale
+- Duration is the only real edge
+
+### Session #15 — 2026-04-04 (THIS SESSION)
+- **Full 3-phase edge discovery research** (112 hypotheses tested)
+- Built edge-discovery-v2.js, edge-discovery-deep.js, edge-stability-test.js
+- Found 5 structural price pattern candidates surviving all filters
+- Key insight: only price structure works (higher lows, displacement candles, stop runs)
+- All volatility/volume/EMA-based hypotheses rejected
+- Top: SOL higher-low (t=5.02), BTC displacement (positive all 5 yrs), XRP vol reversal (82% Q agreement)
+- Next: walk-forward adversarial testing on top 3 candidates

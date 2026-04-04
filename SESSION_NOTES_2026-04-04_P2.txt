@@ -1,0 +1,133 @@
+# SESSION NOTES — 2026-04-04 (Session #15 — Edge Discovery Research)
+
+## What Was Done
+
+### EDGE DISCOVERY ENGINE v2.0-2.2 — Full Statistical Research Pipeline
+
+Built and ran a 3-phase edge discovery system following the Research Operating System (ROS) protocol.
+
+## Phase 1: Broad Hypothesis Screen (v2.0)
+- 16 event types × 4 assets = 64 hypotheses tested
+- Event families: Momentum/Breakout, Volatility Transition, Structural/Liquidity
+- Early rejection filters: clustering >50%, sample <50 independent, t<1.96, time-split instability
+- **9 survived early filters**
+
+## Phase 2: Deep Conditional Analysis (v2.1)
+- 10 regime-conditional and directional hypotheses × 4 assets = 40 tests
+- Regime-specific, directional asymmetry, volume-conditional, structural patterns
+- **7 survived early filters**
+
+## Phase 3: Adversarial Stability Testing (v2.2)
+- Year-by-year consistency, quarterly direction agreement, 20-iteration subsample bootstrap
+- Tested 8 top candidates from phases 1-2
+
+## KEY FINDINGS
+
+### Surviving Candidates (Ranked)
+
+1. **SOL / Higher-Low Uptrend** — 1,712 events, mean=+0.59%, t=5.02, +rate=51.9%, subsample 100%. Works across ALL regimes. Strongest overall candidate.
+
+2. **BTC / Displacement Bullish** — 455 events, mean=+0.57%, t=4.14, +rate=55.4%, subsample 100%. Positive in ALL 5 years (most directionally consistent).
+
+3. **ETH / Displacement Bullish** — 431 events, mean=+0.58%, t=3.15, +rate=53.1%, subsample 100%. Regime-specific edge in VOL_EXP (+1.54%).
+
+4. **SOL / Stop-Run in Trending Up** — 170 events, mean=+1.29%, t=2.74, +rate=51.8%, subsample 100%. Highest mean but smallest sample.
+
+5. **XRP / Post-Bear Volume Surge** — 1,415 events, mean=+0.45%, t=3.40, +rate=52.7%, subsample 100%. Best quarterly consistency (82%).
+
+### What Failed (Everything Else)
+- Breakout events: 55-60% clustering, time-split unstable
+- ATR spike events: 88-92% clustering (volatility clusters)
+- Volume squeeze: 89-91% clustering
+- EMA cross + momentum: not significant
+- Killzone momentum: not significant
+- All volatility transitions: clustering or instability
+
+### Key Insight
+**Structural price patterns work. Raw volatility/volume metrics don't.** The market at 1h is not predictable from breakouts, volatility transitions, or volume-only signals. Only price structure (higher lows, displacement candles, stop runs) captures real supply/demand shifts.
+
+### Critical Caveats
+- No candidate passes strict year-by-year significance (40% of years individually significant — power issue from splitting 4yr data)
+- 2022 consistently weak across all candidates (crypto winter regime)
+- These are raw forward returns, not risk-adjusted trading returns
+- Highest-mean candidates have smallest samples
+
+## Files Created
+
+```
+analysis/
+  edge-discovery-v2.js          — Phase 1: 64-hypothesis broad screen
+  edge-discovery-deep.js        — Phase 2: 40-hypothesis conditional analysis
+  edge-stability-test.js        — Phase 3: adversarial stability (year/quarter/subsample)
+data/
+  edge-discovery-report-*.md    — Phase 1 report
+  edge-discovery-raw-*.json     — Phase 1 raw data
+  edge-discovery-deep-*.md      — Phase 2 report
+  edge-discovery-deep-raw-*.json — Phase 2 raw data
+  edge-stability-*.json         — Phase 3 raw data
+EDGE_DISCOVERY_REPORT_2026-04-04.md — Final consolidated report
+```
+
+## What To Do Next
+
+### IMMEDIATE
+1. **Walk-forward adversarial testing** on top 3 candidates (SOL HL, BTC displacement, XRP vol surge)
+2. **Do NOT optimize parameters** — curve-fitting risk
+3. **Do NOT combine edges into portfolio** — cross-contamination
+
+### AFTER WFA
+4. Build entry logic only if WFA confirms edge
+5. Risk-adjust with actual fee/slippage model
+6. Test on 2026 Q2 data as true OOS
+
+## Session History
+
+### Session #1 — 2026-03-30
+- Cloned repo, ran npm install, got backtests working (Jan-May 2025 SPOT)
+- Analyzed ETH results, built Hyperliquid testnet integration
+
+### Session #2 — 2026-03-31 (early AM)
+- Found backtests were on Binance SPOT not FUTURES
+- Changed backtest symbols to futures format
+
+### Session #3 — 2026-03-31
+- Created BinanceFeed.js, BinanceEngine.js
+- Major backtest upgrades (year-by-year, monthly, funding, regime dist)
+
+### Session #4 — 2026-03-31
+- Deep-read entire codebase (32 files)
+- Fixed backtest.js O(n²) bottleneck
+
+### Session #5 — 2026-03-31
+- Applied Round 2 optimization: cached windows
+
+### Session #6 — 2026-03-31
+- Full precomputed O(n) architecture refactor
+
+### Session #7 — 2026-04-02
+- Per-asset signal thresholds
+- First successful full futures backtest — -$2,979, $37K fees
+
+### Session #8 — 2026-04-03
+- Multi-Model Architecture (SOL/BTC/ETH/XRP independent models)
+- Raised thresholds to 0.75-0.90 range
+
+### Session #9-12 — 2026-04-03
+- Trade Lifecycle Engine (decay, confidence)
+- Exhaustion Detector
+- Portfolio Risk Manager
+- Signal instrumentation
+
+### Session #13 — 2026-04-03
+- Edge Discovery Report (66 trades, concluded no entry edge)
+
+### Session #14 — 2026-04-04
+- Data Pipeline Validation (496,881 signals)
+- Confirmed: entry has no predictive power at scale
+- Duration is the only real edge
+
+### Session #15 — 2026-04-04 (THIS SESSION)
+- Full 3-phase edge discovery research (112 hypotheses)
+- Found 5 structural price pattern candidates
+- Confirmed: only price structure works, not volatility/volume
+- Top candidates: SOL higher-low, BTC displacement, XRP volume reversal

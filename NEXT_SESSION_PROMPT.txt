@@ -1,88 +1,76 @@
 # 📋 NEXT SESSION PROMPT — ICT Footprint Paper Trader
 
 **Session Date:** 2026-04-04
-**Session Type:** Trade Lifecycle Engine — Debug & Fix
-**Status:** IMPLEMENTED BUT BROKEN — Trade count dropped 72%
+**Session Type:** Walk-Forward Adversarial Testing (Phase 2.5)
+**Status:** Edge Discovery Complete — 5 candidates ready for stress testing
 
 ---
 
 ## COPY THIS PROMPT FOR NEXT SESSION:
 
 ```
-Read SESSION_NOTES_2026-04-04_P1.txt, REAL_DIAGNOSIS.md, and PROJECT_CONTEXT.md in the repo.
+Read SESSION_NOTES_2026-04-04_P2.txt, EDGE_DISCOVERY_REPORT_2026-04-04.md, and PROJECT_CONTEXT.md in the repo.
 
-CONTEXT: Session #12 implemented a 3-layer Trade Lifecycle Engine for SOLModel.
+CONTEXT: Session #15 completed a 3-phase edge discovery pipeline. 112 hypotheses were tested across ETH, SOL, BTC, XRP. Five structural price pattern candidates survived all early rejection filters and adversarial stability testing.
 
-WHAT WAS BUILT:
-1. Layer 1 — Context-aware entry validation (SOLModel):
-   - _classifyContext(): classifies extension, volatility, orderflow, regime
-   - _classifyOrderFlow(): BALANCED / DIRECTIONAL / SATURATED / DIVERGENT
-   - Saturated rejection: blocks entries when stacked >= 5 with no divergence
-   - Context states (volatilityState, orderflowState) passed to signal output
+TOP CANDIDATES (ranked by quality):
 
-2. Layer 2 — Adaptive decay engine (backtest.js):
-   - Structural time tracking: barsSinceEntry = currentBarIdx - entryM15Idx
-   - Volatility-adjusted decay limits: LOW=72bars, NORMAL=48, HIGH=24, EXTREME=16
-   - Regime multiplier: VOL_EXP=0.75, TRENDING=1.0, RANGING=1.5
+1. SOL / Higher-Low Uptrend: 1712 events, +0.59% mean 24h, t=5.02, 51.9% WR, 100% subsample stability, works in ALL regimes
+2. BTC / Displacement Bullish: 455 events, +0.57% mean, t=4.14, 55.4% WR, positive ALL 5 years
+3. XRP / Post-Bear Volume Surge: 1415 events, +0.45% mean, t=3.40, 52.7% WR, 82% quarter agreement
+4. ETH / Displacement Bullish: 431 events, +0.58% mean, t=3.15, 53.1% WR
+5. SOL / Stop-Run Trending Up: 170 events, +1.29% mean, t=2.74 (highest mean, smallest sample)
 
-3. Layer 3 — Trade invalidation (backtest.js):
-   - Stage 1 (after decay limit): emergency stop tightened to 70% of original
-   - Stage 2 (after 2x decay limit): emergency stop tightened to 40% of original
-   - Confidence decay: exp(-barsSinceEntry / (decayFactor * 2))
+WHAT FAILED: All breakouts, volatility transitions, volume-only signals, EMA crosses, killzone timing. Only structural price patterns survived.
 
-WHAT HAPPENED:
-- Baseline: 50 trades, 96% WR, PF 3.36, +$1,170
-- After changes: 14 trades, 85.7% WR, PF 2.02, +$290
-- Trade count dropped 72% — VIOLATES the >70% hard constraint
+YOUR TASK — Walk-Forward Adversarial Testing (Phase 2.5):
 
-ROOT CAUSE (PARTIAL):
-- Debug output showed SOL signals hitting SATURATED correctly (stacked 7-9)
-- But total SOL model signals dropped from 26 to 8 — more than just saturated filter
-- SOL_MOMENTUM_DIV went from 10 trades to 0
-- STACKED_IMBALANCE went from 11 trades to 1
-- Legacy signals (DELTA_DIVERGENCE etc.) still work normally (8 DELTA_DIVERGENCE)
+For EACH of the top 3 candidates (SOL HL, BTC displacement, XRP vol surge):
 
-THE BUG IS LIKELY IN:
-- Either the _classifyContext/_classifyOrderFlow methods have a logic error
-- Or the context classification is interfering with the signal scoring somehow
-- Or the model is returning null earlier (in gates/features extraction)
+1. WALK-FORWARD ANALYSIS
+   - Rolling 12-month train / 3-month OOS windows
+   - Window 1: Train Jan-Dec 2022 | OOS: Jan-Mar 2023
+   - Window 2: Train Apr 2022-Mar 2023 | OOS: Apr-Jun 2023
+   - Continue until 2026 Q1
+   - Report: OOS mean return, OOS win rate, OOS t-stat per window
 
-WHAT YOU MUST DO:
-1. DIAGNOSE: Add signal counters to SOLModel.evaluate() to trace exactly where
-   signals are being rejected. Count: total calls, gate blocks, feature nulls,
-   saturated blocks, threshold blocks, signals generated.
+2. REGIME-SUBSAMPLE STRESS TEST
+   - Does the edge hold when you EXCLUDE each regime?
+   - E.g., SOL HL without RANGING: still significant?
+   - Test: remove each regime one at a time, recompute stats
 
-2. FIX: The saturated filter (stacked >= 5) is too aggressive OR something else
-   is broken. Compare signal counts by type before/after the changes.
+3. NOISE INJECTION TEST
+   - Add ±1h random timing noise to event detection
+   - Does the edge survive ±1 candle timing uncertainty?
+   - Run 50 iterations with random ±1h jitter on entry time
 
-3. VALIDATE: After fixing, the decay engine should:
-   - Maintain >40 trades (original 50)
-   - Reduce emergency stop losses (target: -$497 → ~-$250)
-   - Keep win rate >90%
-   - Make STACKED_IMBALANCE net PnL positive (currently -$178)
+4. BOOTSTRAP CONFIDENCE INTERVAL
+   - 1000 bootstrap resamples of the return distribution
+   - Report: 95% CI for mean return
+   - Is the lower bound still positive?
 
-4. DO NOT:
-   - Remove the decay engine concept (it's correct based on quant evidence)
-   - Remove context classification (it's correct based on quant evidence)
-   - Blindly optimize parameters
-   - Drop trade count below 35 (hard floor)
+5. FEE/SLIPPAGE SENSITIVITY
+   - At what fee level does the edge die?
+   - Taker: 0.05%, Maker: 0.02%, Slippage: estimate 0.01-0.05%
+   - Report: breakeven fee level per candidate
 
-KEY EVIDENCE FROM SESSION #12:
-- Duration analysis: ALL winners ≤89h, BOTH losers >133h
-- Decay engine is structurally correct: trades that don't move in 48h (12h clock)
-  are dead. This is validated by the data.
-- Only STACKED_IMBALANCE produces emergency stops (11 trades, 2 stops)
-- OTE held 723h without emergency stop. The problem is specific to stacked imbalance.
+CONSTRAINTS:
+- NO parameter optimization
+- NO trade strategy construction
+- NO exit modeling
+- NO cross-asset generalization
+- Each asset STRICTLY isolated
+- Report honestly — if an edge fails WFA, say so
 
-FILES MODIFIED:
-- models/SOLModel.js — context classification + saturated filter
-- engine/backtest.js — decay engine + bar tracking + progressive stop tightening
-- audit/context_analysis.js — distribution analysis (new)
-- audit/deep_context.js — deep context analysis (new)
-- audit/decay_sim.js — decay simulation (new)
+OUTPUT:
+- Per-candidate: WFA results table, regime stress results, noise test results, bootstrap CI, fee sensitivity
+- Final verdict: which candidates (if any) survive Phase 2.5
+- Recommendation: proceed to strategy construction or reject
 
-BASELINE TO BEAT:
-- 50 trades, 96% WR, PF 3.36, +$1,170
-- 2 emergency stops, -$497
-- STACKED_IMBALANCE: 11 trades, -$178 net
+FILES TO READ:
+- analysis/edge-discovery-v2.js — event detectors (reuse these)
+- analysis/edge-discovery-deep.js — conditional detectors
+- analysis/edge-stability-test.js — stability framework
+- EDGE_DISCOVERY_REPORT_2026-04-04.md — full findings
+- SESSION_NOTES_2026-04-04_P2.txt — session notes
 ```
