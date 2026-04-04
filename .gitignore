@@ -4,3 +4,8 @@ node_modules/
 backtest-results/
 data/expanded-dataset-*.jsonl
 data/expanded-summary-*.json
+quant_env/
+quant_research/raw_data/
+__pycache__/
+*.pyc
+.DS_Store

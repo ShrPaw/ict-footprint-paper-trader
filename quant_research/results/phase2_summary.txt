@@ -1,0 +1,486 @@
+======================================================================
+PHASE 2: EVENT-LEVEL EDGE DISCOVERY — SUMMARY REPORT
+======================================================================
+
+──────────────────────────────────────────────────
+  BTC @ 1h
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1620)
+    h1: mean=+0.0139% | pos=51.6% | skew=-0.372 | t=0.95 ✗ | unstable
+    h4: mean=+0.0153% | pos=50.7% | skew=0.290 | t=0.58 ✗ | unstable
+    h12: mean=+0.0200% | pos=52.0% | skew=0.088 | t=0.46 ✗ | unstable
+    h24: mean=+0.0421% | pos=52.3% | skew=-0.100 | t=0.73 ✗ | unstable
+
+  Event: displacement_2x_atr (n=807)
+    h1: mean=+0.0012% | pos=50.4% | skew=-0.029 | t=0.05 ✗ | unstable
+    h4: mean=-0.0200% | pos=50.8% | skew=0.142 | t=-0.46 ✗ | unstable
+    h12: mean=+0.0686% | pos=53.0% | skew=-0.053 | t=1.04 ✗ | unstable
+    h24: mean=+0.1168% | pos=50.5% | skew=0.222 | t=1.30 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=2001)
+    h1: mean=+0.0081% | pos=50.9% | skew=-0.126 | t=0.54 ✗ | unstable
+    h4: mean=+0.0065% | pos=52.5% | skew=-0.009 | t=0.25 ✗ | unstable
+    h12: mean=+0.0625% | pos=52.9% | skew=-0.047 | t=1.58 ✗ | unstable
+    h24: mean=+0.0819% | pos=51.8% | skew=0.105 | t=1.50 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=1123)
+    h1: mean=+0.0070% | pos=50.3% | skew=-0.290 | t=0.31 ✗ | unstable
+    h4: mean=-0.0002% | pos=48.9% | skew=-0.172 | t=-0.01 ✗ | unstable
+    h12: mean=+0.0614% | pos=50.5% | skew=-0.208 | t=0.89 ✗ | unstable
+    h24: mean=+0.1899% | pos=52.9% | skew=0.102 | t=1.97 ✓ | unstable
+
+  Event: vwap_dev_1pct (n=4065)
+    h1: mean=-0.0024% | pos=49.8% | skew=-0.167 | t=-0.24 ✗ | unstable
+    h4: mean=+0.0109% | pos=50.4% | skew=-0.047 | t=0.60 ✗ | unstable
+    h12: mean=+0.0877% | pos=51.4% | skew=-0.027 | t=2.84 ✓ | unstable
+    h24: mean=+0.0697% | pos=51.2% | skew=-0.048 | t=1.63 ✗ | unstable
+
+  Event: vol_expansion (n=1432)
+    h1: mean=+0.0271% | pos=51.6% | skew=0.177 | t=1.67 ✗ | unstable
+    h4: mean=+0.0855% | pos=55.5% | skew=0.065 | t=2.88 ✓ | unstable
+    h12: mean=+0.0966% | pos=51.5% | skew=0.359 | t=1.85 ✗ | unstable
+    h24: mean=+0.2292% | pos=53.6% | skew=0.181 | t=3.02 ✓ | unstable
+
+  Event: liquidity_sweep (n=1083)
+    h1: mean=+0.0013% | pos=50.2% | skew=-0.220 | t=0.08 ✗ | unstable
+    h4: mean=+0.0449% | pos=51.4% | skew=0.070 | t=1.45 ✗ | stable
+    h12: mean=+0.1216% | pos=52.2% | skew=0.159 | t=2.33 ✓ | unstable
+    h24: mean=+0.1419% | pos=52.3% | skew=0.379 | t=1.97 ✓ | unstable
+
+  Event: consecutive_3 (n=2891)
+    h1: mean=-0.0020% | pos=50.6% | skew=-0.640 | t=-0.21 ✗ | unstable
+    h4: mean=-0.0206% | pos=48.7% | skew=0.347 | t=-1.15 ✗ | unstable
+    h12: mean=+0.0270% | pos=51.6% | skew=0.143 | t=0.86 ✗ | unstable
+    h24: mean=+0.0847% | pos=51.3% | skew=0.045 | t=1.95 ✗ | unstable
+
+  Event: consecutive_5 (n=606)
+    h1: mean=-0.0275% | pos=49.8% | skew=-1.506 | t=-1.28 ✗ | stable
+    h4: mean=-0.0808% | pos=48.2% | skew=-0.262 | t=-2.11 ✓ | stable
+    h12: mean=+0.0714% | pos=51.5% | skew=0.283 | t=1.02 ✗ | unstable
+    h24: mean=+0.1065% | pos=52.1% | skew=0.154 | t=1.20 ✗ | unstable
+
+──────────────────────────────────────────────────
+  BTC @ 15m
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1080)
+    h4: mean=+0.0195% | pos=51.1% | skew=2.080 | t=1.22 ✗ | stable
+    h20: mean=-0.0040% | pos=49.8% | skew=0.194 | t=-0.12 ✗ | unstable
+    h60: mean=+0.0089% | pos=50.6% | skew=0.222 | t=0.16 ✗ | unstable
+    h240: mean=-0.0813% | pos=51.0% | skew=-0.223 | t=-0.77 ✗ | unstable
+
+  Event: displacement_2x_atr (n=1841)
+    h4: mean=+0.0013% | pos=50.5% | skew=0.595 | t=0.08 ✗ | unstable
+    h20: mean=-0.0271% | pos=49.8% | skew=0.004 | t=-0.96 ✗ | unstable
+    h60: mean=+0.0178% | pos=51.2% | skew=-0.021 | t=0.43 ✗ | unstable
+    h240: mean=-0.0348% | pos=49.9% | skew=-0.095 | t=-0.43 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=4707)
+    h4: mean=-0.0063% | pos=50.2% | skew=0.063 | t=-0.74 ✗ | unstable
+    h20: mean=-0.0203% | pos=50.6% | skew=-0.249 | t=-1.20 ✗ | unstable
+    h60: mean=+0.0016% | pos=51.6% | skew=-0.214 | t=0.06 ✗ | unstable
+    h240: mean=-0.0704% | pos=50.5% | skew=-0.294 | t=-1.39 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=240)
+    h4: mean=+0.0203% | pos=51.7% | skew=0.810 | t=0.27 ✗ | unstable
+    h20: mean=-0.0317% | pos=52.9% | skew=-0.056 | t=-0.26 ✗ | unstable
+    h60: mean=+0.5226% | pos=47.9% | skew=0.863 | t=2.37 ✓ | unstable
+    h240: mean=+1.5734% | pos=67.1% | skew=-0.280 | t=4.58 ✓ | stable
+
+  Event: vwap_dev_1pct (n=2399)
+    h4: mean=-0.0140% | pos=49.3% | skew=0.022 | t=-0.88 ✗ | unstable
+    h20: mean=+0.0286% | pos=51.5% | skew=-0.205 | t=0.99 ✗ | stable
+    h60: mean=+0.0890% | pos=50.4% | skew=-0.012 | t=1.80 ✗ | unstable
+    h240: mean=+0.1861% | pos=52.5% | skew=-0.267 | t=2.14 ✓ | unstable
+
+  Event: vol_expansion (n=4273)
+    h4: mean=-0.0036% | pos=51.6% | skew=-0.372 | t=-0.41 ✗ | unstable
+    h20: mean=+0.0412% | pos=53.8% | skew=-0.872 | t=2.42 ✓ | unstable
+    h60: mean=+0.0837% | pos=54.2% | skew=-0.169 | t=3.31 ✓ | unstable
+    h240: mean=+0.1948% | pos=50.4% | skew=-0.151 | t=3.75 ✓ | unstable
+
+  Event: liquidity_sweep (n=3085)
+    h4: mean=-0.0015% | pos=51.2% | skew=0.415 | t=-0.16 ✗ | unstable
+    h20: mean=+0.0095% | pos=51.6% | skew=-0.205 | t=0.50 ✗ | unstable
+    h60: mean=-0.0083% | pos=51.3% | skew=-0.303 | t=-0.26 ✗ | unstable
+    h240: mean=-0.0446% | pos=50.8% | skew=-0.143 | t=-0.73 ✗ | unstable
+
+  Event: consecutive_3 (n=7613)
+    h4: mean=-0.0056% | pos=49.1% | skew=0.165 | t=-1.00 ✗ | unstable
+    h20: mean=-0.0087% | pos=50.1% | skew=-0.015 | t=-0.74 ✗ | unstable
+    h60: mean=-0.0199% | pos=49.7% | skew=-0.028 | t=-1.00 ✗ | unstable
+    h240: mean=-0.0533% | pos=50.9% | skew=-0.238 | t=-1.37 ✗ | unstable
+
+  Event: consecutive_5 (n=1478)
+    h4: mean=-0.0108% | pos=48.6% | skew=-0.299 | t=-0.81 ✗ | unstable
+    h20: mean=-0.0239% | pos=48.4% | skew=-0.011 | t=-0.87 ✗ | unstable
+    h60: mean=-0.0616% | pos=48.5% | skew=0.029 | t=-1.34 ✗ | unstable
+    h240: mean=-0.1654% | pos=47.7% | skew=-0.086 | t=-1.80 ✗ | unstable
+
+──────────────────────────────────────────────────
+  ETH @ 1h
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1620)
+    h1: mean=+0.0139% | pos=52.6% | skew=-1.750 | t=0.63 ✗ | unstable
+    h4: mean=+0.0159% | pos=51.0% | skew=-0.289 | t=0.40 ✗ | unstable
+    h12: mean=+0.0074% | pos=51.0% | skew=-0.181 | t=0.11 ✗ | unstable
+    h24: mean=+0.0370% | pos=51.1% | skew=0.098 | t=0.40 ✗ | unstable
+
+  Event: displacement_2x_atr (n=775)
+    h1: mean=+0.0496% | pos=53.4% | skew=0.753 | t=1.23 ✗ | stable
+    h4: mean=-0.0568% | pos=48.8% | skew=0.035 | t=-0.80 ✗ | unstable
+    h12: mean=-0.0211% | pos=50.1% | skew=-0.371 | t=-0.19 ✗ | unstable
+    h24: mean=+0.1632% | pos=50.9% | skew=0.383 | t=1.15 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=1890)
+    h1: mean=+0.0138% | pos=52.7% | skew=0.270 | t=0.60 ✗ | unstable
+    h4: mean=+0.0078% | pos=52.1% | skew=-0.177 | t=0.18 ✗ | unstable
+    h12: mean=+0.0776% | pos=52.8% | skew=-0.306 | t=1.17 ✗ | unstable
+    h24: mean=+0.0638% | pos=50.8% | skew=0.207 | t=0.72 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=3037)
+    h1: mean=+0.0085% | pos=50.4% | skew=-0.691 | t=0.49 ✗ | unstable
+    h4: mean=+0.0188% | pos=50.4% | skew=-0.644 | t=0.57 ✗ | unstable
+    h12: mean=+0.0561% | pos=51.9% | skew=-0.200 | t=1.03 ✗ | unstable
+    h24: mean=+0.1168% | pos=48.5% | skew=0.254 | t=1.51 ✗ | unstable
+
+  Event: vwap_dev_1pct (n=6416)
+    h1: mean=-0.0022% | pos=50.2% | skew=-0.599 | t=-0.21 ✗ | unstable
+    h4: mean=+0.0057% | pos=51.1% | skew=-0.463 | t=0.27 ✗ | unstable
+    h12: mean=+0.0267% | pos=51.3% | skew=-0.193 | t=0.75 ✗ | unstable
+    h24: mean=+0.0482% | pos=48.2% | skew=0.158 | t=0.96 ✗ | unstable
+
+  Event: vol_expansion (n=1018)
+    h1: mean=+0.0288% | pos=51.7% | skew=-2.111 | t=0.93 ✗ | unstable
+    h4: mean=+0.1001% | pos=54.0% | skew=-0.877 | t=1.75 ✗ | unstable
+    h12: mean=+0.1826% | pos=51.1% | skew=0.209 | t=2.02 ✓ | unstable
+    h24: mean=+0.1102% | pos=47.9% | skew=-0.182 | t=0.88 ✗ | unstable
+
+  Event: liquidity_sweep (n=1063)
+    h1: mean=+0.0285% | pos=49.5% | skew=1.299 | t=1.12 ✗ | stable
+    h4: mean=+0.0667% | pos=51.8% | skew=0.433 | t=1.41 ✗ | stable
+    h12: mean=+0.0668% | pos=51.2% | skew=0.172 | t=0.80 ✗ | unstable
+    h24: mean=+0.0599% | pos=48.0% | skew=0.536 | t=0.49 ✗ | unstable
+
+  Event: consecutive_3 (n=2888)
+    h1: mean=-0.0040% | pos=50.4% | skew=-1.278 | t=-0.27 ✗ | unstable
+    h4: mean=-0.0173% | pos=50.4% | skew=-0.349 | t=-0.58 ✗ | stable
+    h12: mean=+0.0096% | pos=50.7% | skew=-0.093 | t=0.19 ✗ | unstable
+    h24: mean=+0.0213% | pos=49.1% | skew=0.195 | t=0.29 ✗ | unstable
+
+  Event: consecutive_5 (n=621)
+    h1: mean=-0.0207% | pos=50.7% | skew=-3.679 | t=-0.55 ✗ | unstable
+    h4: mean=-0.0458% | pos=51.9% | skew=-1.288 | t=-0.74 ✗ | unstable
+    h12: mean=-0.0399% | pos=49.1% | skew=-0.265 | t=-0.35 ✗ | unstable
+    h24: mean=-0.1634% | pos=45.8% | skew=0.279 | t=-1.02 ✗ | unstable
+
+──────────────────────────────────────────────────
+  ETH @ 15m
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1080)
+    h4: mean=+0.0235% | pos=52.1% | skew=1.142 | t=0.98 ✗ | stable
+    h20: mean=+0.0403% | pos=50.4% | skew=0.301 | t=0.75 ✗ | unstable
+    h60: mean=+0.1237% | pos=50.7% | skew=0.322 | t=1.36 ✗ | unstable
+    h240: mean=+0.3494% | pos=51.3% | skew=0.567 | t=1.87 ✗ | unstable
+
+  Event: displacement_2x_atr (n=1735)
+    h4: mean=-0.0196% | pos=48.9% | skew=0.387 | t=-0.80 ✗ | unstable
+    h20: mean=-0.0455% | pos=49.9% | skew=0.154 | t=-0.94 ✗ | unstable
+    h60: mean=+0.0921% | pos=52.3% | skew=0.119 | t=1.25 ✗ | unstable
+    h240: mean=+0.4899% | pos=53.0% | skew=0.589 | t=3.18 ✓ | unstable
+
+  Event: displacement_1.5x_atr (n=4474)
+    h4: mean=+0.0078% | pos=51.1% | skew=0.214 | t=0.57 ✗ | unstable
+    h20: mean=+0.0181% | pos=51.4% | skew=0.126 | t=0.65 ✗ | unstable
+    h60: mean=+0.1511% | pos=52.3% | skew=0.232 | t=3.35 ✓ | unstable
+    h240: mean=+0.3606% | pos=50.9% | skew=0.658 | t=3.87 ✓ | unstable
+
+  Event: vwap_dev_2pct (n=1286)
+    h4: mean=+0.0301% | pos=49.6% | skew=-0.164 | t=0.84 ✗ | unstable
+    h20: mean=+0.0783% | pos=51.9% | skew=-0.167 | t=1.33 ✗ | unstable
+    h60: mean=+0.4159% | pos=54.3% | skew=0.623 | t=4.11 ✓ | unstable
+    h240: mean=+0.9402% | pos=51.3% | skew=0.646 | t=5.18 ✓ | unstable
+
+  Event: vwap_dev_1pct (n=6158)
+    h4: mean=+0.0234% | pos=51.4% | skew=0.279 | t=1.85 ✗ | unstable
+    h20: mean=+0.1068% | pos=53.2% | skew=0.247 | t=4.26 ✓ | unstable
+    h60: mean=+0.3213% | pos=54.0% | skew=0.555 | t=7.40 ✓ | unstable
+    h240: mean=+0.7907% | pos=51.6% | skew=0.969 | t=9.30 ✓ | unstable
+
+  Event: vol_expansion (n=3534)
+    h4: mean=-0.0068% | pos=50.6% | skew=-0.018 | t=-0.42 ✗ | unstable
+    h20: mean=+0.1201% | pos=54.0% | skew=-0.251 | t=3.82 ✓ | unstable
+    h60: mean=+0.2840% | pos=55.9% | skew=0.471 | t=5.88 ✓ | unstable
+    h240: mean=+0.7033% | pos=50.2% | skew=0.771 | t=6.69 ✓ | unstable
+
+  Event: liquidity_sweep (n=2816)
+    h4: mean=+0.0254% | pos=51.2% | skew=1.074 | t=1.63 ✗ | unstable
+    h20: mean=+0.0985% | pos=51.8% | skew=0.389 | t=2.91 ✓ | stable
+    h60: mean=+0.1352% | pos=52.8% | skew=0.257 | t=2.32 ✓ | unstable
+    h240: mean=+0.5027% | pos=50.9% | skew=0.785 | t=4.31 ✓ | unstable
+
+  Event: consecutive_3 (n=7232)
+    h4: mean=+0.0158% | pos=51.4% | skew=0.901 | t=1.69 ✗ | unstable
+    h20: mean=+0.0417% | pos=51.6% | skew=0.247 | t=2.08 ✓ | unstable
+    h60: mean=+0.0923% | pos=51.2% | skew=0.282 | t=2.70 ✓ | unstable
+    h240: mean=+0.3464% | pos=51.4% | skew=0.638 | t=4.85 ✓ | unstable
+
+  Event: consecutive_5 (n=1323)
+    h4: mean=+0.0330% | pos=50.9% | skew=0.835 | t=1.37 ✗ | unstable
+    h20: mean=+0.0785% | pos=51.3% | skew=0.280 | t=1.58 ✗ | unstable
+    h60: mean=+0.0506% | pos=49.4% | skew=0.353 | t=0.62 ✗ | unstable
+    h240: mean=+0.3999% | pos=50.6% | skew=0.903 | t=2.27 ✓ | unstable
+
+──────────────────────────────────────────────────
+  SOL @ 1h
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1620)
+    h1: mean=+0.0221% | pos=51.5% | skew=0.786 | t=0.87 ✗ | unstable
+    h4: mean=+0.0338% | pos=49.8% | skew=0.894 | t=0.73 ✗ | unstable
+    h12: mean=-0.0129% | pos=49.3% | skew=0.258 | t=-0.17 ✗ | unstable
+    h24: mean=-0.0211% | pos=50.0% | skew=-0.049 | t=-0.20 ✗ | unstable
+
+  Event: displacement_2x_atr (n=590)
+    h1: mean=+0.0646% | pos=50.5% | skew=0.781 | t=1.21 ✗ | unstable
+    h4: mean=+0.0308% | pos=51.9% | skew=-0.015 | t=0.34 ✗ | unstable
+    h12: mean=+0.1352% | pos=52.2% | skew=-0.131 | t=0.95 ✗ | unstable
+    h24: mean=+0.2205% | pos=52.8% | skew=0.097 | t=1.15 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=1702)
+    h1: mean=+0.0032% | pos=50.7% | skew=0.299 | t=0.11 ✗ | unstable
+    h4: mean=-0.0152% | pos=50.8% | skew=0.058 | t=-0.31 ✗ | unstable
+    h12: mean=+0.0498% | pos=49.9% | skew=0.066 | t=0.64 ✗ | unstable
+    h24: mean=+0.0667% | pos=49.0% | skew=0.382 | t=0.62 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=4046)
+    h1: mean=-0.0057% | pos=50.4% | skew=0.144 | t=-0.34 ✗ | unstable
+    h4: mean=-0.0211% | pos=49.9% | skew=-0.212 | t=-0.71 ✗ | unstable
+    h12: mean=-0.0306% | pos=51.1% | skew=-0.118 | t=-0.60 ✗ | unstable
+    h24: mean=+0.0705% | pos=49.6% | skew=0.105 | t=0.96 ✗ | unstable
+
+  Event: vwap_dev_1pct (n=7801)
+    h1: mean=-0.0012% | pos=50.5% | skew=0.217 | t=-0.11 ✗ | unstable
+    h4: mean=-0.0159% | pos=50.2% | skew=-0.024 | t=-0.78 ✗ | unstable
+    h12: mean=-0.0141% | pos=50.1% | skew=0.165 | t=-0.40 ✗ | unstable
+    h24: mean=+0.0164% | pos=48.8% | skew=0.196 | t=0.33 ✗ | unstable
+
+  Event: vol_expansion (n=793)
+    h1: mean=+0.0099% | pos=48.5% | skew=-0.155 | t=0.22 ✗ | unstable
+    h4: mean=+0.0515% | pos=51.8% | skew=-0.238 | t=0.67 ✗ | unstable
+    h12: mean=+0.1693% | pos=52.5% | skew=-0.213 | t=1.23 ✗ | unstable
+    h24: mean=-0.1269% | pos=52.1% | skew=-0.355 | t=-0.68 ✗ | unstable
+
+  Event: liquidity_sweep (n=1266)
+    h1: mean=-0.0177% | pos=49.0% | skew=-0.308 | t=-0.65 ✗ | unstable
+    h4: mean=-0.0797% | pos=48.4% | skew=-0.036 | t=-1.61 ✗ | unstable
+    h12: mean=-0.1149% | pos=49.6% | skew=0.144 | t=-1.36 ✗ | unstable
+    h24: mean=-0.0488% | pos=48.7% | skew=0.247 | t=-0.40 ✗ | unstable
+
+  Event: consecutive_3 (n=2919)
+    h1: mean=+0.0083% | pos=50.8% | skew=0.451 | t=0.49 ✗ | unstable
+    h4: mean=+0.0083% | pos=49.2% | skew=1.402 | t=0.24 ✗ | unstable
+    h12: mean=-0.0620% | pos=48.3% | skew=0.277 | t=-1.12 ✗ | unstable
+    h24: mean=-0.0786% | pos=48.4% | skew=0.218 | t=-1.00 ✗ | unstable
+
+  Event: consecutive_5 (n=605)
+    h1: mean=+0.0688% | pos=52.1% | skew=3.104 | t=1.74 ✗ | stable
+    h4: mean=+0.0504% | pos=49.3% | skew=2.371 | t=0.69 ✗ | unstable
+    h12: mean=+0.0424% | pos=49.3% | skew=0.870 | t=0.36 ✗ | unstable
+    h24: mean=+0.0160% | pos=47.6% | skew=0.294 | t=0.09 ✗ | unstable
+
+──────────────────────────────────────────────────
+  SOL @ 15m
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1080)
+    h4: mean=+0.0251% | pos=50.6% | skew=0.507 | t=0.99 ✗ | unstable
+    h20: mean=+0.0352% | pos=51.2% | skew=0.183 | t=0.60 ✗ | unstable
+    h60: mean=+0.0269% | pos=49.3% | skew=0.100 | t=0.27 ✗ | unstable
+    h240: mean=-0.0929% | pos=48.1% | skew=-0.063 | t=-0.49 ✗ | unstable
+
+  Event: displacement_2x_atr (n=1347)
+    h4: mean=-0.0353% | pos=50.8% | skew=0.334 | t=-1.12 ✗ | unstable
+    h20: mean=-0.0145% | pos=50.6% | skew=-0.033 | t=-0.24 ✗ | unstable
+    h60: mean=+0.0364% | pos=50.9% | skew=-0.146 | t=0.39 ✗ | unstable
+    h240: mean=-0.1185% | pos=48.9% | skew=-0.013 | t=-0.70 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=4103)
+    h4: mean=-0.0095% | pos=50.4% | skew=0.131 | t=-0.60 ✗ | unstable
+    h20: mean=-0.0310% | pos=50.4% | skew=-0.108 | t=-0.97 ✗ | unstable
+    h60: mean=+0.0034% | pos=50.7% | skew=-0.103 | t=0.07 ✗ | unstable
+    h240: mean=-0.0721% | pos=49.3% | skew=-0.060 | t=-0.75 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=1606)
+    h4: mean=+0.0562% | pos=50.5% | skew=0.710 | t=1.78 ✗ | unstable
+    h20: mean=+0.0945% | pos=54.7% | skew=-0.720 | t=1.48 ✗ | unstable
+    h60: mean=+0.3494% | pos=54.6% | skew=-0.008 | t=3.56 ✓ | unstable
+    h240: mean=+0.8717% | pos=55.8% | skew=0.112 | t=5.60 ✓ | stable
+
+  Event: vwap_dev_1pct (n=8160)
+    h4: mean=+0.0122% | pos=51.5% | skew=-0.204 | t=1.11 ✗ | unstable
+    h20: mean=+0.0781% | pos=52.4% | skew=-0.019 | t=3.33 ✓ | unstable
+    h60: mean=+0.1714% | pos=51.4% | skew=-0.081 | t=4.45 ✓ | unstable
+    h240: mean=+0.2741% | pos=50.5% | skew=0.067 | t=3.96 ✓ | unstable
+
+  Event: vol_expansion (n=2766)
+    h4: mean=-0.0199% | pos=49.4% | skew=0.097 | t=-0.96 ✗ | unstable
+    h20: mean=+0.0409% | pos=53.7% | skew=-0.652 | t=0.98 ✗ | unstable
+    h60: mean=+0.1662% | pos=53.7% | skew=-0.149 | t=2.66 ✓ | unstable
+    h240: mean=+0.4173% | pos=51.3% | skew=0.069 | t=3.68 ✓ | unstable
+
+  Event: liquidity_sweep (n=3154)
+    h4: mean=+0.0208% | pos=51.1% | skew=0.398 | t=1.41 ✗ | stable
+    h20: mean=+0.0208% | pos=49.9% | skew=0.112 | t=0.62 ✗ | unstable
+    h60: mean=+0.0579% | pos=50.9% | skew=-0.251 | t=1.00 ✗ | unstable
+    h240: mean=+0.2856% | pos=50.9% | skew=0.019 | t=2.59 ✓ | unstable
+
+  Event: consecutive_3 (n=7705)
+    h4: mean=+0.0087% | pos=51.2% | skew=0.252 | t=0.90 ✗ | unstable
+    h20: mean=+0.0421% | pos=51.3% | skew=0.012 | t=2.01 ✓ | unstable
+    h60: mean=+0.0317% | pos=50.4% | skew=-0.019 | t=0.89 ✗ | unstable
+    h240: mean=-0.0597% | pos=49.3% | skew=-0.024 | t=-0.86 ✗ | unstable
+
+  Event: consecutive_5 (n=1590)
+    h4: mean=-0.0071% | pos=50.6% | skew=0.269 | t=-0.31 ✗ | unstable
+    h20: mean=+0.1114% | pos=53.0% | skew=0.384 | t=2.26 ✓ | unstable
+    h60: mean=+0.0833% | pos=51.0% | skew=0.198 | t=1.04 ✗ | unstable
+    h240: mean=+0.0206% | pos=50.1% | skew=-0.010 | t=0.14 ✗ | unstable
+
+──────────────────────────────────────────────────
+  XRP @ 1h
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1620)
+    h1: mean=+0.0340% | pos=50.4% | skew=1.035 | t=1.19 ✗ | stable
+    h4: mean=+0.0851% | pos=50.9% | skew=1.673 | t=1.78 ✗ | stable
+    h12: mean=+0.1568% | pos=50.1% | skew=1.313 | t=1.85 ✗ | unstable
+    h24: mean=+0.2775% | pos=48.5% | skew=1.562 | t=2.32 ✓ | unstable
+
+  Event: displacement_2x_atr (n=625)
+    h1: mean=+0.0143% | pos=51.5% | skew=-0.659 | t=0.24 ✗ | unstable
+    h4: mean=+0.0363% | pos=48.5% | skew=0.549 | t=0.38 ✗ | unstable
+    h12: mean=+0.2136% | pos=47.5% | skew=0.384 | t=1.35 ✗ | unstable
+    h24: mean=+0.6799% | pos=49.9% | skew=1.905 | t=3.17 ✓ | unstable
+
+  Event: displacement_1.5x_atr (n=1725)
+    h1: mean=+0.0346% | pos=51.4% | skew=-0.203 | t=1.07 ✗ | unstable
+    h4: mean=+0.1328% | pos=51.7% | skew=0.970 | t=2.40 ✓ | unstable
+    h12: mean=+0.2137% | pos=47.5% | skew=0.768 | t=2.33 ✓ | unstable
+    h24: mean=+0.6041% | pos=50.5% | skew=1.495 | t=4.50 ✓ | unstable
+
+  Event: vwap_dev_2pct (n=3266)
+    h1: mean=+0.0739% | pos=50.7% | skew=0.382 | t=2.98 ✓ | unstable
+    h4: mean=+0.2189% | pos=52.2% | skew=0.737 | t=4.71 ✓ | unstable
+    h12: mean=+0.5581% | pos=51.5% | skew=1.243 | t=7.08 ✓ | unstable
+    h24: mean=+0.9726% | pos=51.9% | skew=1.122 | t=9.11 ✓ | unstable
+
+  Event: vwap_dev_1pct (n=6784)
+    h1: mean=+0.0325% | pos=50.3% | skew=0.382 | t=2.30 ✓ | unstable
+    h4: mean=+0.1034% | pos=50.9% | skew=0.938 | t=3.83 ✓ | unstable
+    h12: mean=+0.2928% | pos=49.8% | skew=1.238 | t=6.37 ✓ | unstable
+    h24: mean=+0.5863% | pos=51.1% | skew=1.214 | t=9.14 ✓ | unstable
+
+  Event: vol_expansion (n=1145)
+    h1: mean=+0.0436% | pos=51.6% | skew=-0.158 | t=0.98 ✗ | unstable
+    h4: mean=+0.0750% | pos=51.0% | skew=0.126 | t=0.88 ✗ | unstable
+    h12: mean=+0.3193% | pos=49.3% | skew=0.483 | t=2.26 ✓ | unstable
+    h24: mean=+0.3605% | pos=51.3% | skew=0.185 | t=2.05 ✓ | unstable
+
+  Event: liquidity_sweep (n=1090)
+    h1: mean=+0.0088% | pos=47.7% | skew=-0.791 | t=0.29 ✗ | unstable
+    h4: mean=+0.0584% | pos=49.8% | skew=0.192 | t=0.98 ✗ | unstable
+    h12: mean=+0.1772% | pos=49.0% | skew=1.356 | t=1.69 ✗ | unstable
+    h24: mean=+0.3198% | pos=49.3% | skew=0.918 | t=2.12 ✓ | unstable
+
+  Event: consecutive_3 (n=2968)
+    h1: mean=+0.0204% | pos=49.9% | skew=0.915 | t=1.03 ✗ | stable
+    h4: mean=+0.0794% | pos=50.1% | skew=1.231 | t=2.16 ✓ | unstable
+    h12: mean=+0.1083% | pos=48.0% | skew=1.291 | t=1.77 ✗ | unstable
+    h24: mean=+0.2552% | pos=47.6% | skew=1.587 | t=2.94 ✓ | unstable
+
+  Event: consecutive_5 (n=621)
+    h1: mean=+0.0451% | pos=50.7% | skew=-1.919 | t=0.96 ✗ | stable
+    h4: mean=+0.0720% | pos=50.1% | skew=0.163 | t=0.91 ✗ | unstable
+    h12: mean=-0.0288% | pos=44.8% | skew=0.323 | t=-0.23 ✗ | unstable
+    h24: mean=+0.1285% | pos=45.2% | skew=1.830 | t=0.63 ✗ | unstable
+
+──────────────────────────────────────────────────
+  XRP @ 15m
+──────────────────────────────────────────────────
+
+  Event: session_open (n=1080)
+    h4: mean=+0.0329% | pos=50.4% | skew=1.300 | t=1.34 ✗ | stable
+    h20: mean=+0.0721% | pos=51.2% | skew=0.874 | t=1.39 ✗ | unstable
+    h60: mean=+0.0295% | pos=47.3% | skew=0.970 | t=0.32 ✗ | unstable
+    h240: mean=-0.1125% | pos=44.0% | skew=0.365 | t=-0.66 ✗ | unstable
+
+  Event: displacement_2x_atr (n=1387)
+    h4: mean=+0.0277% | pos=49.9% | skew=2.744 | t=0.89 ✗ | unstable
+    h20: mean=+0.0335% | pos=50.4% | skew=1.197 | t=0.59 ✗ | unstable
+    h60: mean=+0.0317% | pos=48.8% | skew=1.107 | t=0.38 ✗ | unstable
+    h240: mean=-0.1812% | pos=44.7% | skew=0.487 | t=-1.25 ✗ | unstable
+
+  Event: displacement_1.5x_atr (n=4167)
+    h4: mean=+0.0137% | pos=50.3% | skew=1.561 | t=0.93 ✗ | unstable
+    h20: mean=+0.0296% | pos=50.2% | skew=0.784 | t=1.00 ✗ | unstable
+    h60: mean=+0.0250% | pos=49.1% | skew=0.580 | t=0.54 ✗ | unstable
+    h240: mean=-0.0544% | pos=45.2% | skew=0.398 | t=-0.64 ✗ | unstable
+
+  Event: vwap_dev_2pct (n=1260)
+    h4: mean=+0.1926% | pos=53.2% | skew=1.742 | t=4.34 ✓ | stable
+    h20: mean=+0.4122% | pos=54.8% | skew=0.876 | t=5.25 ✓ | stable
+    h60: mean=+0.6137% | pos=53.3% | skew=1.167 | t=4.41 ✓ | stable
+    h240: mean=+0.8459% | pos=51.7% | skew=0.549 | t=4.81 ✓ | unstable
+
+  Event: vwap_dev_1pct (n=6295)
+    h4: mean=+0.0149% | pos=49.3% | skew=-1.729 | t=1.01 ✗ | unstable
+    h20: mean=+0.0220% | pos=49.5% | skew=0.241 | t=0.77 ✗ | unstable
+    h60: mean=+0.0446% | pos=48.3% | skew=0.755 | t=0.97 ✗ | unstable
+    h240: mean=+0.0737% | pos=46.1% | skew=0.508 | t=1.03 ✗ | unstable
+
+  Event: vol_expansion (n=3009)
+    h4: mean=-0.0134% | pos=49.3% | skew=-3.798 | t=-0.62 ✗ | unstable
+    h20: mean=-0.0321% | pos=49.7% | skew=-1.406 | t=-0.79 ✗ | unstable
+    h60: mean=-0.0022% | pos=48.9% | skew=0.162 | t=-0.04 ✗ | unstable
+    h240: mean=+0.0573% | pos=46.9% | skew=0.281 | t=0.58 ✗ | unstable
+
+  Event: liquidity_sweep (n=3184)
+    h4: mean=-0.0036% | pos=49.1% | skew=1.323 | t=-0.25 ✗ | unstable
+    h20: mean=-0.0586% | pos=48.5% | skew=-0.142 | t=-1.83 ✗ | unstable
+    h60: mean=-0.1997% | pos=46.7% | skew=-0.034 | t=-3.84 ✓ | unstable
+    h240: mean=-0.3167% | pos=43.7% | skew=0.435 | t=-3.25 ✓ | unstable
+
+  Event: consecutive_3 (n=7551)
+    h4: mean=+0.0085% | pos=48.8% | skew=1.880 | t=0.91 ✗ | unstable
+    h20: mean=+0.0487% | pos=49.2% | skew=1.123 | t=2.51 ✓ | unstable
+    h60: mean=+0.0240% | pos=48.0% | skew=0.765 | t=0.70 ✗ | unstable
+    h240: mean=-0.0697% | pos=44.8% | skew=0.464 | t=-1.11 ✗ | unstable
+
+  Event: consecutive_5 (n=1501)
+    h4: mean=+0.0103% | pos=49.4% | skew=-0.114 | t=0.47 ✗ | unstable
+    h20: mean=+0.1382% | pos=50.2% | skew=1.340 | t=3.06 ✓ | stable
+    h60: mean=+0.1257% | pos=48.8% | skew=0.940 | t=1.60 ✗ | unstable
+    h240: mean=+0.0396% | pos=46.5% | skew=0.651 | t=0.29 ✗ | unstable
+
+
+======================================================================
+EDGE CANDIDATES (significant + stable)
+======================================================================
+  SOL | vwap_dev_2pct | h240 | mean=+0.8717% | t=5.60 | pos=55.8% | skew=0.112 | n=1587
+  XRP | vwap_dev_2pct | h20 | mean=+0.4122% | t=5.25 | pos=54.8% | skew=0.876 | n=1260
+  BTC | vwap_dev_2pct | h240 | mean=+1.5734% | t=4.58 | pos=67.1% | skew=-0.280 | n=240
+  XRP | vwap_dev_2pct | h60 | mean=+0.6137% | t=4.41 | pos=53.3% | skew=1.167 | n=1260
+  XRP | vwap_dev_2pct | h4 | mean=+0.1926% | t=4.34 | pos=53.2% | skew=1.742 | n=1260
+  XRP | consecutive_5 | h20 | mean=+0.1382% | t=3.06 | pos=50.2% | skew=1.340 | n=1501
+  ETH | liquidity_sweep | h20 | mean=+0.0985% | t=2.91 | pos=51.8% | skew=0.389 | n=2816
+  BTC | consecutive_5 | h4 | mean=-0.0808% | t=-2.11 | pos=48.2% | skew=-0.262 | n=606
+
+======================================================================
+CONCLUSION
+======================================================================
+  ✓ EDGE CANDIDATES EXIST
+  → Proceed to Phase 3 (Entry Validation)

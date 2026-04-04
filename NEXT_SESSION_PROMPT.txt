@@ -1,88 +1,56 @@
-# 📋 NEXT SESSION PROMPT — ICT Footprint Paper Trader
-
-**Session Date:** 2026-04-04
-**Session Type:** Trade Lifecycle Engine — Debug & Fix
-**Status:** IMPLEMENTED BUT BROKEN — Trade count dropped 72%
+## NEXT SESSION PROMPT — Quant Research Phase 2 Redesign
+## Date: 2026-04-04
+## Status: EDGE REJECTED — Return to Phase 2
 
 ---
 
-## COPY THIS PROMPT FOR NEXT SESSION:
+You are continuing the Quant Research System (ROS) for the ict-footprint-paper-trader project.
 
-```
-Read SESSION_NOTES_2026-04-04_P1.txt, REAL_DIAGNOSIS.md, and PROJECT_CONTEXT.md in the repo.
+### WHERE WE ARE
 
-CONTEXT: Session #12 implemented a 3-layer Trade Lifecycle Engine for SOLModel.
+Phase 1 (Data Validation) ✅ — 691,200 candle-hours acquired across BTC/ETH/SOL/XRP × 4 timeframes
 
-WHAT WAS BUILT:
-1. Layer 1 — Context-aware entry validation (SOLModel):
-   - _classifyContext(): classifies extension, volatility, orderflow, regime
-   - _classifyOrderFlow(): BALANCED / DIRECTIONAL / SATURATED / DIVERGENT
-   - Saturated rejection: blocks entries when stacked >= 5 with no divergence
-   - Context states (volatilityState, orderflowState) passed to signal output
+Phase 2 (Event-Level Edge Discovery) ✅ — 9 event types tested, VWAP deviation emerged as candidate
 
-2. Layer 2 — Adaptive decay engine (backtest.js):
-   - Structural time tracking: barsSinceEntry = currentBarIdx - entryM15Idx
-   - Volatility-adjusted decay limits: LOW=72bars, NORMAL=48, HIGH=24, EXTREME=16
-   - Regime multiplier: VOL_EXP=0.75, TRENDING=1.0, RANGING=1.5
+Phase 2.5 (Stress Testing) ✅ — EDGE REJECTED
 
-3. Layer 3 — Trade invalidation (backtest.js):
-   - Stage 1 (after decay limit): emergency stop tightened to 70% of original
-   - Stage 2 (after 2x decay limit): emergency stop tightened to 40% of original
-   - Confidence decay: exp(-barsSinceEntry / (decayFactor * 2))
+### WHAT HAPPENED
 
-WHAT HAPPENED:
-- Baseline: 50 trades, 96% WR, PF 3.36, +$1,170
-- After changes: 14 trades, 85.7% WR, PF 2.02, +$290
-- Trade count dropped 72% — VIOLATES the >70% hard constraint
+The below-VWAP mean reversion edge FAILED stress testing:
 
-ROOT CAUSE (PARTIAL):
-- Debug output showed SOL signals hitting SATURATED correctly (stacked 7-9)
-- But total SOL model signals dropped from 26 to 8 — more than just saturated filter
-- SOL_MOMENTUM_DIV went from 10 trades to 0
-- STACKED_IMBALANCE went from 11 trades to 1
-- Legacy signals (DELTA_DIVERGENCE etc.) still work normally (8 DELTA_DIVERGENCE)
+- **Regime instability**: Edge doesn't persist across bull/bear/sideways (0-60% of sub-regimes significant)
+- **Timing fragility**: Collapses at +3 candle entry delay
+- **Subsampling collapse**: Only 1-53% of random subsamples remain significant
+- **Directional symmetry**: SOL above-VWAP actually outperforms below-VWAP; XRP both directions equal
 
-THE BUG IS LIKELY IN:
-- Either the _classifyContext/_classifyOrderFlow methods have a logic error
-- Or the context classification is interfering with the signal scoring somehow
-- Or the model is returning null earlier (in gates/features extraction)
+Root causes: cluster inflation (72-76% events in clusters), regime pooling artifact, temporal autocorrelation.
 
-WHAT YOU MUST DO:
-1. DIAGNOSE: Add signal counters to SOLModel.evaluate() to trace exactly where
-   signals are being rejected. Count: total calls, gate blocks, feature nulls,
-   saturated blocks, threshold blocks, signals generated.
+### WHAT TO DO NEXT
 
-2. FIX: The saturated filter (stacked >= 5) is too aggressive OR something else
-   is broken. Compare signal counts by type before/after the changes.
+Return to Phase 2 with DIFFERENT event definitions. The VWAP deviation family is dead.
 
-3. VALIDATE: After fixing, the decay engine should:
-   - Maintain >40 trades (original 50)
-   - Reduce emergency stop losses (target: -$497 → ~-$250)
-   - Keep win rate >90%
-   - Make STACKED_IMBALANCE net PnL positive (currently -$178)
+Recommended directions:
+1. **Momentum/breakout events** — trend-aligned signals may be more robust in crypto
+2. **Volatility regime transitions** — expansion/compression cycle events
+3. **Microstructure events** — funding rate anomalies, open interest shifts, volume spikes
+4. **Conditional events** — VWAP deviation + specific regime filter (not standalone)
 
-4. DO NOT:
-   - Remove the decay engine concept (it's correct based on quant evidence)
-   - Remove context classification (it's correct based on quant evidence)
-   - Blindly optimize parameters
-   - Drop trade count below 35 (hard floor)
+### CODEBASE
 
-KEY EVIDENCE FROM SESSION #12:
-- Duration analysis: ALL winners ≤89h, BOTH losers >133h
-- Decay engine is structurally correct: trades that don't move in 48h (12h clock)
-  are dead. This is validated by the data.
-- Only STACKED_IMBALANCE produces emergency stops (11 trades, 2 stops)
-- OTE held 723h without emergency stop. The problem is specific to stacked imbalance.
+All research code is in `quant_research/`:
+- `data_acquisition.py` — fetches Binance OHLCV data
+- `phase2_analysis.py` — event detection + distribution analysis
+- `phase3_validation.py` — random baseline + shuffle tests
+- `phase45_analysis.py` — time modeling + loss forensics
+- `stress_tests.py` — the 6 adversarial stress tests
+- `results/` — all JSON results and text reports
 
-FILES MODIFIED:
-- models/SOLModel.js — context classification + saturated filter
-- engine/backtest.js — decay engine + bar tracking + progressive stop tightening
-- audit/context_analysis.js — distribution analysis (new)
-- audit/deep_context.js — deep context analysis (new)
-- audit/decay_sim.js — decay simulation (new)
+Raw data is in `quant_research/raw_data/` (not committed, re-fetch with `data_acquisition.py`).
+Python venv: create with `python3 -m venv quant_env && pip install pandas numpy scipy requests matplotlib`
 
-BASELINE TO BEAT:
-- 50 trades, 96% WR, PF 3.36, +$1,170
-- 2 emergency stops, -$497
-- STACKED_IMBALANCE: 11 trades, -$178 net
-```
+### RULES
+
+- Do NOT reuse VWAP deviation as an event definition
+- Do NOT optimize parameters before edge discovery
+- Must run stress tests BEFORE declaring any edge valid
+- Assets must be analyzed independently (no combining)

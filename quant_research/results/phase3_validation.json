@@ -1,0 +1,360 @@
+{
+  "tests": [
+    {
+      "asset": "BTC",
+      "event": "vwap_dev_2pct",
+      "horizon": 240,
+      "timeframe": "15m",
+      "n_events": 240,
+      "actual_mean": 0.015733635192142742,
+      "actual_median": 0.01531928387744878,
+      "actual_pct_pos": 67.08333333333333,
+      "skewness": -0.2803943041573539,
+      "kurtosis": 0.6270934329048621,
+      "random_baseline": {
+        "actual_mean": 0.015733635192142742,
+        "random_mean_avg": -0.0006514894033360446,
+        "random_mean_std": 0.0021854174146863805,
+        "random_mean_median": -0.0006486582956800389,
+        "p_value_random": 0.0,
+        "effect_size_sd": 7.497480566123402,
+        "n_simulations": 5000,
+        "actual_pct_positive": 67.08333333333333,
+        "random_pct_positive_avg": 50.69908333333334,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.015733635192142742,
+        "shuffled_mean_avg": -0.0006630495867565061,
+        "shuffled_mean_std": 0.0021815000542512175,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "False"
+    },
+    {
+      "asset": "SOL",
+      "event": "vwap_dev_2pct",
+      "horizon": 240,
+      "timeframe": "15m",
+      "n_events": 1587,
+      "actual_mean": 0.00871693282557803,
+      "actual_median": 0.007647788342290149,
+      "actual_pct_pos": 55.82860743541273,
+      "skewness": 0.11234531596713321,
+      "kurtosis": 0.7123825925672445,
+      "random_baseline": {
+        "actual_mean": 0.00871693282557803,
+        "random_mean_avg": -0.0004971910230872126,
+        "random_mean_std": 0.0015229528025178702,
+        "random_mean_median": -0.0005082090847128551,
+        "p_value_random": 0.0,
+        "effect_size_sd": 6.050170322699231,
+        "n_simulations": 5000,
+        "actual_pct_positive": 55.82860743541273,
+        "random_pct_positive_avg": 49.11916824196597,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.00871693282557803,
+        "shuffled_mean_avg": -0.00047139342006950323,
+        "shuffled_mean_std": 0.0014934794273884808,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "False"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 4,
+      "timeframe": "15m",
+      "n_events": 1260,
+      "actual_mean": 0.0019256401798970857,
+      "actual_median": 0.0009859009483053655,
+      "actual_pct_pos": 53.17460317460318,
+      "skewness": 1.7419524942111775,
+      "kurtosis": 18.332087548603987,
+      "random_baseline": {
+        "actual_mean": 0.0019256401798970857,
+        "random_mean_avg": -5.932016965220635e-06,
+        "random_mean_std": 0.00020870169575730842,
+        "random_mean_median": -4.329362793898996e-06,
+        "p_value_random": 0.0,
+        "effect_size_sd": 9.255182090654698,
+        "n_simulations": 5000,
+        "actual_pct_positive": 53.17460317460318,
+        "random_pct_positive_avg": 49.2142380952381,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.0019256401798970857,
+        "shuffled_mean_avg": -5.771854175277442e-06,
+        "shuffled_mean_std": 0.00020896180178091534,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "False"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 20,
+      "timeframe": "15m",
+      "n_events": 1260,
+      "actual_mean": 0.004122056909780762,
+      "actual_median": 0.0021938717978419297,
+      "actual_pct_pos": 54.761904761904766,
+      "skewness": 0.875619595284461,
+      "kurtosis": 7.322330693495818,
+      "random_baseline": {
+        "actual_mean": 0.004122056909780762,
+        "random_mean_avg": -3.107711506444327e-05,
+        "random_mean_std": 0.0004506515565081404,
+        "random_mean_median": -2.816272633526543e-05,
+        "p_value_random": 0.0,
+        "effect_size_sd": 9.215843071808372,
+        "n_simulations": 5000,
+        "actual_pct_positive": 54.761904761904766,
+        "random_pct_positive_avg": 48.96609523809524,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.004122056909780762,
+        "shuffled_mean_avg": -2.1550946713541442e-05,
+        "shuffled_mean_std": 0.0004519229891300072,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "False"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 60,
+      "timeframe": "15m",
+      "n_events": 1260,
+      "actual_mean": 0.006137136214358922,
+      "actual_median": 0.0032805359989504772,
+      "actual_pct_pos": 53.25396825396825,
+      "skewness": 1.167193589180704,
+      "kurtosis": 5.48057454319863,
+      "random_baseline": {
+        "actual_mean": 0.006137136214358922,
+        "random_mean_avg": -0.0001286123012280768,
+        "random_mean_std": 0.0007920430580494486,
+        "random_mean_median": -0.00012864698488258212,
+        "p_value_random": 0.0,
+        "effect_size_sd": 7.910868546739812,
+        "n_simulations": 5000,
+        "actual_pct_positive": 53.25396825396825,
+        "random_pct_positive_avg": 48.139698412698415,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.006137136214358922,
+        "shuffled_mean_avg": -0.00012222489031446258,
+        "shuffled_mean_std": 0.0007914179634398128,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "False"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 240,
+      "timeframe": "15m",
+      "n_events": 1260,
+      "actual_mean": 0.008458699236908064,
+      "actual_median": 0.002845269968038143,
+      "actual_pct_pos": 51.746031746031754,
+      "skewness": 0.5490427416864077,
+      "kurtosis": 1.6405706556144564,
+      "random_baseline": {
+        "actual_mean": 0.008458699236908064,
+        "random_mean_avg": -0.001231776716624892,
+        "random_mean_std": 0.0015073622703227858,
+        "random_mean_median": -0.0012314438769767387,
+        "p_value_random": 0.0,
+        "effect_size_sd": 6.4287637712053405,
+        "n_simulations": 5000,
+        "actual_pct_positive": 51.746031746031754,
+        "random_pct_positive_avg": 44.41374603174603,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.008458699236908064,
+        "shuffled_mean_avg": -0.001218086874238333,
+        "shuffled_mean_std": 0.0015053049761507061,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 1,
+      "timeframe": "1h",
+      "n_events": 3266,
+      "actual_mean": 0.0007391061098574307,
+      "actual_median": 0.00016647049254499665,
+      "actual_pct_pos": 50.67360685854256,
+      "skewness": 0.38200184034445217,
+      "kurtosis": 9.00949480369405,
+      "random_baseline": {
+        "actual_mean": 0.0007391061098574307,
+        "random_mean_avg": 0.00011753610670065106,
+        "random_mean_std": 0.0001486676371428145,
+        "random_mean_median": 0.00011657265800271206,
+        "p_value_random": 0.0,
+        "effect_size_sd": 4.180936854196998,
+        "n_simulations": 5000,
+        "actual_pct_positive": 50.67360685854256,
+        "random_pct_positive_avg": 49.93765462339253,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.0007391061098574307,
+        "shuffled_mean_avg": 0.00011805825513086617,
+        "shuffled_mean_std": 0.00014682921688572267,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 4,
+      "timeframe": "1h",
+      "n_events": 3266,
+      "actual_mean": 0.0021891092968127487,
+      "actual_median": 0.0007950496829409253,
+      "actual_pct_pos": 52.17391304347826,
+      "skewness": 0.7372598784046942,
+      "kurtosis": 9.106415008396086,
+      "random_baseline": {
+        "actual_mean": 0.0021891092968127487,
+        "random_mean_avg": 0.0004614263453895669,
+        "random_mean_std": 0.0002872849526289495,
+        "random_mean_median": 0.00046289659356554727,
+        "p_value_random": 0.0,
+        "effect_size_sd": 6.013830295019373,
+        "n_simulations": 5000,
+        "actual_pct_positive": 52.17391304347826,
+        "random_pct_positive_avg": 49.77387630128598,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.0021891092968127487,
+        "shuffled_mean_avg": 0.00045930309232704704,
+        "shuffled_mean_std": 0.0002931856706612333,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 12,
+      "timeframe": "1h",
+      "n_events": 3266,
+      "actual_mean": 0.005581175842751079,
+      "actual_median": 0.0013664880508034644,
+      "actual_pct_pos": 51.500306184935695,
+      "skewness": 1.2433506331444724,
+      "kurtosis": 6.602867253682698,
+      "random_baseline": {
+        "actual_mean": 0.005581175842751079,
+        "random_mean_avg": 0.0013785908652539898,
+        "random_mean_std": 0.0005055235653981585,
+        "random_mean_median": 0.0013786215583962954,
+        "p_value_random": 0.0,
+        "effect_size_sd": 8.31333149461997,
+        "n_simulations": 5000,
+        "actual_pct_positive": 51.500306184935695,
+        "random_pct_positive_avg": 48.68407225964483,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.005581175842751079,
+        "shuffled_mean_avg": 0.001386674920959911,
+        "shuffled_mean_std": 0.0005106483876364671,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    },
+    {
+      "asset": "XRP",
+      "event": "vwap_dev_2pct",
+      "horizon": 24,
+      "timeframe": "1h",
+      "n_events": 3266,
+      "actual_mean": 0.009726409635752994,
+      "actual_median": 0.002155367397744405,
+      "actual_pct_pos": 51.898346601347214,
+      "skewness": 1.1217866659300908,
+      "kurtosis": 4.469932881924697,
+      "random_baseline": {
+        "actual_mean": 0.009726409635752994,
+        "random_mean_avg": 0.0027950704864493445,
+        "random_mean_std": 0.0007246080963598216,
+        "random_mean_median": 0.002784653759395616,
+        "p_value_random": 0.0,
+        "effect_size_sd": 9.565638562588909,
+        "n_simulations": 5000,
+        "actual_pct_positive": 51.898346601347214,
+        "random_pct_positive_avg": 48.21978567054501,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.009726409635752994,
+        "shuffled_mean_avg": 0.0028033465106827426,
+        "shuffled_mean_std": 0.0007313085151472397,
+        "p_value_shuffled": 0.0,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    },
+    {
+      "asset": "ETH",
+      "event": "vwap_dev_2pct",
+      "horizon": 240,
+      "timeframe": "15m",
+      "n_events": 1268,
+      "actual_mean": 0.009402190589959952,
+      "actual_median": 0.002141432941548134,
+      "actual_pct_pos": 51.26182965299685,
+      "skewness": 0.6455565163085996,
+      "kurtosis": 1.6933207930498249,
+      "random_baseline": {
+        "actual_mean": 0.009402190589959952,
+        "random_mean_avg": 0.0038292045390462496,
+        "random_mean_std": 0.0016694092276727263,
+        "random_mean_median": 0.0038296115228226386,
+        "p_value_random": 0.001,
+        "effect_size_sd": 3.3382983384384644,
+        "n_simulations": 5000,
+        "actual_pct_positive": 51.26182965299685,
+        "random_pct_positive_avg": 51.88605678233438,
+        "beats_random": "True"
+      },
+      "shuffle_baseline": {
+        "actual_mean": 0.009402190589959952,
+        "shuffled_mean_avg": 0.003888619584512631,
+        "shuffled_mean_std": 0.0016616696485211486,
+        "p_value_shuffled": 0.0008,
+        "beats_shuffled": "True"
+      },
+      "tail_driven": "True"
+    }
+  ],
+  "validated": 5,
+  "rejected": 6,
+  "bonferroni_alpha": 0.004545454545454546,
+  "bonferroni_survivors": 11
+}

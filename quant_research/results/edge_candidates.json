@@ -1,0 +1,82 @@
+[
+  {
+    "asset": "BTC",
+    "event": "consecutive_5",
+    "horizon": 4,
+    "mean_return_pct": -0.08076133373992225,
+    "t_stat": -2.1119942463186097,
+    "pct_positive": 48.18481848184818,
+    "skewness": -0.2616729931032205,
+    "n": 606
+  },
+  {
+    "asset": "BTC",
+    "event": "vwap_dev_2pct",
+    "horizon": 240,
+    "mean_return_pct": 1.5733635192142743,
+    "t_stat": 4.5840538372872475,
+    "pct_positive": 67.08333333333333,
+    "skewness": -0.2803943041573539,
+    "n": 240
+  },
+  {
+    "asset": "ETH",
+    "event": "liquidity_sweep",
+    "horizon": 20,
+    "mean_return_pct": 0.09846406700886065,
+    "t_stat": 2.907261191040775,
+    "pct_positive": 51.81107954545454,
+    "skewness": 0.38868598132078935,
+    "n": 2816
+  },
+  {
+    "asset": "SOL",
+    "event": "vwap_dev_2pct",
+    "horizon": 240,
+    "mean_return_pct": 0.871693282557803,
+    "t_stat": 5.601049791492801,
+    "pct_positive": 55.82860743541273,
+    "skewness": 0.11234531596713321,
+    "n": 1587
+  },
+  {
+    "asset": "XRP",
+    "event": "vwap_dev_2pct",
+    "horizon": 4,
+    "mean_return_pct": 0.19256401798970857,
+    "t_stat": 4.343184203087222,
+    "pct_positive": 53.17460317460318,
+    "skewness": 1.7419524942111775,
+    "n": 1260
+  },
+  {
+    "asset": "XRP",
+    "event": "vwap_dev_2pct",
+    "horizon": 20,
+    "mean_return_pct": 0.4122056909780762,
+    "t_stat": 5.247578454287509,
+    "pct_positive": 54.761904761904766,
+    "skewness": 0.875619595284461,
+    "n": 1260
+  },
+  {
+    "asset": "XRP",
+    "event": "vwap_dev_2pct",
+    "horizon": 60,
+    "mean_return_pct": 0.6137136214358921,
+    "t_stat": 4.412927983519507,
+    "pct_positive": 53.25396825396825,
+    "skewness": 1.167193589180704,
+    "n": 1260
+  },
+  {
+    "asset": "XRP",
+    "event": "consecutive_5",
+    "horizon": 20,
+    "mean_return_pct": 0.13820353547502912,
+    "t_stat": 3.057788343201142,
+    "pct_positive": 50.16655562958028,
+    "skewness": 1.3401215433428355,
+    "n": 1501
+  }
+]
