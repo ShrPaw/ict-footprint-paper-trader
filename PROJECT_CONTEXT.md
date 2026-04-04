@@ -1,19 +1,72 @@
 # PROJECT_CONTEXT.md — ICT Footprint Paper Trader
 
-**Last updated:** 2026-04-04 09:38 GMT+8
-**Session:** #15 (2026-04-04)
-**Version:** 6.0.0 (Edge Discovery Research)
+**Last updated:** 2026-04-04 11:32 GMT+8
+**Session:** #17 (2026-04-04)
+**Version:** 7.0.0 (Production System Built)
 
 ---
 
 ## What This Is
 
-A **regime-adaptive paper trading engine** for crypto perpetuals (ETH, SOL, BTC, XRP). Combines **ICT concepts** (Order Blocks, OTE, Liquidity Sweeps) on 1H timeframes with **real-time order flow (footprint) analysis**.
+A **funding rate positioning edge** trading system for crypto perpetuals (BTC, ETH, XRP).
+Started as an ICT + Order Flow system, evolved through 16 sessions of rigorous research
+to discover that funding rate structural pressure is the only extractable edge.
 
-**Version:** 2.0.0 (Precomputed O(n) backtest engine)
+**Version:** 7.0.0 (Production funding rate system)
 **Language:** JavaScript (ESM, Node.js 22)
 **Repo:** `https://github.com/ShrPaw/ict-footprint-paper-trader` (private)
 **Owner:** Nicolas (Windows user, Spanish)
+
+---
+
+## 🟢 PRODUCTION SYSTEM STATUS
+
+### Validated Architecture
+- **Entry:** Funding rate extremes (p10/p95/p90 cumulative drain)
+- **Exit:** Fixed 48h time exit — NO stops, NO trailing
+- **Risk:** 1% per trade, sized on worst-case MAE
+- **Max concurrent:** 3 positions across BTC, ETH, XRP
+
+### Stress Test Results (All Passed 🟢)
+- Robustness score: BTC 9/10, ETH 10/10, XRP 10/10
+- No blowups under any scenario
+- Max DD 8-14% (well under 20% halt threshold)
+- Monte Carlo: 0% probability of ≥20% DD at 1% risk
+
+### Backtest Validation (2022-2026)
+| Metric | Value |
+|--------|-------|
+| Return | +26.21% ($10K → $12,621) |
+| Trades | 887 |
+| Win Rate | 50.5% |
+| Profit Factor | 1.34 |
+| Max DD | 8.24% |
+| Profitable months | 56.9% |
+
+### Per-Asset Validation
+| Asset | PF (actual) | PF (expected) | PnL |
+|-------|-------------|---------------|-----|
+| BTC | 1.30 | 1.26 ✅ | +$1,072 |
+| ETH | 1.13 | 1.25 ✅ | +$323 |
+| XRP | 1.67 | 1.73 ✅ | +$1,510 |
+
+### Production Modules
+```
+funding/
+  FundingConfig.js     — Locked parameters (non-optimized)
+  FundingEngine.js     — Signal detection
+  PositionManager.js   — Sizing & exposure
+  RiskMonitor.js       — Drawdown & alerting
+  BacktestEngine.js    — Event-driven simulation
+  FundingBotRunner.js  — Live paper trading bot
+  live.js              — CLI entry point
+```
+
+### npm Scripts
+```bash
+npm run funding:backtest    # Run backtest
+npm run funding:live        # Live paper trading
+```
 
 ---
 

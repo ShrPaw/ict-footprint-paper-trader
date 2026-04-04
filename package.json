@@ -32,12 +32,14 @@
     "live:xrp": "node --env-file=.env bots/live/xrp.js",
     "live:all": "node --env-file=.env bots/live/eth.js & node --env-file=.env bots/live/sol.js & node --env-file=.env bots/live/btc.js & node --env-file=.env bots/live/xrp.js & wait",
     "dashboard": "node dashboard/server.js",
+    "funding:backtest": "node funding/BacktestEngine.js",
+    "funding:live": "node --env-file=.env funding/live.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop all",
     "pm2:logs": "pm2 logs"
   },
   "dependencies": {
-    "ccxt": "^4.4.0",
+    "ccxt": "^4.5.46",
     "dayjs": "^1.11.10"
   }
 }

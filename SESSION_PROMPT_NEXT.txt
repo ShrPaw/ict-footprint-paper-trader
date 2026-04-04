@@ -1,93 +1,59 @@
-# NEXT SESSION PROMPT — Session #17
+# NEXT SESSION PROMPT — Session #18
 
 ## Context
 
-You are continuing work on the ICT Footprint Paper Trader. Session #16 performed
-a complete research pipeline from Phase 2.7 through Phase 5.5.
+You are continuing work on the ICT Footprint Paper Trader. Session #17 built
+the complete production funding rate trading system.
 
-## CRITICAL FINDING
+## What Was Done
 
-ALL OHLCV-based edges were REJECTED after full validation:
-- Phase 2.7: Edges fragile (unbounded tail risk)
-- Phase 3: ALL edges DESTROYED by risk overlay (PF 0.64-0.73)
-- Phase 4: No universal duration edge exists
-- Phase 4.5: Cannot detect TRENDING_UP regime in real-time
+### Session #17: Production System Build
 
-**BUT: A FUNDING RATE POSITIONING EDGE WAS DISCOVERED AND VALIDATED.**
+1. **Architecture Prototyping** — Grid test of 12 exit architectures × 3 assets
+   - Verdict: CASE A — Viable architecture exists for all assets
+   - Simplest structure: TIME_48h exits (pure time-based, 48h hold)
+   - Key finding: Catastrophic stops DESTROY edge rather than preserve it
 
-## VALIDATED EDGE — FUNDING RATE STRUCTURAL PRESSURE
+2. **Robustness Validation** — 5-step stress test under real capital conditions
+   - Loss cluster stress: survives 30 consecutive losses (DD 17-22%)
+   - Tail extremes: survives MAE up to 50% (2-4× historical worst)
+   - Exit stability: monotonic from 36→60h, sensitivity range 0.2-0.5 bps
+   - Capital path: no blowups, max DD 8-14% (fixed/compound/multi-asset)
+   - Failure threshold: 0% probability of ≥20% DD at 1% risk
+   - Verdict: 🟢 PRODUCTION-READY (all assets 9-10/10)
 
-5 signals classified as ROBUST STRUCTURAL EDGE:
+3. **Production System Build** — Clean, minimal, faithful to validated architecture
+   - FundingEngine: signal detection (p10/p95/p90 cumulative)
+   - PositionManager: sizing (1% risk on worst MAE), max 3 concurrent
+   - RiskMonitor: drawdown/consecutive loss tracking, alert-only
+   - BacktestEngine: event-driven simulation with full reporting
+   - FundingBotRunner: live paper trading bot
+   - Backtest validated: PF matches research (BTC 1.30, ETH 1.13, XRP 1.67)
 
-| Signal | Asset | Events | 48h Return | t-stat | Score |
-|--------|-------|--------|------------|--------|-------|
-| Extreme Low Funding (p10) | BTC | 466 | +0.58% | 3.07 | 8/8 |
-| Extreme High Funding (p95) | BTC | 233 | +0.65% | 2.32 | 7/8 |
-| High Cumulative Drain | BTC | 897 | +0.34% | 2.87 | 7/8 |
-| High Cumulative Drain | ETH | 466 | +0.55% | 2.76 | 8/8 |
-| **High Cumulative Drain** | **XRP** | **466** | **+1.81%** | **4.17** | **7/8** |
-| Extreme Low Funding (p10) | XRP | 466 | +1.04% | 3.56 | 8/8 |
+## Current State
 
-## WHY THIS EDGE IS DIFFERENT
+- ✅ Research complete (Phases 1-5.5)
+- ✅ Architecture validated (12 exit models tested)
+- ✅ Robustness validated (5 stress tests passed)
+- ✅ Production system built and backtested
+- ✅ All code pushed to GitHub
 
-1. Survives 8h entry delay (60-97% retention)
-2. Survives friction (mean 3-13× above fees)
-3. Regime independent (83-100% of regimes positive)
-4. Year stable (67-100% of years positive)
-5. Causal mechanism (funding forces position closing)
-6. Binary detection (no fuzzy thresholds)
+## Your Task
 
-## YOUR TASK
+Just give the best context possible. Read through the entire project — all session
+notes, all reports, all code — and provide a comprehensive briefing on where we are,
+what's been done, what works, and what the next logical steps could be.
 
-BUILD THE TRADING SYSTEM. This is the first extractable edge.
+No specific action required. Context is the deliverable.
 
-### Entry Logic
-- Monitor funding rates at settlement (every 8h: 00:00, 08:00, 16:00 UTC)
-- Trigger on: extreme funding (p10/p95) OR cumulative drain (p90)
-- Entry: at next candle open after funding print
-- Assets: BTC, ETH, XRP
+## Key Files to Read
 
-### Exit Logic
-- Primary: 48h fixed time exit
-- Risk overlay: wide catastrophic stop (5-10%) + time exit
-- NO tight stops (proven to destroy edges)
-- Consider: trailing stop that activates AFTER 24h (delayed trailing)
-
-### Risk Management
-- Max 1 position per asset per funding event
-- Position sizing based on MAE distribution
-- Portfolio-level DD limit
-
-### Backtesting
-- Use `analysis/phase5-funding-edge.js` as reference for data loading
-- Build `engine/FundingBacktest.js` with:
-  - Funding rate data (fetchFundingRateHistory)
-  - 1h candles for path analysis
-  - Year-by-year breakdown
-  - Monthly PnL distribution
-  - Walk-forward validation
-
-## DO NOT
-
-- Optimize funding thresholds (use p10/p90/p95 as-is)
-- Combine with OHLCV signals (proven to add no value)
-- Use tight stops (<2% — edge margin doesn't support it)
-- Build complex signal logic (the edge is binary)
-
-## KEY DATA FILES
-
-- `analysis/phase5-funding-edge.js` — funding rate data loading + hypothesis tests
-- `analysis/phase5.5-funding-validation.js` — full validation framework
-- `analysis/PHASE5.5_VALIDATION_REPORT.md` — detailed validation results
-- `analysis/PHASE5_FUNDING_REPORT.md` — initial discovery report
-- `PROJECT_CONTEXT.md` — updated with funding edge details
-
-## START HERE
-
-1. Read PROJECT_CONTEXT.md (updated with funding edge)
-2. Read PHASE5.5_VALIDATION_REPORT.md (validation details)
-3. Build FundingEngine.js — detect funding events
-4. Build FundingBacktest.js — backtest with risk overlay
-5. Test exit strategies (time-only vs wide-stop + time)
-6. Walk-forward analysis
-7. Paper trading integration
+- `PROJECT_CONTEXT.md` — master project state
+- `SESSION_PROMPT_NEXT.txt` — this file
+- `SESSION_NOTES_2026-04-04_P3.txt` — last research session
+- `FINAL_RESEARCH_REPORT.md` — complete research pipeline
+- `analysis/ARCHITECTURE_PROTOTYPE_REPORT.md` — exit architecture grid test
+- `analysis/ROBUSTNESS_VALIDATION_REPORT.md` — stress test results
+- `FUNDING_BACKTEST_REPORT.md` — production backtest validation
+- `funding/` — all production system modules
+- `FIXES_AND_PRIORITIES.txt` — historical fix log

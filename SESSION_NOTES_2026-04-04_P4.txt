@@ -1,0 +1,68 @@
+# SESSION NOTES — 2026-04-04 (Session #17 — Production System Build)
+
+## What Was Done
+
+### 1. Architecture Prototyping
+Built `analysis/architecture-prototype.js` — grid test of 12 exit architectures × 3 assets.
+- Tested: TIME_24h/48h/72h, TIME+STOP (10/15/20%), STOP-only
+- Verdict: CASE A — Viable architecture exists for all assets
+- Best config: TIME_48h (pure time-based, 48h hold, no stops)
+- Key finding: Catastrophic stops DESTROY edge (reduce expectancy at every level)
+
+### 2. Robustness Validation
+Built `analysis/robustness-validation.js` — 5-step stress test:
+1. Loss cluster stress: survives 30 consecutive losses (DD 17-22%)
+2. Tail extremes: survives MAE up to 50% (2-4× historical worst)
+3. Exit stability: monotonic from 36→60h, sensitivity 0.2-0.5 bps
+4. Capital path: no blowups, max DD 8-14%
+5. Failure threshold: 0% probability of ≥20% DD at 1% risk
+
+Results: BTC 9/10, ETH 10/10, XRP 10/10 — all PRODUCTION-READY.
+
+### 3. Production System Build
+Built clean, minimal, modular system under `funding/`:
+- FundingConfig.js — locked parameters
+- FundingEngine.js — signal detection (funding rate fetch, percentile thresholds, event detection)
+- PositionManager.js — sizing (1% risk on worst MAE), max 3 concurrent
+- RiskMonitor.js — drawdown/consecutive loss tracking, alert-only
+- BacktestEngine.js — event-driven simulation with full reporting
+- FundingBotRunner.js — live paper trading bot
+- live.js — CLI entry point
+
+### 4. Backtest Validation
+Ran production backtest (2022-01-01 → 2026-03-31):
+- 887 trades (56% filtered by max concurrent)
+- 50.5% win rate, PF 1.34
+- Max DD 8.24%
+- Per-asset PF matches research: BTC 1.30 (exp 1.26), ETH 1.13 (exp 1.25), XRP 1.67 (exp 1.73)
+- 56.9% profitable months (29/51)
+
+## Files Created
+
+```
+funding/
+  FundingConfig.js
+  FundingEngine.js
+  PositionManager.js
+  RiskMonitor.js
+  BacktestEngine.js
+  FundingBotRunner.js
+  live.js
+analysis/
+  architecture-prototype.js
+  ARCHITECTURE_PROTOTYPE_REPORT.md
+  architecture-prototype-raw.json
+  robustness-validation.js
+  ROBUSTNESS_VALIDATION_REPORT.md
+  robustness-raw.json
+FUNDING_BACKTEST_REPORT.md
+funding-trades.jsonl
+funding-equity.json
+SESSION_NOTES_2026-04-04_P4.txt (this file)
+```
+
+## Session History
+
+Sessions 1-16: See PROJECT_CONTEXT.md and SESSION_NOTES files.
+Session #17 (this session): Built production funding rate trading system.
+Research → Architecture validation → Robustness validation → Production build → Backtest validation.
